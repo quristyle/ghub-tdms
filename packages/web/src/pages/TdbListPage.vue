@@ -324,8 +324,6 @@ const columns = computed<Column<DocumentListItem>[]>(() => [
 .table-panel { flex: 1; display: flex; min-height: 0; overflow: hidden; }
 .cart { flex: 0 0 auto; }
 .msg { display: flex; align-items: flex-start; gap: 8px; padding: 9px 12px; flex: 0 0 auto; }
-.msg.ok { background: #f2f9f5; border-color: var(--ok); }
-.msg.err { background: var(--warn-bg); border-color: var(--warn-border); }
 .sub { font-size: var(--fs-sm); margin-top: 3px; }
 .form th, .form td { padding: 5px 8px; text-align: left; }
 .form th { width: 80px; font-weight: 600; white-space: nowrap; }

@@ -377,29 +377,22 @@ export default { components: { JobProgressSlot } }
 <style scoped>
 .dist { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
 .head { display: flex; align-items: center; gap: 6px; padding: 10px 12px; flex: 0 0 auto; }
-.head h1 { font-size: var(--fs-h1); margin: 0; font-weight: 600; }
+.head h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; }
 .search { padding: 10px 12px; flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; }
 .bar { display: flex; gap: var(--gap-sm); align-items: center; flex-wrap: wrap; }
 .toggle { display: flex; gap: 2px; }
-.toggle .btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.toggle .btn.on { background: var(--accent); border-color: var(--accent); color: var(--primary-fg); }
 .cnt {
   display: inline-block; min-width: 17px; padding: 0 4px; margin-left: 3px;
-  background: var(--accent); color: #fff; border-radius: 9px; font-size: 10px; text-align: center;
+  background: var(--accent); color: var(--primary-fg); border-radius: 9px; font-size: 10px; text-align: center;
 }
-.msg { display: flex; align-items: center; gap: 8px; padding: 9px 12px; flex: 0 0 auto; }
-.msg.ok { background: #f2f9f5; border-color: var(--ok); }
-.msg.err { background: var(--warn-bg); border-color: var(--warn-border); }
 .table-panel { flex: 1; overflow: auto; min-height: 0; }
-.grid { border: 1px solid var(--border); }
-.grid th, .grid td { border: 1px solid var(--border); padding: 5px 8px; }
-.grid th { background: var(--bg); font-weight: 600; white-space: nowrap; position: sticky; top: 0; z-index: 1; }
-.grid tr.warn { background: var(--warn-bg); }
-.grid tr.issue { background: #fdf0ef; }
+.grid tr.issue { background: var(--danger-soft); }
 .sub { font-size: 11px; }
 .summary { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; font-size: var(--fs-sm); }
 .tag {
   display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 8px;
   background: var(--bg); border: 1px solid var(--border-strong); margin-left: 3px;
 }
-.tag.warn-tag { background: #9a6b00; color: #fff; border-color: #9a6b00; }
+/* .tag.warn-tag 는 base.css 가 맡는다 */
 </style>

@@ -105,20 +105,27 @@ function cell(row: T, col: Column<T>): string {
 </template>
 
 <style scoped>
-.dt { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.dt {
+  display: flex; flex-direction: column; height: 100%; min-height: 0;
+  font-variant-numeric: tabular-nums;
+}
 .dt-head {
-  display: flex; background: var(--bg);
-  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border-strong);
-  font-weight: 600; font-size: var(--fs-sm); position: sticky; top: 0; z-index: 2;
+  display: flex; background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  font-weight: 600; font-size: var(--fs-sm); color: var(--fg-muted);
+  position: sticky; top: 0; z-index: 2;
 }
 .dt-body { flex: 1; overflow: auto; min-height: 0; }
-.dt-row { display: flex; border-bottom: 1px solid var(--border); cursor: pointer; align-items: center; }
-.dt-row:hover { background: var(--accent-soft); }
+.dt-row {
+  display: flex; align-items: center; cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+.dt-row:hover { background: var(--surface-2); }
 .dt-cell {
-  padding: 0 8px; line-height: 29px;
+  padding: 0 9px; line-height: calc(var(--row-h) - 1px);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 0;
 }
 .dt-head .dt-cell { line-height: 28px; }
-.dt-check { flex: 0 0 34px; width: 34px; text-align: center; }
-.dt-empty { padding: 28px; text-align: center; }
+.dt-check { flex: 0 0 36px; width: 36px; text-align: center; }
+.dt-empty { padding: 36px; text-align: center; color: var(--fg-muted); }
 </style>

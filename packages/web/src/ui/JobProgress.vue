@@ -69,11 +69,17 @@ const LABEL: Record<string, string> = {
 </template>
 
 <style scoped>
-.job { padding: 8px 12px; border-top: 1px solid var(--border); }
+.job { padding: 10px var(--sp-3); border-top: 1px solid var(--border); }
 .job-head { display: flex; gap: 10px; align-items: center; font-size: var(--fs-sm); }
-.bar { height: 4px; background: var(--border); border-radius: 2px; margin-top: 6px; overflow: hidden; }
-.fill { height: 100%; background: var(--accent); transition: width .3s; }
+.bar {
+  height: 5px; background: var(--surface-3);
+  border-radius: var(--r-pill); margin-top: 7px; overflow: hidden;
+}
+.fill {
+  height: 100%; background: var(--primary);
+  border-radius: var(--r-pill); transition: width .3s ease;
+}
 .job.done .fill { background: var(--ok); }
 .job.failed .fill { background: var(--danger); }
-.err { color: var(--danger); font-size: var(--fs-sm); margin: 6px 0 0; }
+.err { color: var(--danger); font-size: var(--fs-sm); margin: 7px 0 0; }
 </style>

@@ -220,7 +220,7 @@ function size(bytes: number): string {
 <style scoped>
 .detail { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
 .head { display: flex; align-items: center; gap: 6px; padding: 10px 12px; flex: 0 0 auto; }
-.head h1 { font-size: var(--fs-h1); margin: 0; font-weight: 600; }
+.head h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; }
 .body { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .body > section { flex: 1; overflow: auto; min-height: 0; }
 .pad { padding: 14px; }
@@ -231,13 +231,8 @@ h2 { font-size: var(--fs-base); margin: 20px 0 8px; }
 .kv th, .kv td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
 .kv th { background: var(--bg); width: 110px; font-weight: 600; white-space: nowrap; }
 
-.grid { border: 1px solid var(--border); }
-.grid th, .grid td { border: 1px solid var(--border); padding: 5px 8px; }
-.grid th { background: var(--bg); font-weight: 600; white-space: nowrap; }
-.grid tr.cur { background: var(--accent-soft); }
-.grid tr.warn { background: var(--warn-bg); }
 .tag {
   font-size: 10px; padding: 1px 5px; border-radius: 8px; margin-left: 4px;
-  background: var(--accent); color: #fff;
+  background: var(--accent); color: var(--primary-fg);
 }
 </style>

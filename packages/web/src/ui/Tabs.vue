@@ -15,16 +15,25 @@ defineEmits<{ 'update:modelValue': [key: string] }>()
 </template>
 
 <style scoped>
-.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border-strong); padding: 0 8px; }
-.tab {
-  padding: 8px 16px; border: 1px solid transparent; border-bottom: none;
-  background: transparent; color: var(--text-muted); border-radius: 5px 5px 0 0;
-  margin-bottom: -1px;
+/* 밑줄 탭 — 칸을 덜 먹고 어느 것이 켜졌는지가 분명하다 */
+.tabs {
+  display: flex; gap: 2px;
+  border-bottom: 1px solid var(--border);
+  padding: 0 var(--sp-2);
+  flex: 0 0 auto;
 }
-.tab:hover { color: var(--text); }
-.tab.on {
-  background: var(--surface); border-color: var(--border-strong);
-  border-bottom: 1px solid var(--surface);
-  color: var(--accent); font-weight: 600;
+.tab {
+  position: relative;
+  padding: 9px 14px;
+  border: 0; background: transparent;
+  color: var(--fg-muted); font-size: var(--fs);
+  border-radius: var(--r) var(--r) 0 0;
+  transition: color .12s ease, background-color .12s ease;
+}
+.tab:hover { color: var(--fg); background: var(--surface-2); }
+.tab.on { color: var(--primary); font-weight: 600; }
+.tab.on::after {
+  content: ''; position: absolute; left: 10px; right: 10px; bottom: -1px;
+  height: 2px; background: var(--primary); border-radius: 2px 2px 0 0;
 }
 </style>

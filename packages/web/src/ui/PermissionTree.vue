@@ -57,12 +57,12 @@ export default { name: 'PermissionTree' }
 <style scoped>
 .ptree { list-style: none; margin: 0; padding-left: 18px; }
 .ptree > li > .row {
-  display: flex; align-items: center; gap: 6px;
-  padding: 3px 4px; border-radius: var(--radius-sm); cursor: pointer;
+  display: flex; align-items: center; gap: 7px;
+  padding: 4px 6px; border-radius: var(--r); cursor: pointer;
 }
-.row:hover { background: var(--bg); }
-.row.on > .label { font-weight: 600; color: var(--accent); }
+.row:hover { background: var(--surface-2); }
+.row.on > .label { font-weight: 600; color: var(--primary); }
 .row.partial > .label { font-weight: 600; }
 .label { white-space: nowrap; }
-.desc { font-size: 11px; }
+.desc { font-size: var(--fs-xs); }
 </style>

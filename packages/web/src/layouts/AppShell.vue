@@ -1,47 +1,303 @@
 <script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSession } from '@/lib/session'
+import NavIcon from '@/ui/NavIcon.vue'
 
 /**
- * 앱 셸 — 상단 메뉴 9개는 전 화면 고정, 순서 유지.
- * 권한 없는 메뉴는 서버(/auth/me)가 이미 빼고 내려준다. 화면이 거르지 않는다.
+ * 앱 셸 — 왼쪽 내비게이션 + 상단바.
+ *
+ * 메뉴 9개의 목록과 순서는 서버(/auth/me)가 주는 그대로다.
+ * 권한 없는 메뉴는 서버가 이미 빼고 내려주므로 화면이 거르지 않는다.
+ *
+ * 묶음(도면·데이터북·운영)은 그 순서를 끊어 읽기 쉽게 한 것뿐이다 — 순서를 바꾸지 않는다.
  */
+
 const session = useSession()
 const route = useRoute()
 const router = useRouter()
 
+const GROUPS: { title: string; paths: string[] }[] = [
+  { title: '도면 (TDB)', paths: ['/', '/import', '/editor', '/distributions'] },
+  { title: '데이터북 (MDB)', paths: ['/mdb', '/mdb-editor'] },
+  { title: '운영', paths: ['/audit', '/users', '/backup'] },
+]
+
+const groups = computed(() =>
+  GROUPS
+    .map((g) => ({ title: g.title, items: session.menu.filter((m) => g.paths.includes(m.path)) }))
+    .filter((g) => g.items.length > 0),
+)
+/** 어느 묶음에도 없는 메뉴가 생기면 사라지지 않게 맨 뒤에 둔다 */
+const ungrouped = computed(() =>
+  session.menu.filter((m) => !GROUPS.some((g) => g.paths.includes(m.path))),
+)
+
+const title = computed(() => {
+  const m = session.menu.find((x) => x.path === route.path)
+  return m?.label ?? (route.meta.title as string) ?? ''
+})
+
+// ── 내비 접기 ─────────────────────────────────────────────────────────
+// 폴더 트리를 쓰는 화면에서는 왼쪽이 두 겹이 된다. 접으면 본문이 넓어진다.
+const rail = ref(false)
+onMounted(() => {
+  const saved = localStorage.getItem('tdms.rail')
+  // 고른 적이 없으면 좁은 화면에서 접어 둔다. 고른 뒤에는 그 선택이 이긴다 —
+  // 폭으로 못박으면 펼치려 해도 펼쳐지지 않는다.
+  rail.value = saved !== null ? saved === '1' : window.innerWidth < 1360
+})
+function toggleRail() {
+  rail.value = !rail.value
+  localStorage.setItem('tdms.rail', rail.value ? '1' : '0')
+}
+
+// ── 밝게 / 어둡게 ─────────────────────────────────────────────────────
+const dark = ref(false)
+function applyTheme() { document.documentElement.dataset.theme = dark.value ? 'dark' : 'light' }
+onMounted(() => {
+  const saved = localStorage.getItem('tdms.theme')
+  dark.value = saved ? saved === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches
+  applyTheme()
+})
+function toggleTheme() {
+  dark.value = !dark.value
+  localStorage.setItem('tdms.theme', dark.value ? 'dark' : 'light')
+  applyTheme()
+}
+
+const initials = computed(() => (session.me?.name ?? '').slice(0, 1))
+
+const userOpen = ref(false)
 async function logout() {
+  userOpen.value = false
   await session.logout()
   void router.push('/login')
 }
 </script>
 
 <template>
-  <header class="app-header">
-    <RouterLink to="/" class="app-brand">
-      <strong>TDMS</strong> 기술자료 관리 시스템
-    </RouterLink>
-    <nav class="app-nav">
-      <RouterLink
-        v-for="m in session.menu" :key="m.path" :to="m.path"
-        :class="{ active: route.path === m.path }"
-      >{{ m.label }}</RouterLink>
-    </nav>
-    <div class="app-user">
-      <span>{{ session.me?.name }}</span>
-      <span v-if="session.isAdmin" class="badge">관리자</span>
-      <button class="btn btn-sm" @click="logout">로그아웃</button>
-    </div>
-  </header>
+  <div class="app-shell" :class="{ rail }">
+    <!-- 왼쪽 내비게이션 -->
+    <nav class="nav" aria-label="주 메뉴">
+      <div class="nav-brand">
+        <span class="mark">TDMS</span>
+        <span class="nav-brand-text">기술자료 관리</span>
+      </div>
 
-  <div class="app-body">
-    <RouterView />
+      <div class="nav-scroll">
+        <template v-for="g in groups" :key="g.title">
+          <div class="nav-group">{{ g.title }}</div>
+          <RouterLink
+            v-for="m in g.items" :key="m.path" :to="m.path"
+            class="nav-item" :class="{ on: route.path === m.path }" :title="m.label"
+          >
+            <NavIcon :path="m.path" />
+            <span class="nav-text">{{ m.label }}</span>
+          </RouterLink>
+        </template>
+
+        <template v-if="ungrouped.length">
+          <div class="nav-group">기타</div>
+          <RouterLink
+            v-for="m in ungrouped" :key="m.path" :to="m.path"
+            class="nav-item" :class="{ on: route.path === m.path }" :title="m.label"
+          >
+            <NavIcon :path="m.path" />
+            <span class="nav-text">{{ m.label }}</span>
+          </RouterLink>
+        </template>
+      </div>
+
+      <RouterLink to="/help" class="nav-item nav-foot" :class="{ on: route.path === '/help' }" title="도움말">
+        <NavIcon path="/help" />
+        <span class="nav-text">도움말</span>
+      </RouterLink>
+    </nav>
+
+    <!-- 상단바 + 본문 -->
+    <div class="app-pane">
+      <header class="topbar">
+        <button
+          class="btn btn-sm btn-ghost btn-icon"
+          :title="rail ? '메뉴 펼치기' : '메뉴 접기'"
+          :aria-label="rail ? '메뉴 펼치기' : '메뉴 접기'"
+          @click="toggleRail"
+        >
+          <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M2 4h12M2 8h12M2 12h12" fill="none" stroke="currentColor"
+                  stroke-width="1.5" stroke-linecap="round" />
+          </svg>
+        </button>
+
+        <h1 class="topbar-title">{{ title }}</h1>
+        <span style="flex:1" />
+
+        <button
+          class="btn btn-sm btn-ghost btn-icon"
+          :title="dark ? '밝게 보기' : '어둡게 보기'"
+          :aria-label="dark ? '밝게 보기' : '어둡게 보기'"
+          @click="toggleTheme"
+        >
+          <svg v-if="dark" width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+            <circle cx="8" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.5" />
+            <path d="M8 1v1.6M8 13.4V15M15 8h-1.6M2.6 8H1M12.9 3.1l-1.1 1.1M4.2 11.8l-1.1 1.1M12.9 12.9l-1.1-1.1M4.2 4.2L3.1 3.1"
+                  stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+          </svg>
+          <svg v-else width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M13.5 9.8A6 6 0 0 1 6.2 2.5a6 6 0 1 0 7.3 7.3z" fill="none"
+                  stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
+          </svg>
+        </button>
+
+        <div class="user" @mouseleave="userOpen = false">
+          <button class="user-chip" :aria-expanded="userOpen" @click="userOpen = !userOpen">
+            <span class="avatar">{{ initials }}</span>
+            <span class="user-name">{{ session.me?.name }}</span>
+            <span v-if="session.isAdmin" class="tag tag-primary">관리자</span>
+          </button>
+          <div v-if="userOpen" class="user-menu">
+            <div class="user-head">
+              <div class="user-id">{{ session.me?.loginId }}</div>
+              <div class="muted small">{{ session.me?.groupName ?? '그룹 없음' }}</div>
+            </div>
+            <RouterLink to="/help" class="user-link" @click="userOpen = false">도움말</RouterLink>
+            <button class="user-link" @click="logout">로그아웃</button>
+          </div>
+        </div>
+      </header>
+
+      <div class="app-body">
+        <RouterView />
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.badge {
-  font-size: 11px; padding: 1px 6px; border-radius: 9px;
-  background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent);
+/* ── 왼쪽 내비게이션 ───────────────────────────────────────────── */
+.nav {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow: hidden;
 }
+
+.nav-brand {
+  height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+.mark {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; flex: 0 0 auto;
+  background: var(--primary); color: var(--primary-fg);
+  border-radius: var(--r); font-size: 9px; font-weight: 700;
+}
+.nav-brand-text { font-size: var(--fs-md); font-weight: 600; white-space: nowrap; }
+
+.nav-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: var(--sp-2) 8px; }
+
+.nav-group {
+  padding: 12px 8px 5px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--fg-subtle);
+  white-space: nowrap;
+}
+.nav-scroll > .nav-group:first-child { padding-top: 4px; }
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 9px;
+  margin-bottom: 1px;
+  border-radius: var(--r);
+  color: var(--fg-muted);
+  white-space: nowrap;
+  transition: background-color .12s ease, color .12s ease;
+}
+.nav-item:hover { background: var(--surface-2); color: var(--fg); }
+.nav-item.on { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+.nav-item :deep(svg) { flex: 0 0 auto; }
+
+.nav-foot {
+  margin: 0 8px var(--sp-2);
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  height: auto;
+  padding: 10px 9px;
+  flex: 0 0 auto;
+}
+
+/* 접었을 때 — 아이콘만 */
+.app-shell.rail .nav-text,
+.app-shell.rail .nav-brand-text { display: none; }
+.app-shell.rail .nav-group { padding: 10px 0 4px; text-align: center; font-size: 0; }
+.app-shell.rail .nav-group::after {
+  content: ''; display: block; width: 16px; height: 1px; margin: 0 auto; background: var(--border);
+}
+.app-shell.rail .nav-item { justify-content: center; padding: 0; }
+.app-shell.rail .nav-brand { justify-content: center; padding: 0; }
+
+/* ── 상단바 ───────────────────────────────────────────────────── */
+.topbar {
+  height: var(--topbar-h);
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-3);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.topbar-title {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── 사용자 ───────────────────────────────────────────────────── */
+.user { position: relative; }
+.user-chip {
+  display: flex; align-items: center; gap: 8px;
+  height: var(--control-h); padding: 0 9px 0 5px;
+  background: transparent; border: 1px solid transparent; border-radius: var(--r);
+  color: var(--fg);
+}
+.user-chip:hover { background: var(--surface-2); }
+.avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; flex: 0 0 auto;
+  background: var(--surface-3); color: var(--fg);
+  border-radius: var(--r-pill); font-size: var(--fs-sm); font-weight: 600;
+}
+.user-name { font-size: var(--fs); }
+
+.user-menu {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 50;
+  min-width: 190px; padding: 5px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); box-shadow: var(--shadow);
+}
+.user-head { padding: 7px 9px 9px; border-bottom: 1px solid var(--border); margin-bottom: 5px; }
+.user-id { font-weight: 600; font-family: var(--font-mono); font-size: var(--fs-sm); }
+.user-link {
+  display: block; width: 100%; text-align: left;
+  padding: 7px 9px; border: 0; background: transparent;
+  color: var(--fg); border-radius: var(--r); font-size: var(--fs);
+}
+.user-link:hover { background: var(--surface-2); }
+
+@media (max-width: 720px) { .user-name { display: none; } }
 </style>

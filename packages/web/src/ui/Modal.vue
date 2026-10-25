@@ -49,17 +49,37 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .backdrop {
-  position: fixed; inset: 0; background: rgba(0,0,0,.35);
-  display: flex; align-items: center; justify-content: center; z-index: 100; padding: 24px;
+  position: fixed; inset: 0; z-index: 100;
+  background: rgb(9 9 11 / .45);
+  backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--sp-5);
+  animation: fade .12s ease;
 }
 .box {
-  background: var(--surface); border-radius: var(--radius);
-  width: 560px; max-width: 100%; max-height: 100%; display: flex; flex-direction: column;
-  box-shadow: 0 8px 32px rgba(0,0,0,.2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  width: 560px; max-width: 100%; max-height: 100%;
+  display: flex; flex-direction: column;
+  animation: rise .14s ease;
 }
-.box.wide { width: 880px; }
-.box-head { display: flex; align-items: center; padding: 11px 14px; border-bottom: 1px solid var(--border); }
-.box-head h2 { font-size: var(--fs-lg); margin: 0; font-weight: 600; }
-.box-body { padding: 14px; overflow: auto; }
-.box-foot { padding: 11px 14px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+.box.wide { width: 900px; }
+.box-head {
+  display: flex; align-items: center;
+  padding: 13px var(--sp-4); border-bottom: 1px solid var(--border);
+}
+.box-head h2 { font-size: var(--fs-md); margin: 0; font-weight: 600; }
+.box-body { padding: var(--sp-4); overflow: auto; }
+.box-foot {
+  padding: 12px var(--sp-4); border-top: 1px solid var(--border);
+  display: flex; gap: var(--sp-2); align-items: center; justify-content: flex-end;
+}
+
+@keyframes fade { from { opacity: 0 } }
+@keyframes rise { from { opacity: 0; transform: translateY(6px) } }
+@media (prefers-reduced-motion: reduce) {
+  .backdrop, .box { animation: none; }
+}
 </style>

@@ -171,7 +171,7 @@ const toggle = (k: string) => (open.value = open.value === k ? null : k)
 <style scoped>
 .help { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
 .head { display: flex; align-items: baseline; gap: 10px; padding: 10px 12px; flex: 0 0 auto; }
-.head h1 { font-size: var(--fs-h1); margin: 0; font-weight: 600; }
+.head h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; }
 .sub { font-size: var(--fs-sm); }
 .body { flex: 1; overflow: auto; min-height: 0; }
 section + section { border-top: 1px solid var(--border); }
@@ -189,9 +189,6 @@ dt { font-weight: 600; margin-top: 14px; }
 dt:first-child { margin-top: 0; }
 dd { margin: 4px 0 0 0; line-height: 1.65; }
 ul { margin: 6px 0; padding-left: 20px; line-height: 1.8; }
-.grid { border: 1px solid var(--border); }
-.grid th, .grid td { border: 1px solid var(--border); padding: 7px 9px; vertical-align: top; text-align: left; }
-.grid th { background: var(--bg); font-weight: 600; white-space: nowrap; }
 .grid td:first-child { white-space: nowrap; font-weight: 600; }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .chip {

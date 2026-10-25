@@ -216,10 +216,7 @@ const STATE_LABEL: Record<string, string> = {
 <style scoped>
 .backup { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
 .head { padding: 10px 12px; flex: 0 0 auto; }
-.head h1 { font-size: var(--fs-h1); margin: 0; font-weight: 600; }
-.msg { display: flex; align-items: center; gap: 8px; padding: 9px 12px; flex: 0 0 auto; }
-.msg.ok { background: #f2f9f5; border-color: var(--ok); }
-.msg.err { background: var(--warn-bg); border-color: var(--warn-border); }
+.head h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; }
 .pad { padding: 12px; }
 .status { display: flex; gap: 26px; flex-wrap: wrap; }
 .status div { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-sm); }
@@ -233,7 +230,4 @@ const STATE_LABEL: Record<string, string> = {
 .sub { font-size: var(--fs-sm); font-weight: 400; margin-left: 8px; }
 .table-panel { flex: 1; overflow: auto; min-height: 0; }
 .grid { border-top: 1px solid var(--border); }
-.grid th, .grid td { border: 1px solid var(--border); padding: 5px 8px; }
-.grid th { background: var(--bg); font-weight: 600; white-space: nowrap; }
-.grid tr.warn { background: var(--warn-bg); }
 </style>

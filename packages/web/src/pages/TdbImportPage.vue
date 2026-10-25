@@ -320,20 +320,13 @@ function size(b: number): string {
 <style scoped>
 .import { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
 .head { padding: 10px 12px; flex: 0 0 auto; }
-.head h1 { font-size: var(--fs-h1); margin: 0; font-weight: 600; }
-.msg { display: flex; align-items: center; gap: 8px; padding: 9px 12px; flex: 0 0 auto; }
-.msg.ok { background: #f2f9f5; border-color: var(--ok); }
-.msg.err { background: var(--warn-bg); border-color: var(--warn-border); }
+.head h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; }
 .body { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .body > section { flex: 1; overflow: auto; min-height: 0; }
 .pad { padding: 14px; }
 h2 { font-size: var(--fs-base); margin: 18px 0 6px; }
 h2:first-child { margin-top: 0; }
 .bar { display: flex; gap: var(--gap-sm); align-items: center; margin-bottom: 10px; }
-.grid { border: 1px solid var(--border); }
-.grid th, .grid td { border: 1px solid var(--border); padding: 5px 8px; }
-.grid th { background: var(--bg); font-weight: 600; white-space: nowrap; }
-.grid tr.warn { background: var(--warn-bg); }
 .sub { font-size: 11px; }
 .chip {
   display: inline-block; font-size: 11px; padding: 1px 6px; margin-right: 3px;
@@ -341,7 +334,7 @@ h2:first-child { margin-top: 0; }
 }
 .tag {
   display: inline-block; font-size: 10px; padding: 1px 5px; border-radius: 8px;
-  background: var(--accent); color: #fff; margin-right: 3px;
+  background: var(--accent); color: var(--primary-fg); margin-right: 3px;
 }
-.tag.warn-tag { background: #9a6b00; }
+.tag.warn-tag { background: var(--warn); }
 </style>

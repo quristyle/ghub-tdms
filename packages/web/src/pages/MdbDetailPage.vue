@@ -99,7 +99,7 @@ function size(b: number): string {
 <style scoped>
 .detail { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
 .head { display: flex; align-items: center; gap: 6px; padding: 10px 12px; flex: 0 0 auto; }
-.head h1 { font-size: var(--fs-h1); margin: 0; font-weight: 600; }
+.head h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; }
 .body { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .body > section { flex: 1; overflow: auto; min-height: 0; }
 .pad { padding: 14px; }

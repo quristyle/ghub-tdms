@@ -456,16 +456,10 @@ async function uploadZip(ev: Event) {
 }
 .cnt {
   display: inline-block; min-width: 17px; padding: 0 4px; margin-left: 3px;
-  background: var(--accent); color: #fff; border-radius: 9px; font-size: 10px; text-align: center;
+  background: var(--accent); color: var(--primary-fg); border-radius: 9px; font-size: 10px; text-align: center;
 }
 .btn.disabled { opacity: .45; cursor: not-allowed; }
-.msg { display: flex; align-items: center; gap: 8px; padding: 9px 12px; flex: 0 0 auto; }
-.msg.ok { background: #f2f9f5; border-color: var(--ok); }
-.msg.err { background: var(--warn-bg); border-color: var(--warn-border); }
 .table-panel { flex: 1; display: flex; min-height: 0; overflow: hidden; }
-.grid { border: 1px solid var(--border); }
-.grid th, .grid td { border: 1px solid var(--border); padding: 5px 8px; }
-.grid th { background: var(--bg); font-weight: 600; white-space: nowrap; }
 .grid tr.applied { background: var(--accent-soft); }
 h3 { font-size: var(--fs-base); margin: 16px 0 6px; }
 </style>

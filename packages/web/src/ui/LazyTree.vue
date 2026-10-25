@@ -111,18 +111,25 @@ defineExpose({ reload })
 </template>
 
 <style>
-.tree { padding: 6px 0; font-size: var(--fs-base); }
+.tree { padding: var(--sp-2) 6px; font-size: var(--fs); }
 .tree-row {
-  display: flex; align-items: center; gap: 4px;
-  height: 26px; padding-right: 8px; cursor: pointer; user-select: none;
+  display: flex; align-items: center; gap: 5px;
+  height: 27px; padding-right: 8px;
+  border-radius: var(--r); cursor: pointer; user-select: none;
+  color: var(--fg-muted);
+  transition: background-color .1s ease, color .1s ease;
 }
-.tree-row:hover { background: var(--bg); }
-.tree-row.sel { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.tree-row:hover { background: var(--surface-2); color: var(--fg); }
+.tree-row.sel { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
 .tree-arrow {
-  flex: 0 0 14px; width: 14px; font-size: 9px; color: var(--text-muted);
-  transition: transform .12s; text-align: center;
+  flex: 0 0 15px; width: 15px; font-size: 8px; color: var(--fg-subtle);
+  transition: transform .12s ease; text-align: center;
 }
 .tree-arrow.open { transform: rotate(90deg); }
 .tree-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tree-count { font-size: 11px; color: var(--text-muted); }
+.tree-count {
+  font-size: var(--fs-xs); color: var(--fg-subtle);
+  font-variant-numeric: tabular-nums;
+}
+.tree-row.sel .tree-count { color: var(--primary); }
 </style>

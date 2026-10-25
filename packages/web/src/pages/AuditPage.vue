@@ -144,16 +144,13 @@ async function exportExcel() {
 <style scoped>
 .audit { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
 .head { display: flex; align-items: baseline; gap: 10px; padding: 10px 12px; flex: 0 0 auto; }
-.head h1 { font-size: var(--fs-h1); margin: 0; font-weight: 600; }
+.head h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; }
 .sub { font-size: var(--fs-sm); }
 .search { padding: 10px 12px; flex: 0 0 auto; }
 .bar { display: flex; gap: var(--gap-sm); align-items: center; flex-wrap: wrap; }
 .meta { margin-top: 8px; font-size: var(--fs-sm); }
-.msg { display: flex; align-items: center; gap: 8px; padding: 9px 12px; background: #f2f9f5; border-color: var(--ok); }
+.msg { display: flex; align-items: center; gap: 8px; padding: 9px 12px; background: var(--ok-soft); border-color: var(--ok); }
 .table-panel { flex: 1; overflow: auto; min-height: 0; }
-.grid { border: 1px solid var(--border); }
-.grid th, .grid td { border: 1px solid var(--border); padding: 4px 8px; }
-.grid th { background: var(--bg); font-weight: 600; white-space: nowrap; position: sticky; top: 0; z-index: 1; }
 .kv th, .kv td { padding: 4px 8px; text-align: left; border: 1px solid var(--border); }
 .kv th { background: var(--bg); width: 90px; white-space: nowrap; }
 .detail {

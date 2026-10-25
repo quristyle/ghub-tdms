@@ -1,30 +1,126 @@
-/* 기존 frontend/style.css 에서 추출한 디자인 토큰.
-   화면을 픽셀 단위로 재현하기 위해 컴포넌트 프레임워크를 쓰지 않고 토큰만 가져온다. */
+/*
+ * 디자인 토큰.
+ *
+ * 색을 직접 쓰지 않는다 — 전부 여기를 거친다. 그래야 다크 모드가 한 벌로 끝나고,
+ * 상태 색(정상·검수대기·대여중·미입고)이 화면마다 달라지지 않는다.
+ *
+ * 중성 팔레트 위에 강조색 하나(SK가스 레드)만 쓴다.
+ * 아래쪽에 예전 이름(--text, --accent, --gap …)을 새 토큰으로 이어 둔다 —
+ * 화면 24개의 지역 스타일을 한꺼번에 고치지 않고 옮겨 가기 위해서다.
+ */
+
 :root {
-  --bg:            #f5f5f4;
-  --surface:       #ffffff;
-  --border:        #e0e0dd;
-  --border-strong: #c9c9c4;
-  --text:          #3a3a38;
-  --text-muted:    #6b6b66;
-  --accent:        #c8102e;   /* SK gas */
-  --accent-soft:   #fdf2f4;
-  --warn-bg:       #fff8e6;
-  --warn-border:   #e8c96a;
-  --ok:            #1f7a4d;
-  --danger:        #b3261e;
+  /* ── 바탕 ─────────────────────────────────────────────── */
+  --bg:            #f7f7f8;   /* 페이지 바탕 — 카드가 떠 보이게 살짝 낮춘다 */
+  --surface:       #ffffff;   /* 카드·패널 */
+  --surface-2:     #f4f4f5;   /* 표 머리글, 눌린 칸 */
+  --surface-3:     #ebebed;   /* 진행 막대 바탕 */
 
-  --radius:   6px;
-  --radius-sm: 4px;
-  --gap:      12px;
-  --gap-sm:    8px;
+  /* ── 선 ───────────────────────────────────────────────── */
+  --border:        #e4e4e7;
+  --border-strong: #d4d4d8;   /* 입력칸·버튼 테두리 */
 
-  --fs-base: 13px;
-  --fs-sm:   12px;
-  --fs-lg:   15px;
-  --fs-h1:   17px;
-  --font: "맑은 고딕", "Malgun Gothic", -apple-system, system-ui, sans-serif;
+  /* ── 글자 ─────────────────────────────────────────────── */
+  --fg:            #18181b;
+  --fg-muted:      #5f5f68;   /* 보조 설명 — 표 머리글이 --surface-2 위에 와도 4.5:1 을 넘긴다 */
+  --fg-subtle:     #a1a1aa;   /* 비활성, 자리표시 */
 
-  --row-h:   30px;
-  --header-h: 48px;
+  /* ── 강조 (SK가스) ────────────────────────────────────── */
+  --primary:       #c8102e;
+  --primary-fg:    #ffffff;
+  --primary-soft:  #fef2f3;   /* 고른 줄, 켜진 메뉴 */
+  --primary-line:  #f5c2ca;
+
+  /* ── 뜻이 있는 색 ─────────────────────────────────────── */
+  --ok:        #15803d;  --ok-soft:     #f0fdf4;  --ok-line:     #bbf7d0;  /* 정상·반입완료 */
+  --warn:      #a16207;  --warn-soft:   #fffbeb;  --warn-line:   #fde68a;  /* 검수대기·미입고 */
+  --danger:    #be123c;  --danger-soft: #fff1f2;  --danger-line: #fecdd3;  /* 확인필요·실패 */
+  --info:      #1d4ed8;  --info-soft:   #eff6ff;  --info-line:   #bfdbfe;  /* 대여중·진행중 */
+
+  /* ── 모서리 ───────────────────────────────────────────── */
+  --r-sm: 4px;
+  --r:    6px;     /* 버튼·입력칸 */
+  --r-lg: 8px;     /* 카드 */
+  --r-pill: 999px;
+
+  /* ── 그림자 — 거의 쓰지 않는다. 선으로 구분한다 ────────── */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / .05);
+  --shadow:    0 4px 12px -2px rgb(0 0 0 / .08), 0 2px 4px -2px rgb(0 0 0 / .04);
+  --shadow-lg: 0 16px 40px -8px rgb(0 0 0 / .18);
+
+  /* ── 글꼴 ─────────────────────────────────────────────── */
+  /* Pretendard 가 깔려 있으면 쓴다 — 한글·라틴 자간이 가장 고르다.
+     없으면 운영체제 기본으로 내려간다. 바깥에서 받아오지 않는다(오프라인 전제). */
+  --font: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", "맑은 고딕", "Malgun Gothic", system-ui, sans-serif;
+  --font-mono: ui-monospace, "D2Coding", "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --fs-xs:  11px;
+  --fs-sm:  12px;
+  --fs:     13px;
+  --fs-md:  14px;
+  --fs-lg:  16px;
+  --fs-xl:  20px;
+
+  /* ── 사이 간격 ────────────────────────────────────────── */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+
+  /* ── 치수 ─────────────────────────────────────────────── */
+  --topbar-h:  52px;
+  --sidebar-w: 228px;
+  --rail-w:    56px;
+  --row-h:     30px;   /* 표 한 줄 — 밀도를 지킨다 */
+  --control-h: 30px;   /* 버튼·입력칸 */
+
+  /* ── 예전 이름 (옮겨 가는 동안만) ─────────────────────── */
+  --text:        var(--fg);
+  --text-muted:  var(--fg-muted);
+  --accent:      var(--primary);
+  --accent-soft: var(--primary-soft);
+  --warn-bg:     var(--warn-soft);
+  --warn-border: var(--warn-line);
+  --radius:      var(--r);
+  --radius-sm:   var(--r-sm);
+  --gap:         var(--sp-3);
+  --gap-sm:      var(--sp-2);
+  --fs-base:     var(--fs);
+  --fs-h1:       var(--fs-lg);
+  --header-h:    var(--topbar-h);
+}
+
+/* ── 다크 ───────────────────────────────────────────────────
+   목록과 로그를 오래 보는 사람에게는 어두운 쪽이 편하다.
+   색의 '뜻'은 그대로 두고 밝기만 뒤집는다. */
+:root[data-theme='dark'] {
+  --bg:            #09090b;
+  --surface:       #131316;
+  --surface-2:     #1c1c20;
+  --surface-3:     #26262b;
+
+  --border:        #27272a;
+  --border-strong: #3f3f46;
+
+  --fg:            #fafafa;
+  --fg-muted:      #a1a1aa;
+  --fg-subtle:     #71717a;
+
+  --primary:       #f43f5e;
+  --primary-fg:    #1a0206;
+  --primary-soft:  #2a0d14;
+  --primary-line:  #5b1a26;
+
+  --ok:        #4ade80;  --ok-soft:     #0c2417;  --ok-line:     #14532d;
+  --warn:      #fbbf24;  --warn-soft:   #292011;  --warn-line:   #713f12;
+  --danger:    #fb7185;  --danger-soft: #2b1116;  --danger-line: #881337;
+  --info:      #60a5fa;  --info-soft:   #10203c;  --info-line:   #1e40af;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / .4);
+  --shadow:    0 4px 12px -2px rgb(0 0 0 / .5);
+  --shadow-lg: 0 16px 40px -8px rgb(0 0 0 / .6);
+
+  color-scheme: dark;
 }
