@@ -55,3 +55,7 @@ export type DistributionListResponse = z.infer<typeof DistributionListResponse>
 /** 비고 작성 — 권한 common.note_edit.* 가 막는다 */
 export const NoteRequest = z.object({ note: z.string().max(2000).nullable() })
 export const NoteResult = z.object({ ok: z.literal(true) })
+
+// 스키마에 대응하는 타입 — 화면에서 응답 타입을 그대로 쓴다
+export type NoteRequest = z.infer<typeof NoteRequest>
+export type NoteResult = z.infer<typeof NoteResult>

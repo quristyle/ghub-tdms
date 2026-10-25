@@ -48,3 +48,10 @@ export const FavoriteTargetResponse = z.object({
   favoriteId: z.number().int().nullable(),
   name: z.string().nullable(),
 })
+
+// 스키마에 대응하는 타입 — 화면에서 응답 타입을 그대로 쓴다
+export type FavoriteListResponse = z.infer<typeof FavoriteListResponse>
+export type FavoriteMarkupResponse = z.infer<typeof FavoriteMarkupResponse>
+export type FavoriteSaveRequest = z.infer<typeof FavoriteSaveRequest>
+export type FavoriteSaveResult = z.infer<typeof FavoriteSaveResult>
+export type FavoriteTargetResponse = z.infer<typeof FavoriteTargetResponse>

@@ -69,3 +69,6 @@ export const JobStatus = z.object({
   finishedAt: z.string().nullable(),
 })
 export type JobStatus = z.infer<typeof JobStatus>
+
+// 스키마에 대응하는 타입 — 화면에서 응답 타입을 그대로 쓴다
+export type JobAccepted = z.infer<typeof JobAccepted>

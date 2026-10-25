@@ -15,7 +15,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/password-change', component: () => import('@/pages/PasswordChangePage.vue'), meta: { bare: true } },
 
   { path: '/',              component: () => import('@/pages/TdbListPage.vue'), meta: { permission: 'screen.tdb_list.access', title: 'TDB 조회' } },
-  { path: '/import',        component: ph, meta: { permission: 'screen.tdb_import.access',        title: 'TDB 반입·검수', phase: '4' } },
+  { path: '/import',        component: () => import('@/pages/TdbImportPage.vue'), meta: { permission: 'screen.tdb_import.access', title: 'TDB 반입·검수' } },
   { path: '/editor',        component: ph, meta: { permission: 'screen.tdb_editor.access',        title: 'TDB 관리',      phase: '4' } },
   { path: '/distributions', component: ph, meta: { permission: 'screen.tdb_distributions.access', title: 'TDB 반출이력',  phase: '5' } },
   { path: '/mdb',           component: ph, meta: { permission: 'screen.mdb_list.access',          title: 'MDB 조회',      phase: '6' } },

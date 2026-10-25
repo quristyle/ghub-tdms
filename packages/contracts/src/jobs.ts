@@ -44,3 +44,7 @@ export const ExcelExportRequest = z.object({
   filters: z.record(z.string(), z.unknown()).default({}),
   filename: z.string().max(200).optional(),
 })
+
+// 스키마에 대응하는 타입 — 화면에서 응답 타입을 그대로 쓴다
+export type JobCreated = z.infer<typeof JobCreated>
+export type ExcelExportRequest = z.infer<typeof ExcelExportRequest>

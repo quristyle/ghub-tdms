@@ -1,5 +1,6 @@
 import Fastify, { type FastifyInstance } from 'fastify'
 import cookie from '@fastify/cookie'
+import multipart from '@fastify/multipart'
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod'
 import { ZodError } from 'zod'
 import { z } from 'zod'
@@ -19,6 +20,7 @@ import { registerDocumentRoutes } from './modules/documents/routes.js'
 import { registerFileRoutes } from './modules/files/routes.js'
 import { registerJobRoutes } from './modules/jobs/routes.js'
 import { registerFavoriteRoutes } from './modules/favorites/routes.js'
+import { registerImportRoutes } from './modules/imports/routes.js'
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -36,6 +38,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.setSerializerCompiler(serializerCompiler)
 
   await app.register(cookie, { secret: config.session.secret })
+  // 업로드는 디스크로 스트리밍한다 — 메모리에 올리지 않는다. 상한은 nginx 와 맞춘다.
+  await app.register(multipart, { limits: { fileSize: 2 * 1024 * 1024 * 1024, files: 50 } })
 
   // ── 세션 복원 ────────────────────────────────────────────────────────
   // 모든 요청에 대해 한 번만. 권한은 캐시에서 온다(요청당 DB 왕복 없음).
@@ -122,6 +126,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   registerFileRoutes(app)
   registerJobRoutes(app)
   registerFavoriteRoutes(app)
+  registerImportRoutes(app)
 
   // ── 기동 시점 검증 — 하나라도 어긋나면 서버가 뜨지 않는다 ─────────────
   assertRouteDeclarations()

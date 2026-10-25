@@ -45,3 +45,8 @@ export const MeResponse = z.object({
   menu: z.array(MenuItem),
 })
 export type MeResponse = z.infer<typeof MeResponse>
+
+// 스키마에 대응하는 타입 — 화면에서 응답 타입을 그대로 쓴다
+export type LoginRequest = z.infer<typeof LoginRequest>
+export type LoginResult = z.infer<typeof LoginResult>
+export type PasswordChangeRequest = z.infer<typeof PasswordChangeRequest>
