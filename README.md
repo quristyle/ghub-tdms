@@ -62,8 +62,11 @@ node db/seed/hash.mjs   # 시드 계정 비밀번호 설정
 ### 실행 — 개발서버 제어판
 
 ```bash
-./dev.sh              # 대화형 제어판 (상태·시작·중지·로그·점검·검증)
+./dev.sh              # 브라우저 제어판이 열린다 (http://localhost:7070)
 ```
+
+서비스 상태·시작·중지·로그·DB·점검·검증을 브라우저에서 다룬다.
+터미널에서 다루려면 `./dev.sh tui`.
 
 ```bash
 ./dev.sh start        # 전부 시작   → 화면 http://localhost:5173
@@ -71,7 +74,8 @@ node db/seed/hash.mjs   # 시드 계정 비밀번호 설정
 
 | 명령 | 하는 일 |
 |---|---|
-| `./dev.sh` | 대화형 제어판 |
+| `./dev.sh` | 브라우저 제어판 |
+| `./dev.sh tui` | 터미널 제어판 |
 | `./dev.sh start\|stop\|restart [서비스]` | 서비스 제어 (api·web·worker) |
 | `./dev.sh status` | 상태와 작업 큐 적체 |
 | `./dev.sh logs [서비스]` | 로그 (서비스를 주면 따라가며 본다) |

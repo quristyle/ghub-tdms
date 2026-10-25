@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GHub TDMS 개발서버 제어판</title>
+  <link rel="stylesheet" href="/panel.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='14'>🛠</text></svg>" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><strong>TDMS</strong> 개발서버 제어판</div>
+    <span class="grow"></span>
+    <span id="clock" class="muted"></span>
+    <button id="refresh" class="btn btn-sm">새로 고침</button>
+  </header>
+
+  <main>
+    <!-- 서비스 -->
+    <section class="card">
+      <div class="card-head">
+        <h2>서비스</h2>
+        <span class="grow"></span>
+        <button class="btn btn-sm" data-cmd="start">전체 시작</button>
+        <button class="btn btn-sm" data-cmd="restart">전체 다시 시작</button>
+        <button class="btn btn-sm danger" data-cmd="stop">전체 중지</button>
+      </div>
+      <div id="services" class="svc-grid">
+        <div class="muted pad">불러오는 중…</div>
+      </div>
+    </section>
+
+    <div class="row">
+      <!-- 데이터베이스 -->
+      <section class="card half">
+        <div class="card-head">
+          <h2>데이터베이스</h2>
+          <span class="grow"></span>
+          <button class="btn btn-sm" data-cmd="db">상태</button>
+          <button class="btn btn-sm" data-cmd="migrate">마이그레이션</button>
+          <button class="btn btn-sm" data-cmd="seed">시험 자료</button>
+        </div>
+        <div id="db" class="pad muted">불러오는 중…</div>
+      </section>
+
+      <!-- 점검·검증 -->
+      <section class="card half">
+        <div class="card-head">
+          <h2>점검 · 검증</h2>
+          <span class="grow"></span>
+          <button class="btn btn-sm" data-cmd="doctor">환경 점검</button>
+          <button class="btn btn-sm" data-cmd="verify">검증 돌리기</button>
+          <button class="btn btn-sm" data-cmd="build">빌드</button>
+        </div>
+        <div class="pad">
+          <p class="muted small">
+            <strong>환경 점검</strong>은 도구·설정·DB·포트를 봅니다.
+            <strong>검증</strong>은 타입체크 + 단위 테스트 + 흐름 검증(실제 API 호출)을 돌립니다.
+            결과는 아래 콘솔에 흐릅니다.
+          </p>
+          <div id="accounts" class="accounts">
+            <div class="acc-title muted small">시험 계정 — 초기 비밀번호는 <code>ghub</code> + 아이디</div>
+            <div class="acc"><code>admin</code> <span class="muted">관리자 (전체)</span></div>
+            <div class="acc"><code>cm</code> <span class="muted">설비기술팀 (권한 34개)</span></div>
+            <div class="acc"><code>viewer</code> <span class="muted">조회전용 (TDB·MDB 조회만)</span></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- 콘솔 -->
+    <section class="card console-card">
+      <div class="card-head">
+        <h2>콘솔</h2>
+        <span id="run-label" class="muted"></span>
+        <span class="grow"></span>
+        <div class="tabs">
+          <button class="tab on" data-log="">실행 결과</button>
+          <button class="tab" data-log="api">API 로그</button>
+          <button class="tab" data-log="web">화면 로그</button>
+          <button class="tab" data-log="worker">워커 로그</button>
+        </div>
+        <button id="clear" class="btn btn-sm">비우기</button>
+      </div>
+      <pre id="console" class="console"><span class="muted">왼쪽 위 버튼을 누르면 결과가 여기에 흐릅니다.</span></pre>
+    </section>
+  </main>
+
+  <script src="/panel.js" type="module"></script>
+</body>
+</html>

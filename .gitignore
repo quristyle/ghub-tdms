@@ -28,3 +28,6 @@ test-results/
 # 개발서버 제어판
 devctl/run/
 devctl/logs/
+
+# 파이썬 패키지 메타
+*.egg-info/

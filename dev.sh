@@ -2,7 +2,8 @@
 #
 # GHub TDMS — 개발서버 제어판
 #
-#   ./dev.sh              대화형 제어판
+#   ./dev.sh              브라우저 제어판을 띄운다
+#   ./dev.sh tui          터미널 제어판
 #   ./dev.sh start        전부 시작
 #   ./dev.sh <명령> …     아래 help 참조
 #
@@ -22,13 +23,24 @@ load_env
 source "$LIB/services.sh"
 source "$LIB/checks.sh"
 source "$LIB/actions.sh"
+source "$LIB/json.sh"
 source "$LIB/menu.sh"
+
+# 브라우저 제어판 — devctl/server/panel.mjs (의존성 없음)
+action_panel() {
+  local port="${DEVCTL_PORT:-7070}"
+  command -v node >/dev/null || die "node 가 없습니다"
+  printf '%s개발서버 제어판을 엽니다%s\n' "$C_BOLD" "$C_RESET"
+  info "브라우저가 열리지 않으면 직접 여세요: http://localhost:$port"
+  exec node "$DEVCTL/server/panel.mjs"
+}
 
 usage() {
   cat <<'TXT'
 GHub TDMS — 개발서버 제어판
 
-  ./dev.sh                     대화형 제어판을 연다
+  ./dev.sh                     브라우저 제어판을 연다 (http://localhost:7070)
+  ./dev.sh tui                 터미널 제어판
 
 서비스
   start   [api|web|worker…]    시작 (생략하면 전부)
@@ -51,7 +63,13 @@ DB
   build                        운영 빌드
 
 기타
+  panel                        브라우저 제어판 (인자 없이 실행한 것과 같다)
+  tui                          터미널 제어판
   open                         브라우저로 화면 열기
+
+환경 변수
+  DEVCTL_PORT=7071             제어판 포트 (기본 7070)
+  DEVCTL_OPEN=0                브라우저를 자동으로 열지 않는다
   clean                        PID·로그 정리
   help                         이 도움말
 
@@ -64,11 +82,13 @@ cmd="${1:-}"
 [[ $# -gt 0 ]] && shift
 
 case "$cmd" in
-  '')            menu_loop ;;
+  '')            action_panel ;;
+  panel|ui|web)  action_panel ;;
+  tui|menu)      menu_loop ;;
   start)         action_start "$@" ;;
   stop)          action_stop "$@" ;;
   restart)       action_restart "$@" ;;
-  status|st)     action_status ;;
+  status|st)     [[ "${1:-}" == --json ]] && status_json || action_status ;;
   logs|log)      action_logs "${1:-}" ;;
   doctor|check)  doctor ;;
   setup-worker)  action_setup_worker ;;
