@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <title>TDMS</title>
+  <!-- 가로로 눕힌 도면 한 장. 오른쪽 아래 모서리를 표제란(title block)이 차지한다 —
+       도면번호·Rev·축척이 들어가는 그 칸이다. 16px 로 줄여도 실루엣이 남는다. -->
+  <rect width="32" height="32" rx="7.5" fill="#c8102e"/>
+  <path d="M7 7.5h18a2.5 2.5 0 0 1 2.5 2.5v6.5H17.5a1 1 0 0 0-1 1V24.5H7a2.5 2.5 0 0 1-2.5-2.5V10A2.5 2.5 0 0 1 7 7.5z" fill="#fff"/>
+  <rect x="18.6" y="18.6" width="8.9" height="5.9" rx="1.6" fill="#fff" opacity=".45"/>
+</svg>

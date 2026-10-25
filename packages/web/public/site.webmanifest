@@ -1,0 +1,13 @@
+{
+  "name": "TDMS 기술자료 관리 시스템",
+  "short_name": "TDMS",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "theme_color": "#c8102e",
+  "background_color": "#f7f7f8",
+  "display": "standalone",
+  "start_url": "/",
+  "lang": "ko"
+}

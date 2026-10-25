@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSession } from '@/lib/session'
 import NavIcon from '@/ui/NavIcon.vue'
+import TdmsLogo from '@/ui/TdmsLogo.vue'
 
 /**
  * 앱 셸 — 왼쪽 내비게이션 + 상단바.
@@ -80,10 +81,13 @@ async function logout() {
   <div class="app-shell" :class="{ rail }">
     <!-- 왼쪽 내비게이션 -->
     <nav class="nav" aria-label="주 메뉴">
-      <div class="nav-brand">
-        <span class="mark">TDMS</span>
-        <span class="nav-brand-text">기술자료 관리</span>
-      </div>
+      <RouterLink to="/" class="nav-brand" title="TDMS 기술자료 관리 시스템">
+        <TdmsLogo :size="28" />
+        <span class="nav-brand-text">
+          <strong>TDMS</strong>
+          <span class="nav-brand-sub">기술자료 관리</span>
+        </span>
+      </RouterLink>
 
       <div class="nav-scroll">
         <template v-for="g in groups" :key="g.title">
@@ -193,13 +197,14 @@ async function logout() {
   border-bottom: 1px solid var(--border);
   flex: 0 0 auto;
 }
-.mark {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px; flex: 0 0 auto;
-  background: var(--primary); color: var(--primary-fg);
-  border-radius: var(--r); font-size: 9px; font-weight: 700;
+.nav-brand-text {
+  display: flex; flex-direction: column; justify-content: center;
+  line-height: 1.15; white-space: nowrap;
 }
-.nav-brand-text { font-size: var(--fs-md); font-weight: 600; white-space: nowrap; }
+.nav-brand-text strong {
+  font-size: var(--fs-md); font-weight: 700; letter-spacing: .04em;
+}
+.nav-brand-sub { font-size: var(--fs-xs); color: var(--fg-muted); }
 
 .nav-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: var(--sp-2) 8px; }
 

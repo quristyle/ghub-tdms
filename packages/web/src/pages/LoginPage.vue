@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSession } from '@/lib/session'
 import { ApiError } from '@/lib/api'
+import TdmsLogo from '@/ui/TdmsLogo.vue'
 
 const session = useSession()
 const router = useRouter()
@@ -39,7 +40,10 @@ async function submit() {
 <template>
   <div class="login-wrap">
     <form class="login-box" @submit.prevent="submit">
-      <h1><strong>TDMS</strong> 기술자료 관리 시스템</h1>
+      <div class="login-brand">
+        <TdmsLogo :size="40" />
+        <h1><strong>TDMS</strong><span>기술자료 관리 시스템</span></h1>
+      </div>
       <input v-model="loginId" type="text" placeholder="아이디" autocomplete="username" autofocus />
       <input v-model="password" type="password" placeholder="비밀번호" autocomplete="current-password" />
       <p v-if="error" class="err">{{ error }}</p>
@@ -52,6 +56,13 @@ async function submit() {
 </template>
 
 <style scoped>
+.login-brand { display: flex; align-items: center; gap: 11px; margin-bottom: 6px; }
+.login-brand h1 {
+  display: flex; flex-direction: column; gap: 1px; margin: 0; line-height: 1.2;
+}
+.login-brand strong { font-size: var(--fs-lg); font-weight: 700; letter-spacing: .04em; }
+.login-brand span { font-size: var(--fs-sm); font-weight: 400; color: var(--fg-muted); }
+
 .login-wrap { display: flex; align-items: center; justify-content: center; height: 100%; }
 .login-box {
   width: 320px; background: var(--surface); border: 1px solid var(--border);
