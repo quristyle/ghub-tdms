@@ -24,6 +24,7 @@ import { registerImportRoutes } from './modules/imports/routes.js'
 import { registerEditorRoutes } from './modules/editor/routes.js'
 import { registerDistributionRoutes } from './modules/distributions/routes.js'
 import { registerMdbRoutes } from './modules/mdb/routes.js'
+import { registerAdminRoutes } from './modules/admin/routes.js'
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -162,6 +163,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   registerEditorRoutes(app)
   registerDistributionRoutes(app)
   registerMdbRoutes(app)
+  registerAdminRoutes(app)
 
   // ── 기동 시점 검증 — 하나라도 어긋나면 서버가 뜨지 않는다 ─────────────
   assertRouteDeclarations()
