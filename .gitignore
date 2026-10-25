@@ -24,3 +24,7 @@ test-results/
 # 로컬
 .DS_Store
 *.local
+
+# 개발서버 제어판
+devctl/run/
+devctl/logs/

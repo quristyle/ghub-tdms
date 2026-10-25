@@ -59,11 +59,32 @@ node db/seed/hash.mjs   # 시드 계정 비밀번호 설정
 | `cm` | VIEWER | 설비기술팀 (권한 34개) |
 | `viewer` | VIEWER | 조회전용 (TDB·MDB 조회만) |
 
-### 실행
+### 실행 — 개발서버 제어판
 
 ```bash
-pnpm --filter @tdms/api dev     # http://127.0.0.1:8080
-pnpm --filter @tdms/web dev     # http://localhost:5173  (/api 를 API 로 프록시)
+./dev.sh              # 대화형 제어판 (상태·시작·중지·로그·점검·검증)
+```
+
+```bash
+./dev.sh start        # 전부 시작   → 화면 http://localhost:5173
+```
+
+| 명령 | 하는 일 |
+|---|---|
+| `./dev.sh` | 대화형 제어판 |
+| `./dev.sh start\|stop\|restart [서비스]` | 서비스 제어 (api·web·worker) |
+| `./dev.sh status` | 상태와 작업 큐 적체 |
+| `./dev.sh logs [서비스]` | 로그 (서비스를 주면 따라가며 본다) |
+| `./dev.sh doctor` | 도구·설정·DB·포트 점검 |
+| `./dev.sh migrate` / `seed` | 마이그레이션 적용 / 시험 자료 |
+| `./dev.sh verify` | 타입체크 + 테스트 + 흐름 검증 |
+
+구현은 [`devctl/`](devctl/README.md) 에 있다. 개발 장비 전용이며 운영 배포(`deploy/`)와는 무관하다.
+
+직접 띄우려면:
+
+```bash
+pnpm --filter @tdms/api dev && pnpm --filter @tdms/web dev
 ```
 
 ### 검사
