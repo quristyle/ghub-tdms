@@ -220,6 +220,16 @@ export async function closeBranchSiblings(c: pg.PoolClient, documentId: number):
   return r.rowCount ?? 0
 }
 
+/** 반출 기록에 자료명 스냅샷을 채운다 (자료가 완전 삭제돼도 남아야 한다) */
+export function stampDistributionLabels(c: pg.PoolClient, documentId: number) {
+  return c.query(
+    `UPDATE distributions x SET document_label = d.drawing_no
+       FROM documents d
+      WHERE d.id = x.document_id AND x.document_id = $1 AND x.document_label IS NULL`,
+    [documentId],
+  )
+}
+
 /** 반입된 파일이 어느 반출을 닫았는지 기록한다 */
 export function closeDistribution(c: pg.PoolClient, documentId: number, vendorId: number | null, fileId: number) {
   return c.query(

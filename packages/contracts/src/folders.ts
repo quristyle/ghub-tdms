@@ -52,12 +52,12 @@ export const FolderReparentRequest = z.object({
 export const FolderMutationResult = z.object({
   ok: z.literal(true),
   folderId: z.number().int(),
-  /** 영향받은 하위 폴더 수 (이동 시) */
+  /** 이동 시 path 접두어가 바뀐 하위 폴더 수 */
   affectedFolders: z.number().int().default(0),
 })
+export type FolderMutationResult = z.infer<typeof FolderMutationResult>
 
 // 스키마에 대응하는 타입 — 화면에서 응답 타입을 그대로 쓴다
 export type FolderCreateRequest = z.infer<typeof FolderCreateRequest>
 export type FolderRenameRequest = z.infer<typeof FolderRenameRequest>
 export type FolderReparentRequest = z.infer<typeof FolderReparentRequest>
-export type FolderMutationResult = z.infer<typeof FolderMutationResult>

@@ -21,6 +21,7 @@ import { registerFileRoutes } from './modules/files/routes.js'
 import { registerJobRoutes } from './modules/jobs/routes.js'
 import { registerFavoriteRoutes } from './modules/favorites/routes.js'
 import { registerImportRoutes } from './modules/imports/routes.js'
+import { registerEditorRoutes } from './modules/editor/routes.js'
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -96,9 +97,38 @@ export async function buildApp(): Promise<FastifyInstance> {
         detail: { issues: err.issues },
       })
     }
-    if ((err as { statusCode?: number }).statusCode === 413) {
+
+    const status = (err as { statusCode?: number }).statusCode
+    const fastifyCode = (err as { code?: string }).code
+
+    // Fastify 가 스키마로 걸러 낸 것은 ZodError 가 아니라 FST_ERR_VALIDATION 으로 온다.
+    // 이걸 흘려보내면 입력 실수가 500 으로 둔갑해 호출 측이 원인을 알 수 없다.
+    if (fastifyCode === 'FST_ERR_VALIDATION' || status === 400) {
+      return reply.code(400).send({
+        code: 'VALIDATION_FAILED',
+        message: '입력값이 올바르지 않습니다.',
+        detail: {
+          reason: (err as Error).message,
+          issues: (err as { validation?: unknown }).validation ?? undefined,
+        },
+      })
+    }
+
+    if (status === 413 || fastifyCode === 'FST_ERR_CTP_BODY_TOO_LARGE') {
       return reply.code(413).send({ code: 'PAYLOAD_TOO_LARGE', message: '파일이 너무 큽니다.' })
     }
+    if (status === 415) {
+      return reply.code(415).send({ code: 'UNSUPPORTED_MEDIA_TYPE', message: '받을 수 없는 형식입니다.' })
+    }
+
+    // 4xx 는 호출 측 잘못이므로 그대로 돌려준다. 5xx 만 내부 오류로 감춘다.
+    if (status !== undefined && status >= 400 && status < 500) {
+      return reply.code(status).send({
+        code: fastifyCode ?? 'BAD_REQUEST',
+        message: (err as Error).message,
+      })
+    }
+
     req.log.error({ err }, '처리되지 않은 오류')
     return reply.code(500).send({ code: 'INTERNAL_ERROR', message: '서버 오류가 발생했습니다.' })
   })
@@ -127,6 +157,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   registerJobRoutes(app)
   registerFavoriteRoutes(app)
   registerImportRoutes(app)
+  registerEditorRoutes(app)
 
   // ── 기동 시점 검증 — 하나라도 어긋나면 서버가 뜨지 않는다 ─────────────
   assertRouteDeclarations()

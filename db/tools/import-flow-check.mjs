@@ -18,6 +18,9 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import pg from 'pg'
 
+// API 와 같게 bigint 를 숫자로 받는다 (안 하면 문자열로 와서 요청이 검증에 걸린다)
+pg.types.setTypeParser(pg.types.builtins.INT8, (v) => Number(v))
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..')
 if (existsSync(join(ROOT, '.env'))) {
   for (const l of readFileSync(join(ROOT, '.env'), 'utf8').split('\n')) {
