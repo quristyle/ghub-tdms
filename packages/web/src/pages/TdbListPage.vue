@@ -2,12 +2,18 @@
 import { computed, ref, watch } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { useRouter } from 'vue-router'
-import type { DocumentListItem, DocumentListResponse, FolderNode } from '@tdms/contracts'
+import type {
+  CreateDistributionResult, DocumentListItem, DocumentListResponse,
+  FilterOptions, FolderNode,
+} from '@tdms/contracts'
 import LazyTree from '@/ui/LazyTree.vue'
 import DataTable, { type Column } from '@/ui/DataTable.vue'
-import { api, qs } from '@/lib/api'
+import Modal from '@/ui/Modal.vue'
+import JobProgress from '@/ui/JobProgress.vue'
+import { api, ApiError, qs } from '@/lib/api'
 import { qk, staleTime } from '@/lib/queryKeys'
 import { useSession } from '@/lib/session'
+import { DOC_STATUS_LABEL as STATUS_LABEL } from '@/lib/labels'
 
 /** TDB 조회 — 기존 index.html 의 구성을 재현한다. */
 
@@ -105,6 +111,61 @@ function prefetch(row: DocumentListItem) {
   })
 }
 
+// ── 반출 실행 ──────────────────────────────────────────────────────────
+// 반출대기함에 담은 것을 업체에 내보낸다. Zip 만들기는 워커가 한다.
+const distOpen = ref(false)
+const distJobId = ref<number | null>(null)
+const message = ref<{ kind: 'ok' | 'err'; text: string } | null>(null)
+const warnings = ref<CreateDistributionResult['duplicateWarnings']>([])
+
+const dist = ref({
+  vendorId: '' as string | number,
+  vendorName: '',
+  projectId: '' as string | number,
+  purpose: 'MODIFY' as 'MODIFY' | 'REFERENCE' | 'ETC',
+  purposeNote: '',
+  keepPaths: true,
+})
+
+const { data: distOpts } = useQuery({
+  queryKey: ['dist-filter-options'],
+  queryFn: () => api.get<FilterOptions>('/distributions/filter-options'),
+  staleTime: staleTime.types,
+  enabled: computed(() => distOpen.value),
+})
+
+function onVendorPick(id: string) {
+  dist.value.vendorId = id
+  dist.value.vendorName = distOpts.value?.vendors.find((v) => String(v.id) === id)?.name ?? ''
+}
+
+async function submitDistribution() {
+  try {
+    const r = await api.post<CreateDistributionResult>('/distributions', {
+      documentIds: [...cart.value],
+      vendorId: dist.value.vendorId ? Number(dist.value.vendorId) : null,
+      vendorName: dist.value.vendorName,
+      projectId: dist.value.projectId ? Number(dist.value.projectId) : null,
+      purpose: dist.value.purpose,
+      purposeNote: dist.value.purposeNote || null,
+      keepPaths: dist.value.keepPaths,
+    })
+    distOpen.value = false
+    distJobId.value = r.jobId
+    warnings.value = r.duplicateWarnings
+    message.value = {
+      kind: r.duplicateWarnings.length ? 'err' : 'ok',
+      text: r.duplicateWarnings.length
+        ? `${r.created}건을 반출했습니다. ${r.duplicateWarnings.length}건은 이미 다른 업체가 수정 중입니다.`
+        : `${r.created}건을 반출했습니다. (${r.zipName})`,
+    }
+    clearCart()
+    void qc.invalidateQueries({ queryKey: qk.documents.all })
+  } catch (e) {
+    message.value = { kind: 'err', text: e instanceof ApiError ? e.message : '반출하지 못했습니다.' }
+  }
+}
+
 const columns = computed<Column<DocumentListItem>[]>(() => [
   { key: 'drawingNo', label: '자료명', width: '200px' },
   { key: 'title', label: '내용', width: '' },
@@ -124,10 +185,7 @@ const columns = computed<Column<DocumentListItem>[]>(() => [
   },
 ])
 
-const STATUS_LABEL: Record<string, string> = {
-  ACTIVE: '정상', PENDING: '검수', SUPERSEDED: '구본',
-  MERGE_REQUIRED: '병합 필요', RETIRED: '폐기',
-}
+
 </script>
 
 <template>
@@ -176,16 +234,84 @@ const STATUS_LABEL: Record<string, string> = {
       />
     </div>
 
+    <div v-if="message" class="panel msg" :class="message.kind">
+      <div>
+        {{ message.text }}
+        <div v-for="w in warnings" :key="w.documentId" class="sub">
+          · {{ w.drawingNo }} — {{ w.vendorName }} 대여중 ({{ w.distributedAt.slice(0, 10) }})
+        </div>
+      </div>
+      <span style="flex:1" />
+      <button class="btn btn-sm" @click="message = null; warnings = []">닫기</button>
+    </div>
+
+    <div v-if="distJobId !== null" class="panel">
+      <JobProgress :job-id="distJobId" />
+    </div>
+
     <div v-if="cart.size" class="panel cart">
       <div class="panel-head">
         반출대기함 ({{ cart.size }})
         <span style="flex:1" />
         <button class="btn btn-sm" @click="clearCart">선택 초기화</button>
-        <button class="btn btn-sm btn-primary" :disabled="!session.can('screen.tdb_list.distribute.modify')">
+        <button class="btn btn-sm btn-primary"
+                :disabled="!session.can('screen.tdb_list.distribute.modify')"
+                @click="distOpen = true">
           이 목록으로 반출하기
         </button>
       </div>
     </div>
+
+    <!-- 반출하기 -->
+    <Modal v-if="distOpen" title="반출하기" @close="distOpen = false">
+      <p class="muted">반출대기함의 {{ cart.size }}건을 업체에 내보냅니다. Zip 은 뒤에서 만듭니다.</p>
+      <table class="form">
+        <tbody>
+          <tr>
+            <th>업체</th>
+            <td>
+              <select :value="dist.vendorId" @change="onVendorPick(($event.target as HTMLSelectElement).value)">
+                <option value="">업체 선택</option>
+                <option v-for="v in distOpts?.vendors ?? []" :key="v.id" :value="v.id">{{ v.name }}</option>
+              </select>
+            </td>
+          </tr>
+          <tr>
+            <th>공사</th>
+            <td>
+              <select v-model="dist.projectId">
+                <option value="">공사 선택</option>
+                <option v-for="p in distOpts?.projects ?? []" :key="p.id" :value="p.id">{{ p.name }}</option>
+              </select>
+            </td>
+          </tr>
+          <tr>
+            <th>목적</th>
+            <td>
+              <label class="r"><input v-model="dist.purpose" type="radio" value="MODIFY" /> 수정용</label>
+              <label class="r"><input v-model="dist.purpose" type="radio" value="REFERENCE" /> 참조용</label>
+              <label class="r"><input v-model="dist.purpose" type="radio" value="ETC" /> 기타</label>
+            </td>
+          </tr>
+          <tr>
+            <th>비고</th>
+            <td><input v-model="dist.purposeNote" type="text" placeholder="목적 상세" style="width:100%" /></td>
+          </tr>
+          <tr>
+            <th>Zip 구성</th>
+            <td><label class="r"><input v-model="dist.keepPaths" type="checkbox" /> 폴더 경로 유지</label></td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="muted small">
+        수정용으로 내보낼 때 이미 다른 업체가 수정 중이면 경고합니다 — 막지는 않습니다.
+        두 업체가 같은 자료를 고치면 분기 리비전으로 각각 보관되고, 사람이 CAD 로 통합해야 합니다.
+      </p>
+      <template #footer>
+        <button class="btn" @click="distOpen = false">취소</button>
+        <button class="btn btn-primary" :disabled="!dist.vendorName" @click="submitDistribution">반출</button>
+      </template>
+    </Modal>
   </main>
 </template>
 
@@ -197,4 +323,12 @@ const STATUS_LABEL: Record<string, string> = {
 .chk { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .table-panel { flex: 1; display: flex; min-height: 0; overflow: hidden; }
 .cart { flex: 0 0 auto; }
+.msg { display: flex; align-items: flex-start; gap: 8px; padding: 9px 12px; flex: 0 0 auto; }
+.msg.ok { background: #f2f9f5; border-color: var(--ok); }
+.msg.err { background: var(--warn-bg); border-color: var(--warn-border); }
+.sub { font-size: var(--fs-sm); margin-top: 3px; }
+.form th, .form td { padding: 5px 8px; text-align: left; }
+.form th { width: 80px; font-weight: 600; white-space: nowrap; }
+.r { margin-right: 12px; }
+.small { font-size: var(--fs-sm); margin-top: 10px; }
 </style>

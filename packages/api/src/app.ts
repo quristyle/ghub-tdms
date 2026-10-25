@@ -22,6 +22,7 @@ import { registerJobRoutes } from './modules/jobs/routes.js'
 import { registerFavoriteRoutes } from './modules/favorites/routes.js'
 import { registerImportRoutes } from './modules/imports/routes.js'
 import { registerEditorRoutes } from './modules/editor/routes.js'
+import { registerDistributionRoutes } from './modules/distributions/routes.js'
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -158,6 +159,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   registerFavoriteRoutes(app)
   registerImportRoutes(app)
   registerEditorRoutes(app)
+  registerDistributionRoutes(app)
 
   // ── 기동 시점 검증 — 하나라도 어긋나면 서버가 뜨지 않는다 ─────────────
   assertRouteDeclarations()

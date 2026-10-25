@@ -10,6 +10,7 @@ import PdfViewer from '@/ui/PdfViewer.vue'
 import { api } from '@/lib/api'
 import { qk, staleTime } from '@/lib/queryKeys'
 import { useSession } from '@/lib/session'
+import { DOC_STATUS_LABEL, PURPOSE_LABEL } from '@/lib/labels'
 
 /** TDB 자료 상세 — 기존 detail.html 의 4개 탭을 재현한다. */
 
@@ -62,13 +63,7 @@ const previewFile = computed(() =>
 
 watch(id, () => (tab.value = 'info'))
 
-const STATUS_LABEL: Record<string, string> = {
-  ACTIVE: '정상', PENDING: '검수', SUPERSEDED: '구본',
-  MERGE_REQUIRED: '병합 필요', RETIRED: '폐기',
-}
-const PURPOSE_LABEL: Record<string, string> = {
-  MODIFY: '수정용', REFERENCE: '참조용', ETC: '기타',
-}
+const STATUS_LABEL = DOC_STATUS_LABEL
 const DIST_STATE: Record<string, string> = {
   RETURNED: '반입완료', OUTSTANDING: '반입미완료',
   ISSUE: '확인필요', PENDING_REVIEW: '검수대기',
