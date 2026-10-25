@@ -18,15 +18,15 @@ const routes: RouteRecordRaw[] = [
   { path: '/import',        component: () => import('@/pages/TdbImportPage.vue'), meta: { permission: 'screen.tdb_import.access', title: 'TDB 반입·검수' } },
   { path: '/editor',        component: () => import('@/pages/TdbEditorPage.vue'), meta: { permission: 'screen.tdb_editor.access', title: 'TDB 관리' } },
   { path: '/distributions', component: () => import('@/pages/TdbDistributionsPage.vue'), meta: { permission: 'screen.tdb_distributions.access', title: 'TDB 반출이력' } },
-  { path: '/mdb',           component: ph, meta: { permission: 'screen.mdb_list.access',          title: 'MDB 조회',      phase: '6' } },
-  { path: '/mdb-editor',    component: ph, meta: { permission: 'screen.mdb_editor.access',        title: 'MDB 관리',      phase: '6' } },
+  { path: '/mdb',           component: () => import('@/pages/MdbListPage.vue'), meta: { permission: 'screen.mdb_list.access', title: 'MDB 조회' } },
+  { path: '/mdb-editor',    component: () => import('@/pages/MdbEditorPage.vue'), meta: { permission: 'screen.mdb_editor.access', title: 'MDB 관리' } },
   { path: '/audit',         component: ph, meta: { permission: 'screen.audit.access',             title: '시스템 로그',   phase: '7' } },
   { path: '/users',         component: ph, meta: { permission: 'screen.users.access',             title: '사용자 관리',   phase: '7' } },
   { path: '/groups',        component: ph, meta: { permission: 'screen.users.access',             title: '권한 관리',     phase: '7' } },
   { path: '/backup',        component: ph, meta: { permission: 'screen.backup.access',            title: '백업 관리',     phase: '7' } },
 
   { path: '/documents/:id', component: () => import('@/pages/TdbDetailPage.vue'), meta: { title: 'TDB 자료 상세' } },
-  { path: '/mdb/:id',       component: ph, meta: { title: 'MDB 자료 상세', phase: '6' } },
+  { path: '/mdb/:id',       component: () => import('@/pages/MdbDetailPage.vue'), meta: { title: 'MDB 자료 상세' } },
   { path: '/help',          component: ph, meta: { title: '도움말', phase: '7' } },
 
   { path: '/no-access', component: () => import('@/pages/NoAccessPage.vue'), meta: { bare: true } },

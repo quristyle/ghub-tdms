@@ -26,7 +26,7 @@ export function registerEditorRoutes(app: FastifyInstance): void {
     },
     handler: async (req) => {
       const b = FolderCreateRequest.parse(req.body)
-      const out = await svc.createFolder(b.parentId, b.name, req.auth.user.id)
+      const out = await svc.createFolder('TDB', b.parentId, b.name, req.auth.user.id)
       req.setAuditTarget(b.name, { parentId: b.parentId, folderId: out.folderId })
       return out
     },

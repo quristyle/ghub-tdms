@@ -1,7 +1,11 @@
+import type pg from 'pg'
 import { tx } from '../../core/db.js'
 import { invalidate } from '../../core/cache.js'
 import { Errors } from '../../core/errors.js'
+import * as archive from '../archive/service.js'
 import * as q from './queries.js'
+
+export type DocClass = 'TDB' | 'MDB'
 
 /**
  * TDB 관리.
@@ -14,16 +18,18 @@ import * as q from './queries.js'
  * 남겨 두는 것이기 때문이다.
  */
 
-const DOC_CLASS = 'TDB'
+const DOC_CLASS: DocClass = 'TDB'
 
 // ── 폴더 편집 ───────────────────────────────────────────────────────────
 
-export async function createFolder(parentId: number | null, name: string, userId: number) {
+export async function createFolder(
+  docClass: DocClass, parentId: number | null, name: string, userId: number,
+) {
   const id = await tx(async (c) => {
     if ((await q.nameTaken(c, parentId, name)).rows.length) {
       throw Errors.conflict('NAME_TAKEN', `같은 자리에 "${name}" 폴더가 이미 있습니다.`)
     }
-    return q.createFolder(c, DOC_CLASS, parentId, name, userId)
+    return q.createFolder(c, docClass, parentId, name, userId)
   })
   await invalidate('cache_tree')
   return { ok: true as const, folderId: id, affectedFolders: 0 }
@@ -107,144 +113,39 @@ export async function moveDocuments(documentIds: number[], targetFolderId: numbe
 }
 
 // ── 보관함 ──────────────────────────────────────────────────────────────
+//
+// 기구는 modules/archive 에 있다 — TDB·MDB 가 같은 규칙을 쓰기 때문이다.
+// 여기서는 TDB 전용인 부분(자료 요약 읽기, 완전 삭제 시 딸린 표 정리)만 넘긴다.
 
-/**
- * 삭제 보관함 — 폴더째 묶어 한 줄. 복구와 완전 삭제가 모두 가능하다.
- */
-export async function sendToTrash(
+async function briefOf(c: pg.PoolClient, ids: number[]) {
+  const r = await q.documentsBrief(c, ids)
+  return r.rows.map((d) => ({
+    id: d.id, label: d.drawing_no, folderId: d.folder_id, isArchived: d.is_archived,
+  }))
+}
+
+export function sendToTrash(
   v: { documentIds: number[]; folderId: number | null; reason: string | null },
   userId: number,
 ) {
-  const out = await tx(async (c) => {
-    let ids = v.documentIds
-    let label: string
-    let originalPath: string | null = null
-
-    if (v.folderId !== null) {
-      const f = await q.folderById(c, v.folderId)
-      if (!f) throw Errors.notFound('폴더')
-      ids = await q.documentsUnderFolder(c, v.folderId)
-      label = f.name
-      originalPath = await q.folderPathText(c, v.folderId)
-    } else {
-      if (!ids.length) throw Errors.invalid('NO_TARGET', '보관할 자료를 골라 주세요.')
-      label = `자료 ${ids.length}건`
-      const first = await q.documentsBrief(c, [ids[0]!])
-      const folderId = first.rows[0]?.folder_id
-      if (folderId !== undefined) originalPath = await q.folderPathText(c, folderId)
-    }
-
-    const batchId = await q.createBatch(c, {
-      kind: 'TRASH', docClass: DOC_CLASS, label, originalPath,
-      folderId: v.folderId, reason: v.reason, itemCount: ids.length, userId,
-    })
-    if (ids.length) await q.archiveDocuments(c, ids, batchId, false)
-    if (v.folderId !== null) await q.archiveFolderTree(c, v.folderId, batchId)
-
-    return { batchIds: [batchId], archived: ids.length }
-  })
-  await invalidate('cache_tree')
-  return out
+  return archive.sendToTrash(
+    DOC_CLASS, { itemIds: v.documentIds, folderId: v.folderId, reason: v.reason }, userId, briefOf,
+  )
 }
 
-/**
- * 폐기 보관함 — **자료 1건 = 이력 1건**.
- * 여러 건을 한 번에 폐기해도 자료마다 따로 남긴다(줄마다 비고를 쓰기 때문).
- * 완전 삭제가 없고 복구만 있다.
- */
-export async function retire(documentIds: number[], reason: string | null, userId: number) {
-  if (!documentIds.length) throw Errors.invalid('NO_TARGET', '폐기할 자료를 골라 주세요.')
-
-  const out = await tx(async (c) => {
-    const docs = await q.documentsBrief(c, documentIds)
-    if (!docs.rows.length) throw Errors.notFound('자료')
-
-    const batchIds: number[] = []
-    for (const d of docs.rows) {
-      if (d.is_archived) continue
-      const batchId = await q.createBatch(c, {
-        kind: 'RETIRE', docClass: DOC_CLASS,
-        label: d.drawing_no,
-        originalPath: await q.folderPathText(c, d.folder_id),
-        folderId: d.folder_id, reason, itemCount: 1, userId,
-      })
-      await q.archiveDocuments(c, [d.id], batchId, true)
-      batchIds.push(batchId)
-    }
-    return { batchIds, archived: batchIds.length }
-  })
-  await invalidate('cache_tree')
-  return out
+export function retire(documentIds: number[], reason: string | null, userId: number) {
+  return archive.retire(DOC_CLASS, documentIds, reason, userId, briefOf)
 }
 
-export async function listBox(kind: 'TRASH' | 'RETIRE') {
-  const [items, count] = await Promise.all([
-    q.listBatches(DOC_CLASS, kind),
-    q.countBatches(DOC_CLASS, kind),
-  ])
-  return {
-    items: items.map((b) => ({
-      ...b,
-      kind: b.kind as 'TRASH' | 'RETIRE',
-      archivedAt: b.archivedAt.toISOString(),
-    })),
-    count: count?.n ?? 0,
-  }
+export function listBox(kind: 'TRASH' | 'RETIRE') {
+  return archive.listBox(DOC_CLASS, kind)
 }
 
-export async function setNote(batchId: number, note: string | null) {
-  await tx(async (c) => {
-    const b = await q.batchById(c, batchId)
-    if (!b) throw Errors.notFound('보관 묶음')
-    await q.setBatchNote(c, batchId, note)
-  })
-}
+export const setNote = archive.setNote
+export const restore = archive.restore
 
-export async function restore(batchIds: number[], userId: number) {
-  const out = await tx(async (c) => {
-    let restored = 0
-    const blocked: { batchId: number; reason: string }[] = []
-
-    for (const id of batchIds) {
-      const b = await q.batchById(c, id)
-      if (!b) { blocked.push({ batchId: id, reason: '묶음을 찾을 수 없습니다.' }); continue }
-      if (b.purged_at) { blocked.push({ batchId: id, reason: '이미 완전 삭제되었습니다.' }); continue }
-      if (b.restored_at) { blocked.push({ batchId: id, reason: '이미 복구되었습니다.' }); continue }
-      if (!(await q.restoreTargetAlive(c, id))) {
-        blocked.push({ batchId: id, reason: '원래 있던 폴더가 사라져 되돌릴 수 없습니다.' })
-        continue
-      }
-      restored += await q.restoreBatch(c, id, userId)
-    }
-    return { restored, blocked }
-  })
-  await invalidate('cache_tree')
-  return out
-}
-
-/** 완전 삭제 — 삭제 보관함에만 있다. 폐기 보관함 묶음은 거부한다. */
-export async function purge(batchIds: number[], userId: number) {
-  const out = await tx(async (c) => {
-    let purged = 0
-    let freedBytes = 0
-    for (const id of batchIds) {
-      const b = await q.batchById(c, id)
-      if (!b) throw Errors.notFound('보관 묶음')
-      if (b.kind !== 'TRASH') {
-        throw Errors.invalid(
-          'PURGE_NOT_ALLOWED',
-          '폐기 보관함은 완전 삭제할 수 없습니다. 이력을 찾기 위해 남겨 두는 자리입니다.',
-        )
-      }
-      if (b.purged_at) continue
-      const r = await q.purgeBatch(c, id, userId)
-      purged += r.purged
-      freedBytes += r.freedBytes
-    }
-    return { purged, freedBytes }
-  })
-  await invalidate('cache_tree')
-  return out
+export function purge(batchIds: number[], userId: number) {
+  return archive.purge(batchIds, userId, (c, id) => q.purgeBatch(c, id))
 }
 
 // ── 원본·사본 분리 폴더 ─────────────────────────────────────────────────

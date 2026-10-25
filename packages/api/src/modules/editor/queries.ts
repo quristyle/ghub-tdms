@@ -259,7 +259,7 @@ export async function restoreBatch(c: pg.PoolClient, batchId: number, userId: nu
  * 완전 삭제 — 삭제 보관함에만 있다.
  * 자료 행은 지우되 blob 은 refcount 만 내린다(야간 GC 가 수거). 감사 로그는 남는다.
  */
-export async function purgeBatch(c: pg.PoolClient, batchId: number, userId: number) {
+export async function purgeBatch(c: pg.PoolClient, batchId: number) {
   const sized = await c.query<{ bytes: string }>(
     `SELECT coalesce(sum(b.byte_size),0)::text AS bytes
        FROM documents d JOIN files fl ON fl.document_id = d.id
@@ -294,10 +294,6 @@ export async function purgeBatch(c: pg.PoolClient, batchId: number, userId: numb
     [batchId],
   )
   const del = await c.query(`DELETE FROM documents WHERE archive_batch_id = $1`, [batchId])
-  await c.query(
-    'UPDATE archive_batches SET purged_at = now(), purged_by = $2 WHERE id = $1',
-    [batchId, userId],
-  )
   return { purged: del.rowCount ?? 0, freedBytes: Number(sized.rows[0]?.bytes ?? 0) }
 }
 
