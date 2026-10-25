@@ -37,6 +37,8 @@ export const MeResponse = z.object({
   groupId: z.number().int().nullable(),
   groupName: z.string().nullable(),
   mustChangePassword: z.boolean(),
+  /** 이 세션에서 변경을 미뤘는가. 새로고침해도 유지되고 재로그인하면 초기화된다. */
+  passwordDeferred: z.boolean(),
   /** 이 사용자가 가진 리프 권한. ADMIN 은 36개 전부. */
   permissions: z.array(z.string()),
   /** 접근 가능한 메뉴만 추려서 내려준다(순서 유지) */

@@ -12,13 +12,15 @@ import { api, ApiError } from './api.js'
 export const useSession = defineStore('session', () => {
   const me = ref<MeResponse | null>(null)
   const loading = ref(false)
-  /** 비밀번호 변경 '미루기'. 이번 로그인에서만 유효하고 다음 로그인 때 다시 묻는다 (기존 정책). */
-  const passwordDeferred = ref(false)
 
   const isLoggedIn = computed(() => me.value !== null)
-  /** 변경 화면을 먼저 열어야 하는가 */
+  /**
+   * 변경 화면을 먼저 열어야 하는가.
+   * 미루기는 서버 세션(sessions.password_deferred)에 담긴다 — 새로고침해도 유지되고
+   * 다시 로그인하면 초기화된다 (기존 시스템과 같은 동작).
+   */
   const needsPasswordChange = computed(
-    () => me.value?.mustChangePassword === true && !passwordDeferred.value,
+    () => me.value?.mustChangePassword === true && me.value.passwordDeferred !== true,
   )
   const isAdmin = computed(() => me.value?.role === 'ADMIN')
   const menu = computed(() => me.value?.menu ?? [])
@@ -45,7 +47,6 @@ export const useSession = defineStore('session', () => {
 
   async function login(loginId: string, password: string) {
     const r = await api.post<{ ok: true; mustChangePassword: boolean }>('/auth/login', { loginId, password })
-    passwordDeferred.value = false   // 새 로그인이므로 미루기를 초기화한다
     await load()
     return r
   }
@@ -55,14 +56,13 @@ export const useSession = defineStore('session', () => {
       await api.post('/auth/logout')
     } finally {
       me.value = null
-      passwordDeferred.value = false
     }
   }
 
-  /** 미루기 — 서버에도 알리고(감사 기록), 이번 로그인 동안만 건너뛴다. */
+  /** 미루기 — 서버 세션에 기록한다. 이 세션 동안만 건너뛴다. */
   async function deferPasswordChange() {
     await api.post('/auth/password/defer')
-    passwordDeferred.value = true
+    await load()
   }
 
   /** 접근 가능한 첫 화면 — 상단 메뉴 차례 그대로 (기존 동작) */
@@ -70,6 +70,6 @@ export const useSession = defineStore('session', () => {
 
   return {
     me, loading, isLoggedIn, isAdmin, menu, can, load, login, logout,
-    firstAllowedPath, passwordDeferred, needsPasswordChange, deferPasswordChange,
+    firstAllowedPath, needsPasswordChange, deferPasswordChange,
   }
 })

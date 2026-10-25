@@ -1,0 +1,785 @@
+/* 도면관리시스템이 덧붙인 도구들의 모양 — 원래 PDF.js에는 없다 (2026-09-02).
+   ① 도구 창(강조 표시·텍스트·그리기·도형) 네 개가 같은 틀을 쓰도록 맞춘 것
+   ② 색상 고르기 칸                       ③ 막대 + 숫자칸 한 줄
+   ④ 도구모음에 더한 것 — 화면 회전 · Markup 선택 · 선택 · 손 도구 · 회전 · 이동 · 지우개
+   ⑤ 감추는 것 — PDF.js가 원래 갖고 있던 색 칸, 형광펜의 [모두 보기], 자료에 딸려 온 노란 메모
+   PDF.js가 이미 쓰고 있는 class(.editorParamsLabel, .swatch 등)를 그대로 써서
+   원래 있던 칸들과 같은 글씨·같은 색이 되게 하고, 여기에는 새로 필요한 것만 적는다. */
+
+/* ------------------------------------------------- ① 네 도구 창의 공통 틀 */
+
+/* 창 너비 — 색 동그라미 5개(24px)와 그 사이 간격(8px)이 한 줄에 딱 들어가는 폭이다.
+   최근 사용도 5개까지만 보여주므로 두 줄의 길이가 같다 (2026-09-02 CM 지시). */
+:root {
+  --dms-panel-width: 200px;
+  --dms-swatch-size: 24px;
+  --dms-swatch-gap: 8px;
+}
+
+#editorHighlightParamsToolbar .editorParamsToolbarContainer,
+#editorFreeTextParamsToolbar .editorParamsToolbarContainer,
+#editorInkParamsToolbar .editorParamsToolbarContainer,
+#dmsShapeParamsToolbar .editorParamsToolbarContainer,
+#dmsStampParamsToolbar .editorParamsToolbarContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: var(--dms-panel-width);
+  box-sizing: content-box;
+}
+
+/* ------------------------------------------------------- ② 색상 고르기 칸 */
+
+.dmsColorField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dmsColorField .dmsColorTitle {
+  opacity: 0.85;
+}
+
+.dmsSwatchRow {
+  display: flex;
+  align-items: center;
+  gap: var(--dms-swatch-gap);
+  min-height: var(--dms-swatch-size);
+}
+
+.dmsSwatch {
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dmsSwatch > .swatch {
+  width: var(--dms-swatch-size);
+  height: var(--dms-swatch-size);
+  border: 1px solid var(--swatch-border-color);
+  border-radius: 100%;
+  box-sizing: border-box;
+  forced-color-adjust: none;
+}
+
+.dmsSwatch:is(:hover, :active, :focus-visible) > .swatch {
+  outline: 2px solid var(--hover-outline-color);
+  outline-offset: 2px;
+}
+
+.dmsSwatch[aria-selected="true"] > .swatch {
+  outline: 2px solid var(--selected-outline-color);
+  outline-offset: 2px;
+}
+
+/* "없음"(채우기 안 함)과 아직 색이 없는 지금 색 동그라미 — 대각선을 그어 구분한다 */
+.dmsSwatch > .swatch.none {
+  background-color: transparent;
+  background-image: linear-gradient(
+    to bottom right,
+    transparent calc(50% - 1px),
+    var(--swatch-border-color) calc(50% - 1px),
+    var(--swatch-border-color) calc(50% + 1px),
+    transparent calc(50% + 1px)
+  );
+}
+
+.dmsRecentEmpty {
+  font: menu;
+  font-size: 11px;
+  opacity: 0.6;
+  color: var(--main-color);
+}
+
+.dmsCustomRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dmsHexInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 24px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  font: menu;
+  font-size: 12px;
+  color: var(--main-color);
+  background-color: var(--field-bg-color);
+  border: 1px solid var(--field-border-color);
+  border-radius: 4px;
+}
+
+.dmsApplyButton {
+  flex: 0 0 auto;
+  height: 24px;
+  padding: 0 8px;
+  font: menu;
+  font-size: 12px;
+  color: var(--main-color);
+  background-color: var(--dropdown-btn-bg-color, transparent);
+  border: 1px solid var(--field-border-color);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.dmsApplyButton:hover {
+  background-color: var(--doorhanger-hover-bg-color);
+  color: var(--doorhanger-hover-color);
+}
+
+/* 브라우저 색 고르는 창을 여는 용도로만 쓰는 칸이라 화면에는 안 보인다 */
+.dmsHiddenPicker {
+  position: absolute;
+  width: 0;
+  height: 0;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ------------------------------------------- ③ 막대(두께·크기·불투명도) 한 줄 */
+
+/* 색상 칸과 같은 틀 — 문구를 윗줄에 두고 그 아래에 막대와 숫자칸을 나란히 둔다.
+   한 줄에 다 넣으면 막대가 너무 짧아져 움직이기 어렵다. */
+.dmsSliderRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.dmsSliderRow > .editorParamsLabel {
+  grid-column: 1 / -1;
+  opacity: 0.85;
+}
+
+.dmsSliderRow > .editorParamsSlider {
+  width: auto;
+  min-width: 0;
+  height: 14px;
+  margin: 0;
+}
+
+.dmsNumberInput {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 24px;
+  box-sizing: border-box;
+  padding: 0 4px;
+  font: menu;
+  font-size: 12px;
+  text-align: center;
+  color: var(--main-color);
+  background-color: var(--field-bg-color);
+  border: 1px solid var(--field-border-color);
+  border-radius: 4px;
+}
+
+/* ------------------------------- 그리기(펜)의 선 타입 (2026-09-04 CM 지시)
+   실선·점선·파선·구름을 고르는 칸. 도형 도구창의 "모양 선택"과 같은 자리(맨 위)에 둔다. */
+
+.dmsLineTypeBox {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* 넷을 한 줄에 나란히 — 한글 이름을 빼고 선 그림만 보여주므로 좁아도 된다
+   (2026-09-04 CM 지시). 어떤 선인지는 마우스를 올리면 이름으로 뜬다. */
+.dmsLineTypeChoices {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.dmsLineTypeChoice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 26px;
+  padding: 0 2px;
+  border: 1px solid var(--separator-color);
+  border-radius: 4px;
+  background-color: transparent;
+  color: inherit;
+  font: menu;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.dmsLineTypeChoice:hover {
+  background-color: var(--doorhanger-hover-bg-color);
+}
+
+.dmsLineTypeChoice.chosen {
+  border-color: var(--toggled-btn-color, highlight);
+  border-width: 2px;
+  background-color: var(--toggled-btn-bg-color, transparent);
+}
+
+/* 버튼 안 선 그림 — 색을 따로 주지 않고 글자색을 따라가게 한다 */
+.dmsLineTypeIcon {
+  display: block;
+  width: 100%;
+  max-width: 26px;
+  height: 10px;
+  background-color: currentColor;
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+          mask-position: center;
+  -webkit-mask-size: contain;
+          mask-size: contain;
+}
+
+.dmsLineTypeIcon.solid {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 10'%3E%3Cpath d='M1 5H25' stroke='black' stroke-width='1.8'/%3E%3C/svg%3E");
+          mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 10'%3E%3Cpath d='M1 5H25' stroke='black' stroke-width='1.8'/%3E%3C/svg%3E");
+}
+
+.dmsLineTypeIcon.dotted {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 10'%3E%3Cpath d='M1 5h2M6 5h2M11 5h2M16 5h2M21 5h2' stroke='black' stroke-width='1.8'/%3E%3C/svg%3E");
+          mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 10'%3E%3Cpath d='M1 5h2M6 5h2M11 5h2M16 5h2M21 5h2' stroke='black' stroke-width='1.8'/%3E%3C/svg%3E");
+}
+
+.dmsLineTypeIcon.dashed {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 10'%3E%3Cpath d='M1 5h6M11 5h6M21 5h4' stroke='black' stroke-width='1.8'/%3E%3C/svg%3E");
+          mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 10'%3E%3Cpath d='M1 5h6M11 5h6M21 5h4' stroke='black' stroke-width='1.8'/%3E%3C/svg%3E");
+}
+
+.dmsLineTypeIcon.cloud {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 10'%3E%3Cpath d='M1 7.4a3 3 0 016 0a3 3 0 016 0a3 3 0 016 0a3 3 0 016 0' fill='none' stroke='black' stroke-width='1.5'/%3E%3C/svg%3E");
+          mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 10'%3E%3Cpath d='M1 7.4a3 3 0 016 0a3 3 0 016 0a3 3 0 016 0a3 3 0 016 0' fill='none' stroke='black' stroke-width='1.5'/%3E%3C/svg%3E");
+}
+
+/* 켜야 나오는 칸 (텍스트의 "글자 배경 칠하기", 도형의 "도형 채우기") */
+.dmsOptionBox {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--separator-color);
+}
+
+.dmsCheckLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.dmsCheckLabel > .editorParamsLabel {
+  cursor: pointer;
+}
+
+/* ------------------------------------------------ ④ 도구모음에 더한 것들 */
+
+#dmsRotateCw::before {
+  -webkit-mask-image: var(--secondaryToolbarButton-rotateCw-icon);
+          mask-image: var(--secondaryToolbarButton-rotateCw-icon);
+}
+
+#dmsRotateCcw::before {
+  -webkit-mask-image: var(--secondaryToolbarButton-rotateCcw-icon);
+          mask-image: var(--secondaryToolbarButton-rotateCcw-icon);
+}
+
+#dmsSelectTool::before {
+  -webkit-mask-image: var(--secondaryToolbarButton-selectTool-icon);
+          mask-image: var(--secondaryToolbarButton-selectTool-icon);
+}
+
+/* 사본(PDF) / 원본 전환 — 화면 회전 버튼 바로 뒤 (D-102, dms-source-switch.js) */
+.dmsSourceSwitch {
+  margin-inline-start: 6px;
+  gap: 0;
+}
+.dmsSourceBtn {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--field-border-color, #8f8f9d);
+  background: none;
+  color: var(--toolbar-fg-color);
+  font: message-box;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.dmsSourceBtn:first-child {
+  border-radius: 4px 0 0 4px;
+}
+.dmsSourceBtn:last-child {
+  border-radius: 0 4px 4px 0;
+  border-inline-start: none;
+}
+.dmsSourceBtn:hover:not(:disabled, .toggled) {
+  background-color: var(--button-hover-color);
+}
+.dmsSourceBtn.toggled {
+  background-color: var(--toggled-btn-bg-color);
+  font-weight: bold;
+  cursor: default;
+}
+.dmsSourceBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+
+#dmsHandTool::before {
+  -webkit-mask-image: var(--secondaryToolbarButton-handTool-icon);
+          mask-image: var(--secondaryToolbarButton-handTool-icon);
+}
+
+#dmsMoveTool::before {
+  -webkit-mask-image: url(images/toolbarButton-dmsMove.svg);
+          mask-image: url(images/toolbarButton-dmsMove.svg);
+}
+
+/* [회전] — 손 도구와 이동 사이 (2026-09-18 CM 지시, dms-rotate.js).
+   쪽 번호 옆의 화면 회전 버튼(둥근 화살표)과 헷갈리지 않게 가운데에 작은 네모(표시)를 넣은 그림이다. */
+#dmsRotateTool::before {
+  -webkit-mask-image: url(images/toolbarButton-dmsRotate.svg);
+          mask-image: url(images/toolbarButton-dmsRotate.svg);
+}
+
+/* [회전]을 켜 두면 그려 둔 표시 위에서 마우스가 돌리는 모양으로 바뀐다(잡고 끌면 돈다).
+   표시 옆 도구모음과 크기 조절 손잡이는 저마다 마우스 모양을 따로 정해 두어 그대로 남는다. */
+#viewerContainer.dmsRotateMode .annotationEditorLayer > *,
+#viewerContainer.dmsRotateMode .annotationEditorLayer > * .internal {
+  cursor: url(images/cursor-dmsRotate.svg) 10 10, grab !important;
+}
+
+/* 돌리고 있는 동안에는 마우스가 어디에 있든 돌리는 모양으로 두고, 글자가 끌려 골라지지 않게 한다 */
+#viewerContainer.dmsRotating,
+#viewerContainer.dmsRotating * {
+  cursor: url(images/cursor-dmsRotate.svg) 10 10, grabbing !important;
+  -webkit-user-select: none !important;
+          user-select: none !important;
+}
+
+#dmsEraserButton::before {
+  -webkit-mask-image: url(images/toolbarButton-dmsEraser.svg);
+          mask-image: url(images/toolbarButton-dmsEraser.svg);
+}
+
+/* [Markup 선택] 켬/끔 — PDF.js가 형광펜 창에서 쓰던 스위치(.toggle-button)를 그대로 쓴다 */
+.dmsCursorGroup {
+  align-items: center;
+  gap: 2px;
+}
+
+.dmsToolbarSwitch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.dmsToolbarSwitchLabel {
+  font: menu;
+  font-size: 12px;
+  color: var(--main-color);
+}
+
+.dmsToolbarDivider {
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background-color: var(--separator-color);
+}
+
+/* 화면이 좁으면 문구를 줄인다 — 아예 감추면 스위치만 남아 무슨 스위치인지 알 수 없다.
+   짧은 이름은 스위치마다 다르므로 각자 data-short에 적어 둔 것을 쓴다. */
+@media (max-width: 1200px) {
+  .dmsToolbarSwitchLabel {
+    font-size: 0; /* "Markup 선택" 같은 긴 이름을 감추고 */
+  }
+  .dmsToolbarSwitchLabel::after {
+    content: attr(data-short);
+    font-size: 12px; /* 짧은 이름만 다시 보여준다 */
+  }
+  .dmsToolbarSwitch {
+    padding: 0 4px;
+  }
+}
+
+/* 아주 좁으면(미리보기 창 1080px 이하) 문구를 아예 감추고 스위치만 남긴다 — 이름은 마우스를
+   올렸을 때 뜬다(각 스위치의 title). 문구를 남겨 두면 도구모음이 넘쳐 오른쪽 끝의 [»](추가
+   도구)·[인쇄]·[저장] 버튼이 잘리기 때문이다. 스위치가 셋(고정·Text·Markup)이라 자리를
+   그만큼 차지한다 (2026-09-04 [도구창 고정]을 더하면서 넣은 규칙). */
+@media (max-width: 1080px) {
+  .dmsToolbarSwitchLabel {
+    display: none;
+  }
+  .dmsToolbarSwitch {
+    padding: 0 2px;
+    gap: 0;
+  }
+}
+
+/* [Markup 선택]을 끈 상태 — 그려 둔 표시가 마우스를 받지 않아 그 위에 그대로 그릴 수 있다.
+   지우개를 쓰는 동안에는 표시에 닿아야 지울 수 있으므로 이 잠금을 적용하지 않는다.
+
+   표시 안쪽 조각까지(`*`) 전부 막는 이유 — 형광펜·문구 같은 표시는 겉껍데기는 마우스를 안 받고
+   그 안의 조각(.internal 등)이 대신 받도록 PDF.js가 만들어 놓았다. 겉껍데기만 막으면 그 조각이
+   계속 마우스를 받아 ㉠ 마우스를 올렸을 때 테두리(선택 표시)가 뜨고 ㉡ 눌러서 고를 수도 있어
+   "끔"이 되지 않는다(2026-09-03 CM 지시로 고침). */
+#viewerContainer.dmsMarkupLocked:not(.dmsEraserMode) .annotationEditorLayer:not(.disabled) * {
+  pointer-events: none !important;
+}
+
+/* 다만 **골라 둔 표시 옆에 뜬 도구모음**([채움 전환]·[이동]·[휴지통])은 언제나 눌러야 한다
+   (2026-09-05 CM 보고 — Markup 선택을 끄면 그 버튼들이 안 눌렸다). 위 잠금은 "새로 그을 때
+   옆 표시가 잡히지 않게" 하려는 것이라, 이미 고른 표시의 버튼까지 막을 이유가 없다. */
+#viewerContainer.dmsMarkupLocked:not(.dmsEraserMode) .annotationEditorLayer:not(.disabled) .editToolbar,
+#viewerContainer.dmsMarkupLocked:not(.dmsEraserMode) .annotationEditorLayer:not(.disabled) .editToolbar * {
+  pointer-events: auto !important;
+}
+
+/* 강조 표시 도구를 켠 상태에서도 같은 잠금을 건다 (2026-09-19 CM 지시).
+   PDF.js는 강조 표시 모드에서 표시 판(레이어)을 통째로 .disabled로 두는데(마우스를 받지 않게 해
+   글자 판으로 마우스가 가게 하려는 것이다), 아래 규칙("도구가 꺼져 있으면 표시를 언제나 잡을 수
+   있게")이 그 판 안의 표시를 다시 살려서, 강조 표시를 긋겠다고 이미 그려 둔 표시 옆으로 마우스를
+   가져가면 그 표시의 선택 테두리가 뜨고 눌러 잡혀서 옆에 이어 그을 수가 없었다.
+   그래서 [Markup 선택]이 꺼져 있으면 강조 표시 모드의 표시도 마우스를 받지 않게 막는다
+   (그리기 도구에서 이미 하고 있는 것과 같다). 그러면 마우스가 표시를 지나 밑의 글자 판으로 가서
+   자유 형광펜이 그대로 그려진다. 표시 옆 도구모음의 버튼만은 눌려야 한다. */
+#viewerContainer.dmsMarkupLocked:not(.dmsEraserMode) .annotationEditorLayer.highlightEditing * {
+  pointer-events: none !important;
+}
+#viewerContainer.dmsMarkupLocked:not(.dmsEraserMode) .annotationEditorLayer.highlightEditing .editToolbar,
+#viewerContainer.dmsMarkupLocked:not(.dmsEraserMode) .annotationEditorLayer.highlightEditing .editToolbar * {
+  pointer-events: auto !important;
+}
+
+/* 스페이스바를 누르고 있는 동안(손 도구, dms-tools.js의 installSpaceHand)에는 그려 둔 표시 위에서도
+   화면이 끌려가야 한다 — 표시가 마우스를 받으면 끌어서 표시가 옮겨져 버린다.
+   다만 표시를 골랐을 때 옆에 뜬 도구모음은 그대로 둔다. */
+#viewerContainer.dmsSpaceHand .annotationEditorLayer * {
+  pointer-events: none !important;
+}
+
+/* [손 도구]는 화면만 옮긴다 — 그려 둔 도형·문구가 잡히거나 선택 테두리가 뜨지 않게 표시 판 전체가
+   마우스를 받지 않는다(2026-09-19 CM 지시). 스페이스바 손 도구와 같은 규칙이다. */
+#viewerContainer.dmsHandMode .annotationEditorLayer,
+#viewerContainer.dmsHandMode .annotationEditorLayer * {
+  pointer-events: none !important;
+}
+
+/* 화면에서만 감춘다 — 요소와 값은 그대로 두었다가 dms-viewer.js의 스위치 한 줄로 다시 보이게 한다
+   (SHOW_MODE_SWITCHES·SHOW_POINTER_EXTRA_BUTTONS, 2026-09-19 CM 지시). */
+.dmsHiddenByChoice {
+  display: none !important;
+}
+
+/* 그리기 도구를 하나도 안 켠 상태([선택]·[이동]·[손 도구])에서는 그려 둔 표시(도형·글자·선)를
+   언제나 눌러 고르고 끌어서 옮길 수 있다 — [Markup 선택]이 켜졌든 꺼졌든 상관없다
+   (2026-09-04 CM 지시). PDF.js는 도구가 꺼져 있으면 표시를 아예 만질 수 없게 막아 두는데
+   (.disabled), 그러면 [선택]으로 도형을 고를 수가 없다.
+   판(레이어) 자체는 그대로 두고 표시들만 살린다 — 판까지 살리면 표시가 없는 빈 자리를 눌렀을 때
+   그 밑의 글자를 고를 수 없게 된다.
+   [Markup 선택]은 **그리기 도구가 켜져 있는 동안에만** 뜻이 있다(위 규칙) — 도형이 빽빽한
+   자리에서 옆 도형이 잡히지 않고 그대로 새로 그려지게 하는 것이 그 스위치의 일이기 때문이다. */
+.annotationEditorLayer.disabled > * {
+  pointer-events: auto;
+}
+
+/* [Text 선택]을 끈 상태 — 자료에 적힌 글자가 마우스를 받지 않는다.
+   형광펜은 글자가 잡히면 그 글자를 따라 칠해지므로, 꺼 두면 끌어 놓은 자리에 그대로 칠해진다.
+   글자를 찾는 기능(Ctrl+F)은 글자를 눌러 고르는 것이 아니라서 그대로 동작한다.
+
+   주의 — 형광펜(강조 표시)만은 글자 판(.textLayer div)이 마우스를 받아야 그려진다. PDF.js의
+   자유 형광펜은 그 판을 눌러 시작되기 때문이다(#textLayerPointerDown). 그래서 판까지 통째로
+   막으면 형광펜이 아예 안 그려졌다(2026-09-04 CM 보고 — Text 선택을 꺼야 형광펜이 안 그려짐).
+   형광펜이 켜져 있을 때(.textLayer.highlighting)는 판은 살려두고 그 안 글자 조각(*)만 막는다.
+   그러면 마우스가 언제나 판에 닿아 자유 형광펜이 되고(글자를 따라가지 않음) 그림이 그려진다.
+   형광펜이 아닌 다른 상태에서는 예전처럼 판까지 막아 글자 선택을 못 하게 한다. */
+#viewerContainer.dmsTextLocked .textLayer:not(.highlighting),
+#viewerContainer.dmsTextLocked .textLayer:not(.highlighting) * {
+  pointer-events: none !important;
+}
+#viewerContainer.dmsTextLocked .textLayer.highlighting {
+  pointer-events: auto !important;
+}
+#viewerContainer.dmsTextLocked .textLayer.highlighting * {
+  pointer-events: none !important;
+}
+
+/* 채움·글자 배경으로 뒤에 깔아 둔 조각 — 앞 조각(테두리·글자)과 한 몸이라 따로 잡히면 안 된다.
+   안쪽 조각까지 막는 이유는 [Markup 선택]과 같다(겉껍데기만 막으면 안쪽이 마우스를 받는다).
+   이걸 안 막으면 배경을 깐 글자를 눌렀을 때 글자가 아니라 배경이 잡혀서 도구모음이
+   [텍스트]가 아니라 [강조 표시]로 바뀐다(2026-09-03 CM 보고). */
+.annotationEditorLayer .dmsBackPiece,
+.annotationEditorLayer .dmsBackPiece * {
+  pointer-events: none !important;
+}
+
+/* 형광펜이 여러 번 겹쳐도 그 자리만 진해지지 않게 한다 (2026-09-03 CM 지시).
+   PDF.js는 형광펜을 "곱하기(multiply)"로 겹쳐 그리는데, 그러면 같은 색을 두 번 칠한 자리가
+   더 진해진다. "어두운 쪽 남기기(darken)"로 바꾸면 같은 색을 몇 번 겹쳐도 한 번 칠한 것과
+   같은 색이 되고, 밑에 있는 도면 선은 그대로 비쳐 보인다. */
+.canvasWrapper svg.highlight {
+  --blend-mode: darken;
+}
+
+/* 도형 채우기는 겹쳐 칠하지 않고 그대로 덮는다 (2026-09-04 CM 지시).
+   겹쳐 칠하는 방식으로는 진하기를 100%로 올려도 밑에 있는 도면이 계속 비쳐 보이기 때문에,
+   채움 조각만 이 방식을 풀어 "불투명도 100% = 완전 불투명"이 되게 한다.
+   표시(dmsOpaqueFill)를 다는 일은 dms-fill.js의 markOpaqueFill이 한다.
+   글자 배경은 이 표시를 달지 않아 예전처럼 형광펜같이 비쳐 보인다. */
+.canvasWrapper svg.highlight.dmsOpaqueFill {
+  --blend-mode: normal;
+}
+
+/* 원본(DWG 등) 미리보기 창의 형광펜 — 반투명 색을 칠한 자리에 그대로 덮는다(2026-09-20 CM 지시).
+   "어두운 쪽 남기기"는 검은 바탕에서 칠해도 보이지 않기 때문이다. 밑의 도면 선은 비쳐 보인다.
+   진하기는 dms-tools.js의 ORIGINAL_HIGHLIGHT_OPACITY와 같아야 한다(저장한 PDF에도 같은 값이 들어간다).
+   도형 채우기(dmsOpaqueFill)는 원래대로 고른 진하기로 덮는다. */
+body.dmsOriginalView .canvasWrapper svg.highlight:not(.dmsOpaqueFill) {
+  --blend-mode: normal;
+  opacity: 0.45;
+}
+
+/* [그리기](펜) 커서의 촉을 그어지는 선에 맞춘다 (2026-09-04 CM 지시).
+   PDF.js가 정한 hotspot(0 16)은 펜 그림의 촉(그림 안 1,15 자리 — 가장 아래 끝점)보다 살짝
+   왼쪽·아래여서, 촉이 그어지는 선에서 조금 떠 보였다. hotspot을 촉 자리로 옮겨 촉 끝이 곧
+   그어지는 자리가 되게 한다. (:root에 정의된 PDF.js 값을 덮어쓴다 — 이 파일이 viewer.css보다
+   나중에 로드되므로 이긴다.) */
+:root {
+  --editorInk-editing-cursor: url(images/cursor-editorInk.svg) 1 15, pointer;
+}
+
+#viewerContainer.dmsEraserMode .page,
+#viewerContainer.dmsEraserMode .annotationEditorLayer,
+#viewerContainer.dmsEraserMode .annotationEditorLayer * {
+  cursor: cell !important;
+}
+
+/* 지우개가 지울 대상 위에 있을 때 — 지워질 것을 미리 알려준다 */
+.dmsEraseTarget {
+  opacity: 0.35;
+  outline: 2px dashed var(--selected-outline-color, highlight);
+}
+
+/* ------------------------------------------------------------- ⑤ 감추는 것 */
+
+/* PDF.js가 원래 갖고 있던 색 고르는 칸 — 우리 칸으로 바꿔 달았으므로 감춘다.
+   지우지 않는 이유: 자료를 새로 열 때마다 PDF.js가 다시 만들어 넣기 때문이고,
+   PDF.js 자신이 그 칸의 값을 읽고 쓰는 자리도 그대로 남겨둬야 하기 때문이다. */
+.editorParamsToolbar .editorParamsSetter.dmsReplaced {
+  display: none !important;
+}
+
+#editorHighlightColorPicker.dmsReplaced > #highlightColorPickerLabel,
+#editorHighlightColorPicker.dmsReplaced > .dropdown {
+  display: none;
+}
+
+/* 형광펜 창의 [모두 보기] 켬/끔 — 쓰지 않는 기능이라 감춘다 (2026-09-02 CM 지시) */
+#editorHighlightVisibility {
+  display: none !important;
+}
+
+/* 막대 양옆의 작은 동그라미·큰 동그라미(굵기 예시) — 없앤다 (2026-09-02 CM 지시).
+   막대를 우리 줄로 옮겨 담으면서 이미 사라지지만, PDF.js가 다시 만들어 넣는 경우를 대비해 둔다. */
+.thicknessPicker::before,
+.thicknessPicker::after {
+  display: none !important;
+}
+
+/* 자료 위에서 깜빡거리는 세로선(글자 커서)을 없앤다 (2026-09-04 CM 지시).
+   자료를 눌렀을 때 타이핑 자리를 알려주는 그 커서인데, 이 화면에서는 글자를 적을 일이 없으므로
+   보일 이유가 없고 도면 위에 검은 줄이 깜빡여 거슬린다. PDF.js가 글자 판(.textLayer)에
+   `caret-color: CanvasText`로 **일부러 보이게** 해 둔 것을 여기서 안 보이게 되돌린다
+   (자판 화살표로 글자 사이를 옮겨 다니는 기능을 쓸 때 필요한 값인데 이 시스템에서는 안 쓴다).
+   글자를 마우스로 고르는 것(파란 선택 표시)과 Ctrl+F 찾기는 커서와 무관하므로 그대로 동작한다. */
+#viewerContainer .textLayer,
+#viewerContainer .annotationEditorLayer,
+#viewerContainer .annotationEditorLayer * {
+  caret-color: transparent;
+}
+
+/* 자료에 원래부터 들어 있던 주석 풍선(노란 메모) — 마우스를 올리면 떠서 도면을 가린다.
+   AutoCAD가 도면을 PDF로 내보낼 때 "AutoCAD SHX Text"라며 글자마다 붙여 놓은 것이라
+   내용이 없는 것이나 마찬가지이므로 안 보이게 한다 (2026-09-02 CM 지시).
+   주석 자체는 지우지 않으므로 저장한 PDF에는 그대로 남는다. */
+.annotationLayer .popupAnnotation,
+.annotationLayer .popup {
+  display: none !important;
+}
+
+/* 그려 둔 표시를 골랐을 때 그 옆에 뜨는 작은 도구모음 — [지우기](휴지통)만 남긴다
+   (2026-09-04 CM 지시). 색을 고르는 자리가 도구창과 여기 두 군데로 갈리면 어느 쪽이
+   반영된 것인지 알기 어렵기 때문이다. 색은 위쪽 도구창에서만 고른다.
+   색 고르는 칸은 표시 종류마다 모양이 달라 둘이다 —
+     .colorPicker      : 형광펜(동그라미 + 펼침 화살표)
+     .basicColorPicker : 그리기·도형(색 동그라미 하나)
+   그 옆의 칸막이 줄(divider)도 같이 감춰야 휴지통만 덩그러니 남는다. */
+.editToolbar .colorPicker,
+.editToolbar .basicColorPicker,
+.editToolbar .colorPicker + .divider,
+.editToolbar .basicColorPicker + .divider {
+  display: none !important;
+}
+
+/* 표시를 골랐을 때 그 옆 작은 도구모음에 우리가 더한 버튼 세 개 (2026-09-04 CM 지시,
+   [회전]은 2026-09-18). 크기·간격은 PDF.js가 휴지통에 쓰는 class(.basic)가 정하므로 넷이 똑같고,
+   여기서는 버튼 안 그림만 정한다.
+     이동      : 눌러서 끌면 그 표시가 따라 움직인다
+     회전      : 눌러서 끌면 돌아가고, 한 번 누르면 시계방향으로 90도 돈다
+     채움 전환 : 블라인드·스펙타클 블라인드·밸브를 칠했다 비웠다 한다 */
+.editToolbar .buttons .dmsMoveButton::before {
+  -webkit-mask-image: url(images/toolbarButton-dmsMove.svg);
+          mask-image: url(images/toolbarButton-dmsMove.svg);
+}
+
+.editToolbar .buttons .dmsRotateButton::before {
+  -webkit-mask-image: url(images/toolbarButton-dmsRotate.svg);
+          mask-image: url(images/toolbarButton-dmsRotate.svg);
+}
+
+.editToolbar .buttons .dmsToggleFillButton::before {
+  -webkit-mask-image: url(images/toolbarButton-dmsToggleFill.svg);
+          mask-image: url(images/toolbarButton-dmsToggleFill.svg);
+}
+
+/* ------------------------------- ⑥ 대체 텍스트 없애기 · 삭제 알림 모양 맞추기 */
+
+/* [대체 텍스트] — 도장·그림을 골랐을 때 그 옆 작은 도구모음에 뜨던 버튼과, 대체 텍스트를
+   안 적었을 때 뜨는 경고 딱지. 눈이 안 보이는 사람을 위해 그림 설명을 적어 두는 웹 기능인데
+   이 시스템에서는 쓰지 않으므로 없앤다 (2026-09-04 CM 지시). 그 옆 칸막이 줄과 도구모음
+   » 안의 [이미지 대체 텍스트 설정]도 함께 감춘다. PDF.js가 자료를 열 때마다 다시 만들어
+   넣는 것이라 지우지 않고 감춘다(색 칸·노란 메모와 같은 방식). */
+.editToolbar .altText,
+.editToolbar .altText + .divider,
+.noAltTextBadge,
+.editDescription.altText,
+#imageAltTextSettings,
+#imageAltTextSettingsSeparator {
+  display: none !important;
+}
+
+/* 표시를 지웠을 때 화면 위쪽에 잠깐 뜨는 알림("이미지 제거됨 / 실행 취소") —
+   시스템의 다른 팝업과 같은 모양으로 맞춘다 (2026-09-04 CM 지시). PDF.js가 원래 쓰던
+   파란 바탕(파이어폭스 알림 바)은 무채색인 이 시스템 화면에서 혼자 튄다.
+   색·모서리·그림자·글꼴 값은 frontend/style.css의 팝업(.modal-box)에서 그대로 가져왔다 —
+   미리보기는 그 style.css를 읽지 않는 작은 창(iframe) 안이라 값을 직접 적는다.
+   값이 바뀌면 두 곳을 같이 고쳐야 한다. */
+#editorUndoBar {
+  --message-bar-bg-color: #ffffff;              /* --surface */
+  --message-bar-fg-color: #1c1c1b;              /* --text */
+  --message-bar-border-color: #d8d8d4;          /* --border-strong */
+  --message-bar-close-button-color: #77776f;    /* --text-muted */
+  --message-bar-close-button-color-hover: #1c1c1b;
+  --message-bar-close-button-hover-bg-color: #f2f2f0;  /* --surface-sunken */
+  --message-bar-close-button-active-bg-color: #e8e8e5; /* --border */
+  --message-bar-close-button-focus-bg-color: transparent;
+
+  top: 64px;
+  padding: 14px 12px 14px 18px;
+  border-radius: 8px;                                   /* --radius-lg */
+  box-shadow: 0 16px 48px rgba(28, 28, 27, 0.16);       /* --shadow-lg */
+  font-family: "Malgun Gothic", "맑은 고딕", "Segoe UI", sans-serif;
+  font-size: 13px;
+  letter-spacing: -0.01em;
+}
+
+/* 파란 동그라미 아이콘 — 시스템 팝업에는 아이콘이 없으므로 뺀다 */
+#editorUndoBar > div::before {
+  display: none !important;
+}
+
+/* [실행 취소] — 시스템 팝업의 [확인]과 같은 모양(먹색 바탕에 흰 글자) */
+#editorUndoBar #editorUndoBarUndoButton {
+  height: 32px;  /* 시스템 팝업의 [확인] 버튼과 같은 높이 */
+  margin-inline-start: 14px;
+  padding: 0 14px;
+  border: 1px solid #3a3a35;      /* --text-dark-gray */
+  border-radius: 4px;             /* --radius */
+  background: #3a3a35;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 12.5px;
+  letter-spacing: inherit;
+}
+
+#editorUndoBar #editorUndoBarUndoButton:hover {
+  background: #1c1c1b;            /* --text */
+  border-color: #1c1c1b;
+}
+
+#editorUndoBar .closeButton {
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+}
+
+/* ---------------------------------------------------------------------------
+   [»] 안의 [보관하기]·[다른 이름으로 보관] (2026-09-05 CM 지시)
+   ---------------------------------------------------------------------------
+   미리보기에서 그린 편집 내용을 보관 목록에 넣는 두 버튼이다. 예전에는 도구모음 오른쪽
+   끝에 하트가 있었는데, CM 지시로 그 버튼을 없애고 이 두 개로 모았다(dms-favorite.js). */
+#dmsSaveFavoriteButton::before {
+  -webkit-mask-image: url(images/toolbarButton-dmsSave.svg);
+          mask-image: url(images/toolbarButton-dmsSave.svg);
+}
+
+#dmsSaveAsFavoriteButton::before {
+  -webkit-mask-image: url(images/toolbarButton-dmsSaveAs.svg);
+          mask-image: url(images/toolbarButton-dmsSaveAs.svg);
+}
+
+/* 잠긴 버튼은 PDF.js 규칙대로 흐려지는데(opacity 0.5), 그 규칙이 마우스까지 막아버려
+   "왜 잠겼는지"를 알려주는 글이 안 뜬다. 눌리는 것은 disabled가 이미 막고 있으므로
+   마우스만 다시 받게 해 그 글이 보이도록 한다. */
+#dmsSaveFavoriteButton[disabled],
+#dmsSaveAsFavoriteButton[disabled] {
+  pointer-events: auto;
+  cursor: default;
+}
+
+/* ---------------------------------------------------------------------------
+   Ctrl+끌기 복사 미리보기 · 끌어서 여러 개 고르기 (2026-09-07 CM 지시, dms-copy.js)
+   ---------------------------------------------------------------------------
+   ① 복사 미리보기(그림자) — 무엇이 어디로 복사되는지 끄는 내내 보여준다. 옮겨질 자리에
+      원본을 옅게 베껴 얹고, 마우스를 따라 통째로 민다(transform). 마우스는 받지 않는다.
+   ② 고무줄 네모 — [선택]으로 빈 자리를 끌 때 나오는 점선 네모다. 여기에 닿은 표시가
+      손을 뗄 때 전부 골라진다. */
+.dmsCopyGhost {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+.dmsCopyGhostItem {
+  position: absolute;
+  outline: 1px dashed rgb(60 60 60 / 70%);
+  outline-offset: 1px;
+}
+
+.dmsCopyGhostItem > * {
+  pointer-events: none;
+}
+
+.dmsSelectBox {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  border: 1px dashed rgb(40 40 40 / 80%);
+  background: rgb(120 120 120 / 12%);
+}

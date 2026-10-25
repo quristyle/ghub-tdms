@@ -6,7 +6,8 @@ import {
 } from '@tdms/contracts'
 import { AUTHENTICATED, PUBLIC, defineRoute } from '../../core/route.js'
 import {
-  clearSessionCookie, destroySession, readSessionCookie, setSessionCookie,
+  clearSessionCookie, deferPasswordChange, destroySession,
+  readSessionCookie, setSessionCookie,
 } from '../../core/session.js'
 import * as svc from './service.js'
 
@@ -62,6 +63,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
         groupId: user.groupId,
         groupName: user.groupName,
         mustChangePassword: user.mustChangePassword,
+        passwordDeferred: user.passwordDeferred,
         permissions: perms,
         menu: MENU.filter((m) => user.role === 'ADMIN' || permissions.has(m.permission)),
       }
@@ -97,6 +99,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
     audit: { screen: '로그인', action: '비밀번호 변경 미루기' },
     schema: { response: { 200: z.object({ ok: z.literal(true) }) } },
     handler: async (req) => {
+      await deferPasswordChange(req.auth.sessionId)
       req.setAuditTarget(req.auth.user.loginId)
       return { ok: true as const }
     },

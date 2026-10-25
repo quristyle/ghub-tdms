@@ -25,7 +25,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/groups',        component: ph, meta: { permission: 'screen.users.access',             title: '권한 관리',     phase: '7' } },
   { path: '/backup',        component: ph, meta: { permission: 'screen.backup.access',            title: '백업 관리',     phase: '7' } },
 
-  { path: '/documents/:id', component: ph, meta: { title: 'TDB 자료 상세', phase: '3' } },
+  { path: '/documents/:id', component: () => import('@/pages/TdbDetailPage.vue'), meta: { title: 'TDB 자료 상세' } },
   { path: '/mdb/:id',       component: ph, meta: { title: 'MDB 자료 상세', phase: '6' } },
   { path: '/help',          component: ph, meta: { title: '도움말', phase: '7' } },
 

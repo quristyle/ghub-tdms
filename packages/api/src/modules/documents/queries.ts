@@ -1,4 +1,4 @@
-import { many, one } from '../../core/db.js'
+import { many, one, query } from '../../core/db.js'
 import type { DocumentListQuery } from '@tdms/contracts'
 import { decodeCursor } from '../../core/cursor.js'
 
@@ -211,5 +211,134 @@ export function listDocumentFiles(documentId: number) {
       ORDER BY fl.rev DESC, fl.branch NULLS FIRST, fl.file_ext`,
     [documentId],
     'document_files',
+  )
+}
+
+// ── Revision 이력 / 반출 이력 (상세 화면 탭) ─────────────────────────────
+
+export interface RevisionRow {
+  rev: number
+  branch: string | null
+  reason: string | null
+  note: string | null
+  createdAt: Date
+  createdBy: string | null
+  isCurrent: boolean
+}
+
+export function listRevisions(documentId: number) {
+  return many<RevisionRow>(
+    `SELECT rs.rev, rs.branch, rs.reason, rs.note,
+            rs.created_at AS "createdAt",
+            u.name        AS "createdBy",
+            EXISTS (SELECT 1 FROM files f
+                     WHERE f.revision_set_id = rs.id AND f.is_current) AS "isCurrent"
+       FROM revision_sets rs
+  LEFT JOIN users u ON u.id = rs.created_by
+      WHERE rs.document_id = $1
+      ORDER BY rs.rev DESC, rs.branch NULLS FIRST`,
+    [documentId],
+    'document_revisions',
+  )
+}
+
+export interface RevisionFileRow {
+  id: number
+  rev: number
+  branch: string | null
+  fileExt: string
+  displayName: string
+  byteSize: number
+  reviewStatus: string
+  uploadedAt: Date
+}
+
+export function listFilesByRevision(documentId: number) {
+  return many<RevisionFileRow>(
+    `SELECT fl.id, fl.rev, fl.branch,
+            fl.file_ext      AS "fileExt",
+            fl.display_name  AS "displayName",
+            b.byte_size      AS "byteSize",
+            fl.review_status AS "reviewStatus",
+            fl.uploaded_at   AS "uploadedAt"
+       FROM files fl
+       JOIN blobs b ON b.sha256 = fl.blob_sha256
+      WHERE fl.document_id = $1
+      ORDER BY fl.rev DESC, fl.branch NULLS FIRST, fl.file_ext`,
+    [documentId],
+    'document_rev_files',
+  )
+}
+
+export interface DistributionRow {
+  id: number
+  revAtDistribution: number
+  vendorName: string
+  projectName: string | null
+  purpose: string
+  purposeNote: string | null
+  zipName: string | null
+  distributedBy: string | null
+  distributedAt: Date
+  returnedAt: Date | null
+  returnNote: string | null
+  manualReturn: boolean
+  note: string | null
+  returnedFileReview: string | null
+}
+
+export function listDistributions(documentId: number) {
+  return many<DistributionRow>(
+    `SELECT x.id,
+            x.rev_at_distribution AS "revAtDistribution",
+            x.vendor_name         AS "vendorName",
+            p.name                AS "projectName",
+            x.purpose, x.purpose_note AS "purposeNote",
+            x.zip_name            AS "zipName",
+            u.name                AS "distributedBy",
+            x.distributed_at      AS "distributedAt",
+            x.returned_at         AS "returnedAt",
+            x.return_note         AS "returnNote",
+            x.manual_return       AS "manualReturn",
+            x.note,
+            rf.review_status      AS "returnedFileReview"
+       FROM distributions x
+  LEFT JOIN projects p ON p.id = x.project_id
+  LEFT JOIN users u    ON u.id = x.distributed_by
+  LEFT JOIN files rf   ON rf.id = x.returned_file_id
+      WHERE x.document_id = $1
+      ORDER BY x.distributed_at DESC`,
+    [documentId],
+    'document_distributions',
+  )
+}
+
+/** 비고 작성 — 권한은 라우트가 막는다 */
+export function updateRevisionNote(documentId: number, rev: number, branch: string | null, note: string | null) {
+  return query(
+    `UPDATE revision_sets SET note = $4
+      WHERE document_id = $1 AND rev = $2 AND branch IS NOT DISTINCT FROM $3`,
+    [documentId, rev, branch, note],
+  )
+}
+
+export function updateDistributionNote(distributionId: number, note: string | null) {
+  return query('UPDATE distributions SET note = $2 WHERE id = $1', [distributionId, note])
+}
+
+/** 상세 화면의 이전·다음 이동 (목록 정렬과 같은 기준) */
+export function neighborIds(documentId: number) {
+  return one<{ prevId: number | null; nextId: number | null }>(
+    `WITH cur AS (SELECT updated_at, id, folder_id FROM documents WHERE id = $1)
+     SELECT (SELECT d.id FROM documents d, cur
+              WHERE d.folder_id = cur.folder_id
+                AND (d.updated_at, d.id) > (cur.updated_at, cur.id)
+              ORDER BY d.updated_at, d.id LIMIT 1) AS "prevId",
+            (SELECT d.id FROM documents d, cur
+              WHERE d.folder_id = cur.folder_id
+                AND (d.updated_at, d.id) < (cur.updated_at, cur.id)
+              ORDER BY d.updated_at DESC, d.id DESC LIMIT 1) AS "nextId"`,
+    [documentId],
+    'document_neighbors',
   )
 }

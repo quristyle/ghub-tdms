@@ -94,5 +94,17 @@ pnpm build        # 빌드 + 번들 예산 확인
 | 0 · 기준선 | 기능 인벤토리 완료 (메뉴 9 / 화면 14 / 권한 36 / API 201) |
 | 1 · 데이터 | 스키마 설계·적용 완료 (테이블 29, 인덱스 93) |
 | 2 · 골격 | **완료** — 계약, API 골격, 인증·권한·감사·캐시, 셸·메뉴 |
-| 3 · 조회 | TDB 조회 목록·트리·검색 동작. 상세·PDF 뷰어 남음 |
-| 4~8 | 대기 |
+| 3 · 조회 | **완료** — TDB 목록·트리·검색·상세 4탭, 파일 전송, 작업 큐+SSE, **PDF 뷰어 이식** |
+| 4 · 워크플로 | 다음 — TDB 반입·검수 + TDB 관리 (API 48개) |
+| 5~8 | 대기 |
+
+### 알려진 제약
+
+`packages/worker` (Python)는 코드만 있고 **이 개발 장비에서는 실행하지 못했다**
+(`python3-venv`/`pip` 미설치, 설치 권한 없음). 큐 계약은 같은 SQL 로 도는
+`db/tools/queue-smoke.mjs` 로 검증했다. 워커 실행 준비:
+
+```bash
+sudo apt install python3.12-venv
+cd packages/worker && python3 -m venv .venv && .venv/bin/pip install -e .
+```

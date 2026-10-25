@@ -16,6 +16,9 @@ import { loadPermissions, loadSession, readSessionCookie } from './core/session.
 import { registerAuthRoutes } from './modules/auth/routes.js'
 import { registerFolderRoutes } from './modules/folders/routes.js'
 import { registerDocumentRoutes } from './modules/documents/routes.js'
+import { registerFileRoutes } from './modules/files/routes.js'
+import { registerJobRoutes } from './modules/jobs/routes.js'
+import { registerFavoriteRoutes } from './modules/favorites/routes.js'
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -26,7 +29,6 @@ export async function buildApp(): Promise<FastifyInstance> {
     },
     trustProxy: true,
     bodyLimit: 32 * 1024 * 1024,
-    disableRequestLogging: false,
   })
 
   // Zod 를 검증기이자 직렬화 컴파일러로 — 응답 JSON 생성이 2~3배 빨라진다
@@ -117,6 +119,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   registerAuthRoutes(app)
   registerFolderRoutes(app)
   registerDocumentRoutes(app)
+  registerFileRoutes(app)
+  registerJobRoutes(app)
+  registerFavoriteRoutes(app)
 
   // ── 기동 시점 검증 — 하나라도 어긋나면 서버가 뜨지 않는다 ─────────────
   assertRouteDeclarations()

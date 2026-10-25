@@ -74,3 +74,87 @@ function toListItem(r: q.DocumentListRow) {
     lentAt: r.lentAt ? r.lentAt.toISOString() : null,
   }
 }
+
+// ── Revision 이력 / 반출 이력 ───────────────────────────────────────────
+
+export async function revisions(documentId: number) {
+  const [revs, files] = await Promise.all([
+    q.listRevisions(documentId),
+    q.listFilesByRevision(documentId),
+  ])
+
+  // 파일을 리비전별로 묶는다 (N+1 대신 두 번 조회 후 메모리에서 결합)
+  const byRev = new Map<string, q.RevisionFileRow[]>()
+  for (const f of files) {
+    const key = `${f.rev}|${f.branch ?? ''}`
+    const list = byRev.get(key)
+    if (list) list.push(f)
+    else byRev.set(key, [f])
+  }
+
+  return {
+    items: revs.map((r) => ({
+      rev: r.rev,
+      branch: r.branch,
+      label: `Rev${r.rev}${r.branch ? `-${r.branch}` : ''}`,
+      isCurrent: r.isCurrent,
+      reason: r.reason,
+      note: r.note,
+      createdAt: r.createdAt.toISOString(),
+      createdBy: r.createdBy,
+      files: (byRev.get(`${r.rev}|${r.branch ?? ''}`) ?? []).map((f) => ({
+        id: f.id,
+        fileExt: f.fileExt,
+        displayName: f.displayName,
+        byteSize: f.byteSize,
+        reviewStatus: f.reviewStatus as never,
+        uploadedAt: f.uploadedAt.toISOString(),
+      })),
+    })),
+  }
+}
+
+export async function distributions(documentId: number) {
+  const rows = await q.listDistributions(documentId)
+  return {
+    items: rows.map((x) => ({
+      id: x.id,
+      revAtDistribution: x.revAtDistribution,
+      vendorName: x.vendorName,
+      projectName: x.projectName,
+      purpose: x.purpose as never,
+      purposeNote: x.purposeNote,
+      zipName: x.zipName,
+      distributedBy: x.distributedBy,
+      distributedAt: x.distributedAt.toISOString(),
+      returnedAt: x.returnedAt ? x.returnedAt.toISOString() : null,
+      returnNote: x.returnNote,
+      manualReturn: x.manualReturn,
+      note: x.note,
+      state: distributionState(x),
+    })),
+  }
+}
+
+/** 화면 라벨: 반입완료 / 반입미완료 / 확인필요 / 검수대기 */
+function distributionState(x: q.DistributionRow): 'RETURNED' | 'OUTSTANDING' | 'ISSUE' | 'PENDING_REVIEW' {
+  if (x.returnedAt === null) return 'OUTSTANDING'
+  if (x.returnedFileReview === 'ISSUE') return 'ISSUE'
+  if (x.returnedFileReview === 'PENDING') return 'PENDING_REVIEW'
+  return 'RETURNED'
+}
+
+export async function setRevisionNote(
+  documentId: number, rev: number, branch: string | null, note: string | null,
+) {
+  await q.updateRevisionNote(documentId, rev, branch, note)
+}
+
+export async function setDistributionNote(distributionId: number, note: string | null) {
+  await q.updateDistributionNote(distributionId, note)
+}
+
+export async function neighbors(documentId: number) {
+  const r = await q.neighborIds(documentId)
+  return { prevId: r?.prevId ?? null, nextId: r?.nextId ?? null }
+}

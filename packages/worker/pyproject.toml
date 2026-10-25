@@ -1,0 +1,19 @@
+[project]
+name = "tdms-worker"
+version = "0.1.0"
+description = "TDMS 변환·배치 워커 — DWG/오피스 변환, Zip, 엑셀, 백업"
+requires-python = ">=3.12"
+dependencies = [
+  "psycopg[binary]>=3.2",
+  "openpyxl>=3.1",
+  "pymupdf>=1.24",
+  "ezdxf>=1.3",
+  "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

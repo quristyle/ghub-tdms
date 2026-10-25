@@ -13,6 +13,8 @@ export interface SessionUser {
   groupId: number | null
   groupName: string | null
   mustChangePassword: boolean
+  /** 이 세션에서 비밀번호 변경을 미뤘는가 (새로고침해도 유지, 재로그인 시 초기화) */
+  passwordDeferred: boolean
 }
 
 export interface AuthContext {
@@ -55,6 +57,7 @@ export async function loadSession(sessionId: string): Promise<SessionUser | unde
             u.id, u.login_id  AS "loginId", u.name, u.role,
             u.group_id        AS "groupId", g.name AS "groupName",
             u.must_change_password AS "mustChangePassword",
+            s.password_deferred    AS "passwordDeferred",
             (s.last_seen_at < now() - ($2 || ' milliseconds')::interval) AS needs_touch
        FROM sessions s
        JOIN users u  ON u.id = s.user_id
@@ -78,7 +81,13 @@ export async function loadSession(sessionId: string): Promise<SessionUser | unde
     groupId: row.groupId,
     groupName: row.groupName,
     mustChangePassword: row.mustChangePassword,
+    passwordDeferred: row.passwordDeferred,
   }
+}
+
+/** 미루기 — 이 세션에서만 변경 화면을 건너뛴다. */
+export async function deferPasswordChange(sessionId: string): Promise<void> {
+  await query('UPDATE sessions SET password_deferred = true WHERE id = $1', [sessionId])
 }
 
 /**
