@@ -9,6 +9,11 @@
  *   ④ 좀비 회수(heartbeat 2분 초과)가 동작하는가
  *
  * 사용: node db/tools/queue-smoke.mjs
+ *
+ * 주의 — **진짜 워커를 멈추고 돌려야 한다**(`./dev.sh stop worker`).
+ * 돌고 있으면 워커가 시험용 작업을 먼저 집어 가서
+ * "워커 둘이 서로 다른 작업을 집는다" 가 엉뚱하게 실패한다.
+ * 아래에서 먼저 확인하고, 떠 있으면 검증을 시작하지 않는다.
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
@@ -53,6 +58,19 @@ const check = (ok, label, extra = '') => {
 
 const main = async () => {
   const a = await connect()
+
+  // 진짜 워커가 떠 있으면 시험용 작업을 가로챈다 — 틀린 실패를 내느니 멈춘다.
+  const { rows: [live] } = await a.query(
+    `SELECT count(*)::int AS n FROM jobs
+      WHERE state='running' AND heartbeat_at > now() - interval '90 seconds'`)
+  const { rows: [conn] } = await a.query(
+    `SELECT count(*)::int AS n FROM pg_stat_activity WHERE application_name LIKE 'tdms-worker%'`)
+  if (live.n > 0 || conn.n > 0) {
+    console.error('작업 워커가 돌고 있다. 시험용 작업을 가로채므로 먼저 멈춰야 한다:')
+    console.error('  ./dev.sh stop worker && node db/tools/queue-smoke.mjs; ./dev.sh start worker')
+    await a.end()
+    process.exit(2)
+  }
   const b = await connect()
   const listener = await connect()
 

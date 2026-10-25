@@ -52,12 +52,41 @@ export async function invalidate(ch: Channel): Promise<void> {
 }
 
 let listener: pg.Client | undefined
+let beat: NodeJS.Timeout | undefined
+let stopping = false
+let reconnecting = false
 
-/** 무효화 방송 수신. 끊기면 다시 붙는다. */
-export async function startCacheListener(log: {
+/** 끊긴 뒤 다시 붙는다. 여러 사건(error·end)이 겹쳐도 한 번만 붙는다. */
+function scheduleReconnect(log: Logger, why: string): void {
+  if (stopping || reconnecting) return
+  reconnecting = true
+  log.error({ why }, '캐시 리스너가 끊겼다 — 5초 뒤 다시 붙는다')
+  setTimeout(() => {
+    reconnecting = false
+    void startCacheListener(log).catch((err: unknown) => scheduleReconnect(log, String(err)))
+  }, 5_000)
+}
+
+type Logger = {
   info: (o: unknown, m?: string) => void
   error: (o: unknown, m?: string) => void
-}): Promise<void> {
+}
+
+/**
+ * 무효화 방송 수신. 끊기면 다시 붙는다.
+ *
+ * ## 조용히 죽는 길을 막는다
+ *
+ * 이 연결은 **아무 것도 보내지 않는다** — LISTEN 만 걸고 가만히 있는다.
+ * 그래서 중간의 NAT·방화벽이 놀고 있는 줄로 보고 조용히 끊어 버린다.
+ * 그렇게 끊기면 pg 는 `error` 가 아니라 `end` 를 낸다.
+ *
+ * `error` 만 듣고 있으면 리스너는 죽은 채 살아 있는 척한다 —
+ * 서버는 멀쩡히 돌지만 권한을 바꿔도 반영되지 않는다. 실제로 그렇게 멈췄다.
+ * 그래서 `end` 도 듣고, TCP 킵얼라이브를 켜고, 주기적으로 한 번씩 찔러 본다.
+ */
+export async function startCacheListener(log: Logger): Promise<void> {
+  stopping = false
   const client = new pg.Client({
     host: config.db.host,
     port: config.db.port,
@@ -65,6 +94,8 @@ export async function startCacheListener(log: {
     user: config.db.user,
     password: config.db.password,
     application_name: 'tdms-api-listener',
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 30_000,
   })
 
   client.on('notification', (msg) => {
@@ -72,18 +103,27 @@ export async function startCacheListener(log: {
     if (caches[ch]) caches[ch].clear()
   })
 
-  client.on('error', (err) => {
-    log.error({ err }, '캐시 리스너 연결 오류 — 5초 후 재연결')
-    setTimeout(() => void startCacheListener(log), 5_000)
-  })
+  client.on('error', (err) => scheduleReconnect(log, `error: ${String(err)}`))
+  client.on('end', () => scheduleReconnect(log, 'end (상대가 끊었다)'))
 
   await client.connect()
   for (const ch of CHANNELS) await client.query(`LISTEN ${ch}`)
   listener = client
+
+  // 살아 있는지 주기적으로 확인한다. 실패하면 end/error 가 뒤따라 재연결로 이어진다.
+  clearInterval(beat)
+  beat = setInterval(() => {
+    client.query('SELECT 1').catch((err: unknown) => scheduleReconnect(log, `heartbeat: ${String(err)}`))
+  }, 30_000)
+  beat.unref?.()
+
   log.info({ channels: CHANNELS }, '캐시 무효화 리스너 시작')
 }
 
 export async function stopCacheListener(): Promise<void> {
+  stopping = true          // end 이벤트가 재연결로 이어지지 않게
+  clearInterval(beat)
+  beat = undefined
   await listener?.end()
   listener = undefined
 }

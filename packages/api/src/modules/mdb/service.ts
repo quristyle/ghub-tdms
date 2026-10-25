@@ -42,10 +42,9 @@ export async function list(qp: MdbListQuery) {
 
   return {
     items: items.map(toItem),
+    // 커서는 정렬 칸의 값을 담는다 — 안 그러면 다른 칸으로 정렬했을 때 다음 쪽이 어긋난다
     nextCursor:
-      hasMore && last
-        ? encodeCursor({ sortValue: last.updatedAt.toISOString(), id: last.id })
-        : null,
+      hasMore && last ? encodeCursor({ sortValue: q.sortValueOf(last, qp.sort), id: last.id }) : null,
     total: qp.cursor ? null : await q.countMdb(folderIds, qp),
   }
 }

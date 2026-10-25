@@ -6,7 +6,7 @@ import type {
   TagHistory, TagHistoryListResponse, TagTargetsResponse,
 } from '@tdms/contracts'
 import LazyTree from '@/ui/LazyTree.vue'
-import DataTable, { type Column } from '@/ui/DataTable.vue'
+import DataTable, { type Column, type SortDir } from '@/ui/DataTable.vue'
 import Modal from '@/ui/Modal.vue'
 import JobProgress from '@/ui/JobProgress.vue'
 import { api, ApiError, qs } from '@/lib/api'
@@ -38,8 +38,13 @@ function refreshAll() {
 // ── 트리 · 목록 ───────────────────────────────────────────────────────
 const folder = ref<FolderNode | null>(null)
 const keyword = ref('')
+const sort = ref<'updatedAt' | 'title' | 'equipmentType' | 'docType' | 'year'>('updatedAt')
+const dir = ref<SortDir>('desc')
+function onSort(key: string, d: SortDir) { sort.value = key as typeof sort.value; dir.value = d }
+
 const params = computed(() => ({
-  folderId: folder.value?.id, q: keyword.value || undefined, limit: 200,
+  folderId: folder.value?.id, q: keyword.value || undefined,
+  sort: sort.value, dir: dir.value, limit: 200,
 }))
 
 const { data, isFetching } = useQuery({
@@ -66,12 +71,16 @@ const { data: meta } = useQuery({
 })
 
 const columns = computed<Column<MdbListItem>[]>(() => [
-  { key: 'title', label: '자료명' },
-  { key: 'folderName', label: '폴더', width: '140px' },
-  { key: 'equipmentType', label: '설비유형', width: '110px', render: (r) => r.equipmentType ?? '-' },
-  { key: 'docType', label: '자료유형', width: '150px', render: (r) => r.docType ?? '-' },
-  { key: 'year', label: '연도', width: '60px', align: 'center', render: (r) => String(r.year ?? '-') },
-  { key: 'tagCount', label: 'Tag', width: '50px', align: 'center', render: (r) => String(r.tagCount) },
+  { key: 'title', label: '자료명', width: '288px', sortable: true },
+  { key: 'folderName', label: '폴더' },   // 남는 자리를 받는 칸
+  { key: 'equipmentType', label: '설비유형', width: '124px', sortable: true,
+    render: (r) => r.equipmentType ?? '-' },
+  { key: 'docType', label: '자료유형', width: '176px', sortable: true,
+    render: (r) => r.docType ?? '-' },
+  { key: 'year', label: '연도', width: '64px', align: 'center', sortable: true,
+    render: (r) => String(r.year ?? '-') },
+  { key: 'tagCount', label: 'Tag', width: '56px', align: 'center', filterable: false,
+    render: (r) => String(r.tagCount) },
 ])
 
 // ── 폴더 편집 ─────────────────────────────────────────────────────────
@@ -295,8 +304,10 @@ async function uploadZip(ev: Event) {
     </div>
 
     <div class="panel table-panel">
-      <DataTable :columns="columns" :rows="rows" selectable :selected="picked" :loading="isFetching"
-                 @toggle="toggle" @toggle-all="toggleAll" />
+      <DataTable
+        :columns="columns" :rows="rows" selectable :selected="picked" :loading="isFetching"
+        :total="data?.total ?? null" :sort-key="sort" :sort-dir="dir" storage-key="mdb-editor"
+        @toggle="toggle" @toggle-all="toggleAll" @sort="onSort" />
     </div>
 
     <!-- 폴더 편집 -->

@@ -40,6 +40,7 @@ export const DocClass = z.enum(['TDB', 'MDB'])
 export type DocClass = z.infer<typeof DocClass>
 
 export const SortDir = z.enum(['asc', 'desc'])
+export type SortDir = z.infer<typeof SortDir>
 
 /** 모든 실패 응답의 공통 형태. 화면이 code 로 분기하고 message 를 보여준다. */
 export const ErrorResponse = z.object({

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { BoolParam, PageQuery, pageResult } from './common.js'
+import { BoolParam, PageQuery, SortDir, pageResult } from './common.js'
 
 /**
  * MDB — 설비 데이터북 (기존 화면 5·6).
@@ -12,7 +12,13 @@ import { BoolParam, PageQuery, pageResult } from './common.js'
 /** 기존 화면 라벨: 자료명 / 폴더명 / Tag No */
 export const MdbSearchTarget = z.enum(['title', 'folder', 'tag'])
 
+/** 정렬할 수 있는 칸. 서버가 정렬한다 (documents.ts 의 설명과 같은 이유). */
+export const MdbSort = z.enum(['updatedAt', 'title', 'equipmentType', 'docType', 'year'])
+export type MdbSort = z.infer<typeof MdbSort>
+
 export const MdbListQuery = PageQuery.extend({
+  sort: MdbSort.default('updatedAt'),
+  dir: SortDir.default('desc'),
   folderId: z.coerce.number().int().optional(),
   recursive: BoolParam.default(true),
   q: z.string().max(200).optional(),

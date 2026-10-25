@@ -6,7 +6,7 @@ import type {
   FolderNode, PairFolderCandidateResponse,
 } from '@tdms/contracts'
 import LazyTree from '@/ui/LazyTree.vue'
-import DataTable, { type Column } from '@/ui/DataTable.vue'
+import DataTable, { type Column, type SortDir } from '@/ui/DataTable.vue'
 import Modal from '@/ui/Modal.vue'
 import JobProgress from '@/ui/JobProgress.vue'
 import { api, ApiError, qs } from '@/lib/api'
@@ -39,10 +39,16 @@ const folder = ref<FolderNode | null>(null)
 const keyword = ref('')
 const includeIsometric = ref(false)
 
+const sort = ref<'updatedAt' | 'drawingNo' | 'title' | 'currentRev'>('updatedAt')
+const dir = ref<SortDir>('desc')
+function onSort(key: string, d: SortDir) { sort.value = key as typeof sort.value; dir.value = d }
+
 const params = computed(() => ({
   folderId: folder.value?.id,
   q: keyword.value || undefined,
   includeIsometric: includeIsometric.value,
+  sort: sort.value,
+  dir: dir.value,
   limit: 200,
 }))
 
@@ -66,11 +72,13 @@ function toggleAll(on: boolean) {
 }
 
 const columns = computed<Column<DocumentListItem>[]>(() => [
-  { key: 'drawingNo', label: '자료명', width: '200px' },
-  { key: 'title', label: '내용' },
-  { key: 'folderName', label: '폴더', width: '150px' },
-  { key: 'currentRev', label: 'Rev', width: '56px', align: 'center', render: (r) => `Rev${r.currentRev}` },
-  { key: 'updatedAt', label: '최종수정', width: '110px', align: 'center', render: (r) => r.updatedAt.slice(0, 10) },
+  { key: 'drawingNo', label: '자료명', width: '168px', sortable: true },
+  { key: 'title', label: '내용', sortable: true },
+  { key: 'folderName', label: '폴더', width: '160px' },
+  { key: 'currentRev', label: 'Rev', width: '62px', align: 'center', sortable: true,
+    render: (r) => `Rev${r.currentRev}` },
+  { key: 'updatedAt', label: '최종수정', width: '104px', align: 'center', sortable: true,
+    render: (r) => r.updatedAt.slice(0, 10) },
 ])
 
 // ── 폴더 편집 ─────────────────────────────────────────────────────────
@@ -275,7 +283,8 @@ async function uploadZip(ev: Event) {
     <div class="panel table-panel">
       <DataTable
         :columns="columns" :rows="rows" selectable :selected="picked" :loading="isFetching"
-        @toggle="toggle" @toggle-all="toggleAll"
+        :total="data?.total ?? null" :sort-key="sort" :sort-dir="dir" storage-key="tdb-editor"
+        @toggle="toggle" @toggle-all="toggleAll" @sort="onSort"
       />
     </div>
 

@@ -7,7 +7,7 @@ import type {
   FilterOptions, FolderNode,
 } from '@tdms/contracts'
 import LazyTree from '@/ui/LazyTree.vue'
-import DataTable, { type Column } from '@/ui/DataTable.vue'
+import DataTable, { type Column, type SortDir } from '@/ui/DataTable.vue'
 import Modal from '@/ui/Modal.vue'
 import JobProgress from '@/ui/JobProgress.vue'
 import { api, ApiError, qs } from '@/lib/api'
@@ -39,6 +39,14 @@ watch(keyword, (v) => {
   timer = setTimeout(() => (debounced.value = v), 250)
 })
 
+// 정렬은 서버가 한다 — 불러온 200건만 정렬하면 "가장 큰 값" 이 실제와 다르다
+const sort = ref<'updatedAt' | 'drawingNo' | 'title' | 'currentRev' | 'docType'>('updatedAt')
+const dir = ref<SortDir>('desc')
+function onSort(key: string, d: SortDir) {
+  sort.value = key as typeof sort.value
+  dir.value = d
+}
+
 const params = computed(() => ({
   folderId: folder.value?.id,
   q: debounced.value || undefined,
@@ -46,6 +54,8 @@ const params = computed(() => ({
   includeIsometric: includeIsometric.value,
   status: status.value,
   hold: hold.value,
+  sort: sort.value,
+  dir: dir.value,
   limit: 200,
 }))
 
@@ -166,21 +176,25 @@ async function submitDistribution() {
   }
 }
 
+/* 너비는 가장 긴 실제 값이 들어가게 잡았다 —
+   '대한엔지니어링 대여중'(상태), 'GH-BULK-050000'(자료명), '5.3 INSTRUMENT'(폴더).
+   사용자가 끌어서 바꾸면 그 값이 기억된다. */
 const columns = computed<Column<DocumentListItem>[]>(() => [
-  { key: 'drawingNo', label: '자료명', width: '200px' },
-  { key: 'title', label: '내용', width: '' },
-  { key: 'folderName', label: '폴더', width: '150px' },
-  { key: 'currentRev', label: 'Rev', width: '56px', align: 'center', render: (r) => `Rev${r.currentRev}` },
+  { key: 'drawingNo', label: '자료명', width: '168px', sortable: true },
+  { key: 'title', label: '내용', sortable: true },
+  { key: 'folderName', label: '폴더', width: '160px' },
+  { key: 'currentRev', label: 'Rev', width: '62px', align: 'center', sortable: true,
+    render: (r) => `Rev${r.currentRev}` },
   {
-    key: 'hold', label: '원본/사본', width: '90px', align: 'center',
+    key: 'hold', label: '원본/사본', width: '96px', align: 'center',
     render: (r) => [r.hasDwg ? 'DWG' : '', r.hasPdf ? 'PDF' : ''].filter(Boolean).join('/') || '-',
   },
   {
-    key: 'status', label: '상태', width: '90px', align: 'center',
+    key: 'status', label: '상태', width: '158px',
     render: (r) => (r.lentTo ? `${r.lentTo} 대여중` : STATUS_LABEL[r.status] ?? r.status),
   },
   {
-    key: 'updatedAt', label: '최종수정', width: '120px', align: 'center',
+    key: 'updatedAt', label: '최종수정', width: '104px', align: 'center', sortable: true,
     render: (r) => r.updatedAt.slice(0, 10),
   },
 ])
@@ -219,8 +233,8 @@ const columns = computed<Column<DocumentListItem>[]>(() => [
         <button class="btn btn-sm" @click="reset">조건 초기화</button>
       </div>
       <div class="search-meta muted">
-        총 <strong>{{ total.toLocaleString() }}</strong>건
-        <span v-if="folder"> · {{ folder.name }}</span>
+        <span v-if="folder">{{ folder.name }}</span>
+        <span v-else>전체 폴더</span>
         <span v-if="isFetching"> · 조회 중…</span>
       </div>
     </div>
@@ -228,7 +242,8 @@ const columns = computed<Column<DocumentListItem>[]>(() => [
     <div class="panel table-panel">
       <DataTable
         :columns="columns" :rows="rows" selectable :selected="cart" :loading="isFetching"
-        @toggle="toggle" @toggle-all="toggleAll"
+        :total="total" :sort-key="sort" :sort-dir="dir" storage-key="tdb-list"
+        @toggle="toggle" @toggle-all="toggleAll" @sort="onSort"
         @row-hover="prefetch"
         @row-click="(r) => router.push(`/documents/${r.id}`)"
       />

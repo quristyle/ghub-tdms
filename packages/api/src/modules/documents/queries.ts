@@ -41,6 +41,20 @@ const STATUS_SQL: Record<string, string> = {
   archived: `d.is_archived`,
 }
 
+/**
+ * 정렬 키 → SQL 식.
+ *
+ * **여기 적힌 것만 쓴다** — 요청 문자열을 ORDER BY 에 바로 끼우면 SQL 주입이 된다.
+ * keyset 페이징이므로 정렬 칸은 커서 비교에도 그대로 쓰인다.
+ */
+const SORT_SQL: Record<string, string> = {
+  updatedAt:  'd.updated_at',
+  drawingNo:  'd.drawing_no',
+  title:      'd.title',
+  currentRev: 'd.current_rev',
+  docType:    'd.doc_type',
+}
+
 const HOLD_SQL: Record<string, string> = {
   all: 'TRUE',
   both: 'd.has_dwg AND d.has_pdf',
@@ -82,9 +96,18 @@ export async function listDocuments(
     params.push(qp.docType)
     where.push(`d.doc_type = $${params.length}`)
   }
+  // 정렬 칸과 방향. 커서 비교도 같은 칸으로 한다 — 그래야 다음 쪽이 이어진다.
+  const sortCol = SORT_SQL[qp.sort] ?? SORT_SQL.updatedAt!
+  const desc = qp.dir === 'desc'
+  const cmp = desc ? '<' : '>'
+  // 정렬 칸이 비어 있는 줄이 섞여도 순서가 흔들리지 않게 NULL 자리를 고정한다
+  const nulls = desc ? 'NULLS LAST' : 'NULLS FIRST'
+
   if (cur) {
     params.push(cur.sortValue, cur.id)
-    where.push(`(d.updated_at, d.id) < ($${params.length - 1}::timestamptz, $${params.length}::bigint)`)
+    where.push(
+      `(${sortCol}, d.id) ${cmp} ($${params.length - 1}::text::${sortCastOf(qp.sort)}, $${params.length}::bigint)`,
+    )
   }
 
   return many<DocumentListRow>(
@@ -114,10 +137,26 @@ export async function listDocuments(
              LIMIT 1
        ) lent ON true
       WHERE ${where.join('\n        AND ')}
-      ORDER BY d.updated_at DESC, d.id DESC
+      ORDER BY ${sortCol} ${desc ? 'DESC' : 'ASC'} ${nulls}, d.id ${desc ? 'DESC' : 'ASC'}
       LIMIT $2`,
     params,
   )
+}
+
+/** 커서에 담긴 값(문자열)을 정렬 칸의 타입으로 되돌린다 */
+function sortCastOf(sort: string): string {
+  return sort === 'updatedAt' ? 'timestamptz' : sort === 'currentRev' ? 'int' : 'text'
+}
+
+/** 커서에 담을 값 — 정렬 칸의 값이어야 다음 쪽이 이어진다 */
+export function sortValueOf(row: DocumentListRow, sort: string): string {
+  switch (sort) {
+    case 'drawingNo':  return row.drawingNo
+    case 'title':      return row.title
+    case 'currentRev': return String(row.currentRev)
+    case 'docType':    return row.docType ?? ''
+    default:           return row.updatedAt.toISOString()
+  }
 }
 
 /** 총 건수는 비싸다 — 첫 페이지에서만 센다. */

@@ -43,6 +43,30 @@ const SELECT_MDB = `
     JOIN blobs b    ON b.sha256 = m.blob_sha256
     LEFT JOIN projects p ON p.id = m.project_id`
 
+/** 정렬 키 → SQL 식. 여기 적힌 것만 쓴다 (요청 문자열을 ORDER BY 에 끼우지 않는다). */
+const SORT_SQL: Record<string, string> = {
+  updatedAt:     'm.updated_at',
+  title:         'm.title',
+  equipmentType: 'm.equipment_type',
+  docType:       'm.doc_type',
+  year:          'm.year',
+}
+
+function sortCastOf(sort: string): string {
+  return sort === 'updatedAt' ? 'timestamptz' : sort === 'year' ? 'int' : 'text'
+}
+
+/** 커서에 담을 값 — 정렬 칸의 값이어야 다음 쪽이 이어진다 */
+export function sortValueOf(row: MdbRow, sort: string): string {
+  switch (sort) {
+    case 'title':         return row.title
+    case 'equipmentType': return row.equipmentType ?? ''
+    case 'docType':       return row.docType ?? ''
+    case 'year':          return String(row.year ?? 0)
+    default:              return row.updatedAt.toISOString()
+  }
+}
+
 function filters(qp: MdbListQuery, folderIds: number[], params: unknown[]): string[] {
   const where = ['NOT m.is_archived']
   params.push(folderIds)
@@ -69,17 +93,24 @@ export function listMdb(folderIds: number[], qp: MdbListQuery) {
   const params: unknown[] = []
   const where = filters(qp, folderIds, params)
 
+  const sortCol = SORT_SQL[qp.sort] ?? SORT_SQL.updatedAt!
+  const desc = qp.dir === 'desc'
+  const cmp = desc ? '<' : '>'
+  const nulls = desc ? 'NULLS LAST' : 'NULLS FIRST'
+
   const cur = decodeCursor(qp.cursor)
   if (cur) {
     params.push(cur.sortValue, cur.id)
-    where.push(`(m.updated_at, m.id) < ($${params.length - 1}::timestamptz, $${params.length}::bigint)`)
+    where.push(
+      `(${sortCol}, m.id) ${cmp} ($${params.length - 1}::text::${sortCastOf(qp.sort)}, $${params.length}::bigint)`,
+    )
   }
   params.push(qp.limit + 1)
 
   return many<MdbRow>(
     `${SELECT_MDB}
       WHERE ${where.join('\n        AND ')}
-      ORDER BY m.updated_at DESC, m.id DESC
+      ORDER BY ${sortCol} ${desc ? 'DESC' : 'ASC'} ${nulls}, m.id ${desc ? 'DESC' : 'ASC'}
       LIMIT $${params.length}`,
     params,
   )

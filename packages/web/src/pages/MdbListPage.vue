@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/vue-query'
 import { useRouter } from 'vue-router'
 import type { FolderNode, MdbListItem, MdbListResponse, MdbMeta, TagSuggestResponse } from '@tdms/contracts'
 import LazyTree from '@/ui/LazyTree.vue'
-import DataTable, { type Column } from '@/ui/DataTable.vue'
+import DataTable, { type Column, type SortDir } from '@/ui/DataTable.vue'
 import JobProgress from '@/ui/JobProgress.vue'
 import { api, qs } from '@/lib/api'
 import { staleTime } from '@/lib/queryKeys'
@@ -38,7 +38,13 @@ const { data: meta } = useQuery({
   staleTime: staleTime.types,
 })
 
+const sort = ref<'updatedAt' | 'title' | 'equipmentType' | 'docType' | 'year'>('updatedAt')
+const dir = ref<SortDir>('desc')
+function onSort(key: string, d: SortDir) { sort.value = key as typeof sort.value; dir.value = d }
+
 const params = computed(() => ({
+  sort: sort.value,
+  dir: dir.value,
   folderId: folder.value?.id,
   q: debounced.value || undefined,
   searchTarget: searchTarget.value,
@@ -97,16 +103,24 @@ function size(b: number): string {
   return b < 1024 ? `${b} B` : b < 1024 ** 2 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1024 ** 2).toFixed(1)} MB`
 }
 
+/* 'Mechanical Data Book'(자료유형)·'Heat Exchanger'(설비유형)가 들어가는 너비로 잡았다 */
 const columns = computed<Column<MdbListItem>[]>(() => [
-  { key: 'title', label: '자료명' },
-  { key: 'folderName', label: '폴더', width: '150px' },
-  { key: 'equipmentType', label: '설비유형', width: '120px', render: (r) => r.equipmentType ?? '-' },
-  { key: 'docType', label: '자료유형', width: '160px', render: (r) => r.docType ?? '-' },
-  { key: 'year', label: '연도', width: '60px', align: 'center', render: (r) => String(r.year ?? '-') },
-  { key: 'isShared', label: '공용/전용', width: '80px', align: 'center', render: (r) => (r.isShared ? '공용' : '전용') },
-  { key: 'tagCount', label: 'Tag', width: '52px', align: 'center', render: (r) => String(r.tagCount) },
-  { key: 'byteSize', label: '크기', width: '80px', align: 'right', render: (r) => size(r.byteSize) },
-  { key: 'updatedAt', label: '최종수정', width: '100px', align: 'center', render: (r) => r.updatedAt.slice(0, 10) },
+  { key: 'title', label: '자료명', width: '288px', sortable: true },
+  { key: 'folderName', label: '폴더' },   // 남는 자리를 받는 칸
+  { key: 'equipmentType', label: '설비유형', width: '124px', sortable: true,
+    render: (r) => r.equipmentType ?? '-' },
+  { key: 'docType', label: '자료유형', width: '176px', sortable: true,
+    render: (r) => r.docType ?? '-' },
+  { key: 'year', label: '연도', width: '64px', align: 'center', sortable: true,
+    render: (r) => String(r.year ?? '-') },
+  { key: 'isShared', label: '공용/전용', width: '84px', align: 'center',
+    render: (r) => (r.isShared ? '공용' : '전용') },
+  { key: 'tagCount', label: 'Tag', width: '56px', align: 'center', filterable: false,
+    render: (r) => String(r.tagCount) },
+  { key: 'byteSize', label: '크기', width: '84px', align: 'right', filterable: false,
+    render: (r) => size(r.byteSize) },
+  { key: 'updatedAt', label: '최종수정', width: '104px', align: 'center', sortable: true,
+    render: (r) => r.updatedAt.slice(0, 10) },
 ])
 </script>
 
@@ -158,8 +172,8 @@ const columns = computed<Column<MdbListItem>[]>(() => [
         <button class="btn btn-sm" @click="reset">조건 초기화</button>
       </div>
       <div class="muted meta">
-        총 <strong>{{ (data?.total ?? 0).toLocaleString() }}</strong>건
-        <span v-if="folder"> · {{ folder.name }}</span>
+        <span v-if="folder">{{ folder.name }}</span>
+        <span v-else>전체 폴더</span>
         <span v-if="isFetching"> · 조회 중…</span>
       </div>
     </div>
@@ -167,7 +181,8 @@ const columns = computed<Column<MdbListItem>[]>(() => [
     <div class="panel table-panel">
       <DataTable
         :columns="columns" :rows="rows" selectable :selected="cart" :loading="isFetching"
-        @toggle="toggle" @toggle-all="toggleAll"
+        :total="data?.total ?? null" :sort-key="sort" :sort-dir="dir" storage-key="mdb-list"
+        @toggle="toggle" @toggle-all="toggleAll" @sort="onSort"
         @row-click="(r) => router.push(`/mdb/${r.id}`)"
       />
     </div>

@@ -124,8 +124,12 @@ action_verify() {
       if [[ "$r" == *"0 실패"* ]]; then ok "$(printf '%-13s %s' "$f" "$r")"
       else bad "$(printf '%-13s %s' "$f" "$r")"; fail=1; fi
     done
+    # 큐 검증은 워커와 같은 작업을 두고 다툰다 — 잠깐 재우고 돌린 뒤 되살린다.
+    local worker_was_up=0
+    if svc_running worker; then worker_was_up=1; svc_stop worker >/dev/null 2>&1; sleep 2; fi
     local q; q="$(cd "$ROOT" && node db/tools/queue-smoke.mjs 2>&1 | tail -1)"
     [[ "$q" == *"0 실패"* ]] && ok "$(printf '%-13s %s' queue "$q")" || { bad "queue $q"; fail=1; }
+    (( worker_was_up )) && svc_start worker >/dev/null 2>&1
   else
     printf '\n'
     warn "API 가 꺼져 있어 흐름 검증을 건너뜁니다 — ./dev.sh start api"

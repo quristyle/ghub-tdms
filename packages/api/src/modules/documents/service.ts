@@ -12,10 +12,10 @@ export async function list(qp: DocumentListQuery) {
   const items = hasMore ? rows.slice(0, qp.limit) : rows
 
   const last = items.at(-1)
+  // 커서는 **정렬 칸의 값**을 담는다. updated_at 으로 고정하면 다른 칸으로 정렬했을 때
+  // 다음 쪽이 엉뚱한 곳에서 이어진다.
   const nextCursor =
-    hasMore && last
-      ? encodeCursor({ sortValue: last.updatedAt.toISOString(), id: last.id })
-      : null
+    hasMore && last ? encodeCursor({ sortValue: q.sortValueOf(last, qp.sort), id: last.id }) : null
 
   // 총 건수는 비싸다 — 첫 페이지에서만 센다
   const total = qp.cursor ? null : await q.countDocuments(folderIds, qp)

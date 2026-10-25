@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { BoolParam, PageQuery, pageResult } from './common.js'
+import { BoolParam, PageQuery, SortDir, pageResult } from './common.js'
 
 /** 기존 화면의 상태·보유·검색대상 필터를 그대로 옮긴 것 */
 
@@ -15,7 +15,19 @@ export const HoldFilter = z.enum(['all', 'both', 'dwg_only', 'pdf_only'])
 /** 기존 화면 라벨: 자료명 / 폴더명 */
 export const SearchTarget = z.enum(['title', 'folder'])
 
+/**
+ * 정렬할 수 있는 칸.
+ *
+ * **서버가 정렬한다.** 불러온 200건만 정렬하면 "가장 큰 값"이 실제로는 아닐 수 있다 —
+ * 38,000건 중 앞 200건만 보고 고른 것이기 때문이다.
+ * keyset 커서도 이 칸을 기준으로 움직인다.
+ */
+export const DocumentSort = z.enum(['updatedAt', 'drawingNo', 'title', 'currentRev', 'docType'])
+export type DocumentSort = z.infer<typeof DocumentSort>
+
 export const DocumentListQuery = PageQuery.extend({
+  sort: DocumentSort.default('updatedAt'),
+  dir: SortDir.default('desc'),
   folderId: z.coerce.number().int().optional(),
   /** 하위 폴더까지 포함할지. 기본 true (기존 트리 탐색 동작) */
   recursive: BoolParam.default(true),
