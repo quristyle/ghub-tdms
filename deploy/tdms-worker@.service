@@ -1,0 +1,31 @@
+[Unit]
+Description=TDMS 변환·배치 워커 %i
+After=network-online.target
+
+[Service]
+Type=simple
+User=tdms-worker
+Group=tdms
+WorkingDirectory=/srv/tdms/worker
+ExecStart=/srv/tdms/worker/.venv/bin/python -m tdms_worker --id %i
+EnvironmentFile=/etc/tdms/worker.env
+LoadCredential=db-password:/etc/tdms/db-password
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/srv/tdms/blobs /srv/tdms/tmp /srv/tdms/mirror
+
+# 변환 워커는 비신뢰 입력(PDF·DWG·오피스)을 파싱한다. 네트워크가 필요 없으므로 끊는다.
+# (DB 가 원격이면 이 줄을 지우고 대신 egress 방화벽으로 제한할 것)
+PrivateNetwork=yes
+
+MemoryMax=2G
+CPUWeight=50          # 조회 요청보다 뒤로 — 변환이 목록을 느리게 하지 않는다
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

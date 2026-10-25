@@ -1,0 +1,39 @@
+[Unit]
+Description=TDMS API (Fastify)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tdms-api
+Group=tdms
+WorkingDirectory=/srv/tdms/app
+ExecStart=/usr/bin/node --enable-source-maps dist/main.js
+Environment=NODE_ENV=production
+Environment=API_LISTEN=/run/tdms/api.sock
+Environment=USE_X_ACCEL=true
+Environment=STORAGE_ROOT=/srv/tdms
+EnvironmentFile=/etc/tdms/api.env
+
+# 비밀값은 평문 파일 대신 systemd 자격증명으로 전달한다
+LoadCredential=db-password:/etc/tdms/db-password
+LoadCredential=session-secret:/etc/tdms/session-secret
+
+RuntimeDirectory=tdms
+RuntimeDirectoryMode=0750
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+ReadWritePaths=/srv/tdms/blobs /srv/tdms/tmp
+
+MemoryMax=1G
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

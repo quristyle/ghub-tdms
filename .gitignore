@@ -1,0 +1,26 @@
+# 비밀값 — 절대 커밋 금지
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# 의존성·빌드
+node_modules/
+dist/
+build/
+.venv/
+__pycache__/
+*.pyc
+
+# 도구
+.turbo/
+.vite/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+
+# 로컬
+.DS_Store
+*.local

@@ -1,0 +1,27 @@
+{
+  "name": "@tdms/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@tdms/contracts": "workspace:*",
+    "vue": "^3.5.22",
+    "vue-router": "^4.6.3",
+    "pinia": "^3.0.3",
+    "@tanstack/vue-query": "^5.90.5",
+    "@tanstack/vue-virtual": "^3.13.12"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.1",
+    "vite": "^7.1.9",
+    "vue-tsc": "^3.1.1",
+    "typescript": "^5.9.3"
+  }
+}

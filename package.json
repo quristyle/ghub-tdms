@@ -1,0 +1,27 @@
+{
+  "name": "ghub-tdms",
+  "private": true,
+  "version": "0.1.0",
+  "description": "SK가스 G.Hub 사업장 기술자료 관리 시스템 (TDMS)",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter \"./packages/*\" dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "db:migrate": "node db/migrate.mjs up",
+    "db:status": "node db/migrate.mjs status",
+    "db:seed": "node db/migrate.mjs seed"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.1",
+    "pg": "^8.23.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

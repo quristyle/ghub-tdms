@@ -1,0 +1,68 @@
+@import './tokens.css';
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #app { height: 100%; margin: 0; }
+body {
+  font-family: var(--font);
+  font-size: var(--fs-base);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+button { font: inherit; cursor: pointer; }
+table { border-collapse: collapse; width: 100%; }
+
+/* ── 앱 셸 ─────────────────────────────────────────────────────────── */
+.app-header {
+  height: var(--header-h);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center;
+  padding: 0 16px; gap: 20px;
+  position: sticky; top: 0; z-index: 20;
+}
+.app-brand { font-size: var(--fs-lg); white-space: nowrap; }
+.app-brand strong { color: var(--accent); margin-right: 4px; }
+.app-nav { display: flex; gap: 2px; flex: 1; overflow-x: auto; }
+.app-nav a {
+  padding: 7px 12px; border-radius: var(--radius-sm);
+  color: var(--text-muted); white-space: nowrap;
+}
+.app-nav a:hover { background: var(--bg); color: var(--text); }
+.app-nav a.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.app-user { display: flex; align-items: center; gap: 10px; font-size: var(--fs-sm); color: var(--text-muted); }
+
+.app-body { display: flex; height: calc(100% - var(--header-h)); }
+.app-side {
+  width: 280px; min-width: 280px;
+  border-right: 1px solid var(--border);
+  background: var(--surface); overflow: auto;
+}
+.app-main { flex: 1; overflow: auto; padding: var(--gap); }
+
+/* ── 공통 ─────────────────────────────────────────────────────────── */
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.panel + .panel { margin-top: var(--gap); }
+.panel-head {
+  padding: 9px 12px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: var(--gap-sm);
+  font-weight: 600;
+}
+.btn {
+  padding: 5px 12px; border: 1px solid var(--border-strong);
+  background: var(--surface); border-radius: var(--radius-sm); color: var(--text);
+}
+.btn:hover { background: var(--bg); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { filter: brightness(1.08); }
+.btn-sm { padding: 3px 8px; font-size: var(--fs-sm); }
+input[type=text], input[type=password], input[type=number], select {
+  padding: 5px 8px; border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm); font: inherit; background: var(--surface); color: var(--text);
+}
+input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.muted { color: var(--text-muted); }
+.tc { text-align: center; }
+.tr { text-align: right; }
