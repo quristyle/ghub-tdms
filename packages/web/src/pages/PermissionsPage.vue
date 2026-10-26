@@ -275,6 +275,8 @@ function reset() {
 </template>
 
 <style scoped>
+.head { padding: 10px 12px; flex: 0 0 auto; }
+.head h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; }
 .cols { display: grid; grid-template-columns: 260px minmax(0, 1fr) 260px; gap: var(--sp-3); align-items: start; }
 @media (max-width: 1100px) { .cols { grid-template-columns: 1fr; } }
 .side { max-height: 72vh; display: flex; flex-direction: column; }
