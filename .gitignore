@@ -8,7 +8,10 @@
 # 의존성·빌드
 node_modules/
 dist/
-build/
+# 우리 산출물만 막는다. `build/` 로 두면 packages/web/public/pdfjs/build/ 까지
+# 삼킨다 — 거기는 PDF.js 배포본(pdf.mjs·pdf.worker.mjs)이라 소스다.
+# 빠지면 뷰어가 globalThis.pdfjsLib 를 못 찾아 미리보기가 빈 화면이 된다.
+packages/*/build/
 .venv/
 __pycache__/
 *.pyc
