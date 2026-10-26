@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/vue-query'
 import type {
   DistributionListResponse, DocumentDetail, RevisionListResponse,
 } from '@tdms/contracts'
+import DataTable, { type Column } from '@/ui/DataTable.vue'
 import Tabs from '@/ui/Tabs.vue'
 import PdfViewer from '@/ui/PdfViewer.vue'
 import { api } from '@/lib/api'
@@ -74,6 +75,66 @@ function size(bytes: number): string {
   if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / 1024 ** 2).toFixed(1)} MB`
 }
+
+// ── 표 칸 ──────────────────────────────────────────────────────────────
+// render 는 **글자값**이다 — 거르기·엑셀이 이것을 쓴다. 슬롯은 그리는 법만 바꾼다.
+// 여기 표들은 줄이 몇 개뿐이라 autoHeight 로 둔다(빈 상자가 되지 않게).
+
+type FileRow = DocumentDetail['files'][number]
+const FILE_COLUMNS: Column<FileRow>[] = [
+  { key: 'fileExt', label: '구분', width: '72px', align: 'center',
+    render: (f) => f.fileExt.toUpperCase() },
+  { key: 'displayName', label: '자료명' },
+  { key: 'rev', label: 'Rev', width: '86px', align: 'center',
+    render: (f) => `Rev${f.rev}${f.branch ? `-${f.branch}` : ''}` },
+  { key: 'byteSize', label: '크기', width: '90px', align: 'right', render: (f) => size(f.byteSize) },
+  { key: 'reviewStatus', label: '검수상태', width: '90px', align: 'center',
+    render: (f) => (f.reviewStatus === 'APPROVED' ? '승인' : f.reviewStatus) },
+  { key: 'uploadedAt', label: '업로드일시', width: '110px', align: 'center',
+    render: (f) => f.uploadedAt.slice(0, 10) },
+  { key: 'act', label: '조치', width: '80px', align: 'center', filterable: false, render: () => '' },
+]
+
+/**
+ * Revision 이력에는 id 가 없다 — 열쇠는 label(Rev03-A 같은 것)이다.
+ * 그리드는 줄을 숫자 id 로 가리므로 목록 안 위치를 쓴다.
+ * 목록이 통째로 다시 올 때만 바뀌어 줄이 섞일 일이 없다.
+ */
+type RevRow = RevisionListResponse['items'][number] & { id: number }
+const revRows = computed<RevRow[]>(() =>
+  (revisions.value?.items ?? []).map((r, i) => ({ ...r, id: i + 1 })),
+)
+
+const REV_COLUMNS: Column<RevRow>[] = [
+  // 엑셀에도 "최신본"이 나가야 화면과 같은 뜻이 된다
+  { key: 'label', label: 'Rev', width: '110px', align: 'center',
+    render: (r) => (r.isCurrent ? `${r.label} 최신본` : r.label) },
+  { key: 'createdAt', label: '등록일시', width: '130px', align: 'center',
+    render: (r) => r.createdAt.slice(0, 16).replace('T', ' ') },
+  { key: 'createdBy', label: '등록자', width: '100px', align: 'center', render: (r) => r.createdBy ?? '' },
+  { key: 'reason', label: '사유', render: (r) => r.reason ?? '' },
+  { key: 'files', label: '보유 파일', width: '130px',
+    render: (r) => r.files.map((f) => f.fileExt.toUpperCase()).join(', ') },
+  { key: 'note', label: '비고', width: '180px', render: (r) => r.note ?? '' },
+]
+
+type DistRow = DistributionListResponse['items'][number]
+const DIST_COLUMNS: Column<DistRow>[] = [
+  { key: 'revAtDistribution', label: '반출Rev', width: '86px', align: 'center',
+    render: (x) => `Rev${x.revAtDistribution}` },
+  { key: 'vendorName', label: '업체', width: '140px' },
+  { key: 'projectName', label: '공사', width: '120px', render: (x) => x.projectName ?? '' },
+  { key: 'purpose', label: '목적', width: '92px', align: 'center',
+    render: (x) => PURPOSE_LABEL[x.purpose] ?? x.purpose },
+  { key: 'distributedBy', label: '반출자', width: '100px', align: 'center', render: (x) => x.distributedBy ?? '' },
+  { key: 'distributedAt', label: '반출일시', width: '104px', align: 'center',
+    render: (x) => x.distributedAt.slice(0, 10) },
+  { key: 'returnedAt', label: '반입일시', width: '104px', align: 'center',
+    render: (x) => (x.returnedAt ? x.returnedAt.slice(0, 10) : '') },
+  { key: 'state', label: '상태', width: '100px', align: 'center',
+    render: (x) => DIST_STATE[x.state] ?? x.state },
+  { key: 'note', label: '비고', width: '170px', render: (x) => x.note ?? '' },
+]
 </script>
 
 <template>
@@ -118,25 +179,17 @@ function size(bytes: number): string {
           </table>
 
           <h2>보유 자료</h2>
-          <table class="grid">
-            <thead>
-              <tr><th>구분</th><th>자료명</th><th>Rev</th><th>크기</th><th>검수상태</th><th>업로드일시</th><th>조치</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="f in doc.files" :key="f.id" :class="{ cur: f.isCurrent }">
-                <td class="tc">{{ f.fileExt.toUpperCase() }}</td>
-                <td>{{ f.displayName }}</td>
-                <td class="tc">Rev{{ f.rev }}{{ f.branch ? `-${f.branch}` : '' }}</td>
-                <td class="tr">{{ size(f.byteSize) }}</td>
-                <td class="tc">{{ f.reviewStatus === 'APPROVED' ? '승인' : f.reviewStatus }}</td>
-                <td class="tc">{{ f.uploadedAt.slice(0, 10) }}</td>
-                <td class="tc">
-                  <a class="btn btn-sm" :href="`/api/files/${f.id}/download`">받기</a>
-                </td>
-              </tr>
-              <tr v-if="!doc.files.length"><td colspan="7" class="tc muted">보유 자료가 없습니다.</td></tr>
-            </tbody>
-          </table>
+          <DataTable
+            :columns="FILE_COLUMNS" :rows="doc.files" :total="doc.files.length"
+            auto-height :max-height="320"
+            :row-class="(f) => (f.isCurrent ? 'cur' : '')"
+            storage-key="detail-files" :excel-name="`${doc.drawingNo} 보유자료`"
+            empty-text="보유 자료가 없습니다."
+          >
+            <template #cell:act="{ row }">
+              <a class="btn btn-sm" :href="`/api/files/${row.id}/download`" @click.stop>받기</a>
+            </template>
+          </DataTable>
         </section>
 
         <!-- 미리보기 -->
@@ -154,63 +207,41 @@ function size(bytes: number): string {
         </section>
 
         <!-- Revision 이력 -->
-        <section v-else-if="tab === 'revisions'" class="pad">
-          <table class="grid">
-            <thead>
-              <tr><th>Rev</th><th>등록일시</th><th>등록자</th><th>사유</th><th>보유 파일</th><th>비고</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="r in revisions?.items ?? []" :key="r.label" :class="{ cur: r.isCurrent }">
-                <td class="tc">
-                  {{ r.label }}
-                  <span v-if="r.isCurrent" class="tag">최신본</span>
-                </td>
-                <td class="tc">{{ r.createdAt.slice(0, 16).replace('T', ' ') }}</td>
-                <td class="tc">{{ r.createdBy ?? '-' }}</td>
-                <td>{{ r.reason ?? '-' }}</td>
-                <td>{{ r.files.map(f => f.fileExt.toUpperCase()).join(', ') || '-' }}</td>
-                <td>
-                  <span v-if="!session.can('common.note_edit.revision')">{{ r.note ?? '-' }}</span>
-                  <input v-else type="text" :value="r.note ?? ''" placeholder="비고" style="width:100%" />
-                </td>
-              </tr>
-              <tr v-if="!revisions?.items.length">
-                <td colspan="6" class="tc muted">Revision 이력이 없습니다.</td>
-              </tr>
-            </tbody>
-          </table>
+        <section v-else-if="tab === 'revisions'" class="pad grid-tab">
+          <DataTable
+            :columns="REV_COLUMNS" :rows="revRows" :total="revRows.length"
+            :row-class="(r) => (r.isCurrent ? 'cur' : '')"
+            storage-key="detail-revisions" :excel-name="`${doc.drawingNo} Revision 이력`"
+            empty-text="Revision 이력이 없습니다."
+          >
+            <template #cell:label="{ row }">
+              <span>{{ row.label }}</span>
+              <span v-if="row.isCurrent" class="tag">최신본</span>
+            </template>
+
+            <template #cell:note="{ row }">
+              <span v-if="!session.can('common.note_edit.revision')">{{ row.note ?? '-' }}</span>
+              <input v-else type="text" :value="row.note ?? ''" placeholder="비고"
+                     style="width:100%" @click.stop />
+            </template>
+          </DataTable>
         </section>
 
         <!-- 반출 이력 -->
-        <section v-else class="pad">
-          <table class="grid">
-            <thead>
-              <tr>
-                <th>반출Rev</th><th>업체</th><th>공사</th><th>목적</th>
-                <th>반출자</th><th>반출일시</th><th>반입일시</th><th>상태</th><th>비고</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="x in distributions?.items ?? []" :key="x.id"
-                  :class="{ warn: x.state === 'OUTSTANDING' || x.state === 'ISSUE' }">
-                <td class="tc">Rev{{ x.revAtDistribution }}</td>
-                <td>{{ x.vendorName }}</td>
-                <td>{{ x.projectName ?? '-' }}</td>
-                <td class="tc">{{ PURPOSE_LABEL[x.purpose] ?? x.purpose }}</td>
-                <td class="tc">{{ x.distributedBy ?? '-' }}</td>
-                <td class="tc">{{ x.distributedAt.slice(0, 10) }}</td>
-                <td class="tc">{{ x.returnedAt?.slice(0, 10) ?? '-' }}</td>
-                <td class="tc">{{ DIST_STATE[x.state] ?? x.state }}</td>
-                <td>
-                  <span v-if="!session.can('common.note_edit.distribution')">{{ x.note ?? '-' }}</span>
-                  <input v-else type="text" :value="x.note ?? ''" placeholder="비고" style="width:100%" />
-                </td>
-              </tr>
-              <tr v-if="!distributions?.items.length">
-                <td colspan="9" class="tc muted">반출 이력이 없습니다.</td>
-              </tr>
-            </tbody>
-          </table>
+        <section v-else class="pad grid-tab">
+          <DataTable
+            :columns="DIST_COLUMNS" :rows="distributions?.items ?? []"
+            :total="distributions?.items.length ?? 0"
+            :row-class="(x) => (x.state === 'OUTSTANDING' || x.state === 'ISSUE' ? 'warn' : '')"
+            storage-key="detail-distributions" :excel-name="`${doc.drawingNo} 반출이력`"
+            empty-text="반출 이력이 없습니다."
+          >
+            <template #cell:note="{ row }">
+              <span v-if="!session.can('common.note_edit.distribution')">{{ row.note ?? '-' }}</span>
+              <input v-else type="text" :value="row.note ?? ''" placeholder="비고"
+                     style="width:100%" @click.stop />
+            </template>
+          </DataTable>
         </section>
       </div>
     </template>
@@ -224,6 +255,15 @@ function size(bytes: number): string {
 .body { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .body > section { flex: 1; overflow: auto; min-height: 0; }
 .pad { padding: 14px; }
+
+/* 그리드 하나만 있는 절은 스크롤을 그리드에 맡긴다 — 바깥이 한 번 더 스크롤되면
+   머리글 고정이 깨진다. '자료내용' 절은 위에 kv 표가 있어 그대로 둔다
+   (거기 그리드는 auto-height 라 줄 수만큼만 차지한다). */
+.body > section.grid-tab {
+  display: flex; flex-direction: column;
+  min-height: 0; flex: 1; overflow: hidden;
+}
+.grid-tab > :deep(.dt) { flex: 1; min-height: 0; }
 .preview { display: flex; flex-direction: column; }
 h2 { font-size: var(--fs-base); margin: 20px 0 8px; }
 

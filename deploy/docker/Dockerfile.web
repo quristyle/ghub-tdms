@@ -34,7 +34,8 @@ RUN pnpm --filter "@tdms/web" build
 FROM nginx:1.27-alpine AS runtime
 ENV TZ=Etc/UTC
 COPY --from=build /app/packages/web/dist /srv/tdms/web
-COPY deploy/docker/web-nginx.conf /etc/nginx/conf.d/default.conf
+COPY deploy/docker/web-nginx.conf       /etc/nginx/conf.d/default.conf
+COPY deploy/docker/security-headers.conf /etc/nginx/security-headers.conf
 
 EXPOSE 8080
 HEALTHCHECK --interval=20s --timeout=4s --start-period=5s --retries=3 \

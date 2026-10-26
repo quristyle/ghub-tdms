@@ -85,10 +85,21 @@ const props = withDefaults(defineProps<{
   excelName?: string
   /** 줄에 붙일 상태 class — base.css 의 warn/issue/off/cur 를 그대로 쓴다 */
   rowClass?: (row: T) => string
+  /**
+   * 내용만큼만 높이를 차지한다.
+   *
+   * 기본은 부모를 꽉 채운다(목록 화면). 하지만 자료 상세처럼 한 화면에 표가
+   * 여럿이고 줄이 서너 개뿐인 곳에서는 그게 **빈 상자**가 된다.
+   * 켜면 줄 수만큼만 자라고 maxHeight 를 넘을 때만 스크롤한다.
+   */
+  autoHeight?: boolean
+  /** autoHeight 일 때의 한계 높이(px) */
+  maxHeight?: number
 }>(), {
   rowNumber: true,
   filterRow: true,
   excel: true,
+  maxHeight: 420,
 })
 
 const emit = defineEmits<{
@@ -100,6 +111,11 @@ const emit = defineEmits<{
 }>()
 
 const rowH = computed(() => props.rowHeight ?? 30)
+
+/** autoHeight 일 때 스크롤 영역이 가질 높이 — 줄 수만큼, 한계까지만. */
+const scrollStyle = computed(() =>
+  props.autoHeight ? { maxHeight: `${props.maxHeight}px` } : undefined,
+)
 const showNo = computed(() => props.rowNumber)
 const showFilter = computed(() => props.filterRow)
 
@@ -295,10 +311,10 @@ async function exportExcel() {
 </script>
 
 <template>
-  <div class="dt">
+  <div class="dt" :class="{ auto: autoHeight }">
     <!-- 머리글·거르기·본문이 한 스크롤 안에 있다 —
          가로로 밀면 머리글과 줄이 함께 움직이고, 세로로 내려도 머리글은 붙어 있다. -->
-    <div ref="scrollEl" class="dt-scroll">
+    <div ref="scrollEl" class="dt-scroll" :style="scrollStyle">
       <div class="dt-inner">
       <!-- 머리글 -->
       <div class="dt-head" role="row">
@@ -456,6 +472,17 @@ async function exportExcel() {
 /* 한 스크롤이 가로·세로를 모두 맡는다. 머리글은 그 안에 붙어(sticky) 있으므로
    가로로 밀면 줄과 같이 움직이고, 세로로 내려도 자리를 지킨다. */
 .dt-scroll { flex: 1; overflow: auto; min-height: 0; }
+
+/* 내용만큼만 — 줄이 서너 개뿐인 표가 빈 상자가 되지 않게.
+   테두리를 둘러 주변 글과 구분한다(목록 화면에서는 패널이 그 일을 한다). */
+.dt.auto {
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+.dt.auto .dt-scroll { flex: 0 1 auto; }
+.dt.auto .dt-empty { padding: 20px; }
 .dt-inner { min-width: max-content; }
 
 .dt-head {
@@ -527,6 +554,7 @@ async function exportExcel() {
 .dt-row.warn  { background: var(--warn-soft); }
 .dt-row.issue { background: var(--danger-soft); }
 .dt-row.off   { color: var(--fg-subtle); }
+.dt-row.cur   { background: var(--primary-soft); font-weight: 600; }
 .dt-row.warn:hover  { background: var(--warn-soft); filter: brightness(.98); }
 .dt-row.issue:hover { background: var(--danger-soft); filter: brightness(.98); }
 .dt-row.active, .dt-row.active:hover { background: var(--primary-soft); filter: none; }

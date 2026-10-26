@@ -5,6 +5,7 @@ import type {
   DuplicateDistributionResponse, ImportIssue, ImportIssueResponse,
   PendingReviewGroup, PendingReviewResponse,
 } from '@tdms/contracts'
+import DataTable, { type Column } from '@/ui/DataTable.vue'
 import Tabs from '@/ui/Tabs.vue'
 import Modal from '@/ui/Modal.vue'
 import JobProgress from '@/ui/JobProgress.vue'
@@ -148,6 +149,50 @@ async function uploadZip(ev: Event) {
   input.value = ''
 }
 
+// ── 표 칸 ──────────────────────────────────────────────────────────────
+// render 는 **글자값**이다 — 거르기·엑셀이 이것을 쓴다. 슬롯은 그리는 법만 바꾼다.
+
+/**
+ * 검수 대기는 자료+Rev 로 묶인 덩어리라 그 자체에는 id 가 없다.
+ * 고를 때 이미 첫 파일의 id 를 열쇠로 쓰고 있으므로(toggle) 같은 것을 쓴다 —
+ * 그리드의 줄 열쇠와 선택 열쇠가 어긋나면 엉뚱한 줄이 선택된 것처럼 보인다.
+ */
+type PendingRow = PendingReviewGroup & { id: number }
+const pendingRows = computed<PendingRow[]>(() =>
+  groups.value.map((g) => ({ ...g, id: g.files[0]!.id })),
+)
+
+const PENDING_COLUMNS: Column<PendingRow>[] = [
+  { key: 'drawingNo', label: '반입자료', width: '220px',
+    render: (g) => (g.title ? `${g.drawingNo} ${g.title}` : g.drawingNo) },
+  { key: 'folderName', label: '분류', width: '140px' },
+  { key: 'revLabel', label: '반입Rev', width: '86px', align: 'center' },
+  { key: 'distributedRev', label: '반출Rev', width: '86px', align: 'center',
+    render: (g) => (g.distributedRev !== null ? `Rev${g.distributedRev}` : '') },
+  { key: 'vendorName', label: '업체', width: '130px', render: (g) => g.vendorName ?? '' },
+  { key: 'projectName', label: '공사', width: '120px', align: 'center', render: (g) => g.projectName ?? '' },
+  { key: 'files', label: '파일', width: '170px',
+    render: (g) => g.files.map((f) => `${f.fileExt.toUpperCase()} ${size(f.byteSize)}`).join(', ') },
+  { key: 'uploadedAt', label: '업로드 일시', width: '130px', align: 'center',
+    render: (g) => g.uploadedAt.slice(0, 16).replace('T', ' ') },
+  // 엑셀에도 "중복반출"·"Rev 불일치"가 나가야 화면과 같은 뜻이 된다
+  { key: 'state', label: '상태', width: '190px', filterable: false,
+    render: (g) => [g.isBranch ? '중복반출' : '', g.hasWarning ? 'Rev 불일치' : ''].filter(Boolean).join(' ') },
+]
+
+const ISSUE_COLUMNS: Column<ImportIssue>[] = [
+  { key: 'filename', label: '파일', width: '240px' },
+  { key: 'byteSize', label: '크기', width: '90px', align: 'right',
+    render: (i) => (i.byteSize !== null ? size(i.byteSize) : '') },
+  { key: 'reason', label: '사유', width: '240px',
+    render: (i) => (i.reasonDetail ? `${i.reason} — ${i.reasonDetail}` : i.reason) },
+  { key: 'suggestedDrawingNo', label: '짐작한 자료', width: '160px', align: 'center',
+    render: (i) => i.suggestedDrawingNo ?? '' },
+  { key: 'vendorName', label: '업체', width: '130px', align: 'center', render: (i) => i.vendorName ?? '' },
+  { key: 'createdAt', label: '등록일시', width: '110px', align: 'center', render: (i) => i.createdAt.slice(0, 10) },
+  { key: 'act', label: '조치', width: '140px', align: 'center', filterable: false, render: () => '' },
+]
+
 function size(b: number): string {
   return b < 1024 ? `${b} B` : b < 1024 ** 2 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1024 ** 2).toFixed(1)} MB`
 }
@@ -187,10 +232,10 @@ function size(b: number): string {
       </section>
 
       <!-- 검수 대기 -->
-      <section v-else-if="tab === 'review'" class="pad">
+      <section v-else-if="tab === 'review'" class="pad grid-tab">
         <div class="bar">
           <input v-model="keyword" type="text" placeholder="반입·검수대기 자료명" style="width:220px" />
-          <span class="muted">선택 {{ selected.size }}건</span>
+          <!-- 선택 건수는 그리드 아래쪽이 적는다. 두 군데 적으면 서로 어긋난다. -->
           <span style="flex:1" />
           <button class="btn btn-sm" :disabled="!selected.size || !canApprove || reviewMutation.isPending.value"
                   @click="approve">선택 승인</button>
@@ -198,75 +243,60 @@ function size(b: number): string {
                   @click="rejectOpen = true">선택 반려</button>
         </div>
 
-        <table class="grid">
-          <thead>
-            <tr>
-              <th style="width:34px"></th>
-              <th>반입자료</th><th>분류</th><th>반입Rev</th><th>반출Rev</th>
-              <th>업체</th><th>공사</th><th>파일</th><th>업로드 일시</th><th>상태</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="g in groups" :key="`${g.documentId}-${g.revLabel}`"
-                :class="{ warn: g.hasWarning || g.isBranch }">
-              <td class="tc"><input type="checkbox" :checked="selected.has(g.files[0]!.id)" @change="toggle(g)" /></td>
-              <td>{{ g.drawingNo }}<div class="sub muted">{{ g.title }}</div></td>
-              <td class="tc">{{ g.folderName }}</td>
-              <td class="tc"><strong>{{ g.revLabel }}</strong></td>
-              <td class="tc">{{ g.distributedRev !== null ? `Rev${g.distributedRev}` : '-' }}</td>
-              <td class="tc">{{ g.vendorName ?? '-' }}</td>
-              <td class="tc">{{ g.projectName ?? '-' }}</td>
-              <td>
-                <span v-for="f in g.files" :key="f.id" class="chip" :title="f.originalFilename">
-                  {{ f.fileExt.toUpperCase() }} {{ size(f.byteSize) }}
-                </span>
-              </td>
-              <td class="tc">{{ g.uploadedAt.slice(0, 16).replace('T', ' ') }}</td>
-              <td class="tc">
-                <span v-if="g.isBranch" class="tag">중복반출</span>
-                <span v-if="g.hasWarning" class="tag warn-tag" title="업체가 적은 Rev 표기와 다릅니다">Rev 불일치</span>
-                <button v-if="g.isBranch" class="btn btn-sm" @click="dupDocId = g.documentId">현황</button>
-                <button v-if="g.isBranch && canApprove" class="btn btn-sm" @click="mergeDocId = g.documentId">
-                  병합본 첨부
-                </button>
-              </td>
-            </tr>
-            <tr v-if="!groups.length">
-              <td colspan="10" class="tc muted">{{ isFetching ? '불러오는 중…' : '검수 대기 중인 자료가 없습니다.' }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <DataTable
+          :columns="PENDING_COLUMNS" :rows="pendingRows" selectable :selected="selected"
+          :total="pendingRows.length" :loading="isFetching && !pendingRows.length"
+          :row-class="(g) => (g.hasWarning || g.isBranch ? 'warn' : '')"
+          storage-key="import-pending" excel-name="TDB 검수대기"
+          empty-text="검수 대기 중인 자료가 없습니다."
+          @toggle="(id) => toggle(pendingRows.find(g => g.id === id)!)"
+          @toggle-all="(on) => { selected = on ? new Set(pendingRows.map(g => g.id)) : new Set() }"
+        >
+          <template #cell:drawingNo="{ row }">
+            <span>{{ row.drawingNo }}</span>
+            <span v-if="row.title" class="muted small sub-inline">{{ row.title }}</span>
+          </template>
+
+          <template #cell:files="{ row }">
+            <span v-for="f in row.files" :key="f.id" class="chip" :title="f.originalFilename">
+              {{ f.fileExt.toUpperCase() }} {{ size(f.byteSize) }}
+            </span>
+          </template>
+
+          <template #cell:state="{ row }">
+            <span v-if="row.isBranch" class="tag">중복반출</span>
+            <span v-if="row.hasWarning" class="tag warn-tag"
+                  title="업체가 적은 Rev 표기와 다릅니다">Rev 불일치</span>
+            <button v-if="row.isBranch" class="btn btn-sm" @click.stop="dupDocId = row.documentId">현황</button>
+            <button v-if="row.isBranch && canApprove" class="btn btn-sm"
+                    @click.stop="mergeDocId = row.documentId">병합본</button>
+          </template>
+        </DataTable>
       </section>
 
       <!-- 확인 필요 -->
-      <section v-else class="pad">
+      <section v-else class="pad grid-tab">
         <p class="muted">
           어느 자료에 붙일지 정하지 못한 반입 파일입니다. 파일은 저장돼 있으니 사라지지 않습니다.
         </p>
-        <table class="grid">
-          <thead>
-            <tr><th>파일</th><th>크기</th><th>사유</th><th>짐작한 자료</th><th>업체</th><th>등록일시</th><th>조치</th></tr>
-          </thead>
-          <tbody>
-            <tr v-for="i in issues?.items ?? []" :key="i.id" class="warn">
-              <td>{{ i.filename }}</td>
-              <td class="tr">{{ i.byteSize !== null ? size(i.byteSize) : '-' }}</td>
-              <td>{{ i.reason }}<div v-if="i.reasonDetail" class="sub muted">{{ i.reasonDetail }}</div></td>
-              <td class="tc">{{ i.suggestedDrawingNo ?? '-' }}</td>
-              <td class="tc">{{ i.vendorName ?? '-' }}</td>
-              <td class="tc">{{ i.createdAt.slice(0, 10) }}</td>
-              <td class="tc">
-                <button class="btn btn-sm" :disabled="!session.can('screen.tdb_import.issue.recheck')"
-                        @click="issueAction(i, 'recheck')">재검수</button>
-                <button class="btn btn-sm" :disabled="!session.can('screen.tdb_import.issue.reject')"
-                        @click="issueAction(i, 'discard')">반려</button>
-              </td>
-            </tr>
-            <tr v-if="!issues?.items.length">
-              <td colspan="7" class="tc muted">확인이 필요한 자료가 없습니다.</td>
-            </tr>
-          </tbody>
-        </table>
+        <DataTable
+          :columns="ISSUE_COLUMNS" :rows="issues?.items ?? []" :total="issues?.items.length ?? 0"
+          :row-class="() => 'warn'"
+          storage-key="import-issues" excel-name="TDB 확인필요"
+          empty-text="확인이 필요한 자료가 없습니다."
+        >
+          <template #cell:reason="{ row }">
+            <span>{{ row.reason }}</span>
+            <span v-if="row.reasonDetail" class="muted small sub-inline">{{ row.reasonDetail }}</span>
+          </template>
+
+          <template #cell:act="{ row }">
+            <button class="btn btn-sm" :disabled="!session.can('screen.tdb_import.issue.recheck')"
+                    @click.stop="issueAction(row, 'recheck')">재검수</button>
+            <button class="btn btn-sm" :disabled="!session.can('screen.tdb_import.issue.reject')"
+                    @click.stop="issueAction(row, 'discard')">반려</button>
+          </template>
+        </DataTable>
       </section>
     </div>
 
@@ -324,6 +354,16 @@ function size(b: number): string {
 .body { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .body > section { flex: 1; overflow: auto; min-height: 0; }
 .pad { padding: 14px; }
+
+/* 그리드를 쓰는 두 절은 스크롤을 그리드에 맡긴다 — 바깥이 한 번 더 스크롤되면
+   머리글 고정이 깨진다. 여기서는 자리만 내준다. */
+.body > section.grid-tab {
+  display: flex; flex-direction: column; gap: var(--sp-2);
+  min-height: 0; flex: 1; overflow: hidden;
+}
+.grid-tab > :deep(.dt) { flex: 1; min-height: 0; }
+/* 반입자료·사유 칸의 보조 설명 — 줄 높이를 늘리지 않게 같은 줄에 잇는다 */
+.sub-inline { margin-left: 6px; }
 h2 { font-size: var(--fs-base); margin: 18px 0 6px; }
 h2:first-child { margin-top: 0; }
 .bar { display: flex; gap: var(--gap-sm); align-items: center; margin-bottom: 10px; }
