@@ -84,6 +84,12 @@ defineProps<{ path: string }>()
       <path d="M2.6 8v4c0 1.1 2.4 2 5.4 2s5.4-.9 5.4-2V8" />
     </template>
 
+    <!-- 스탬프 관리 — 고무 도장 -->
+    <template v-else-if="path === '/stamps'">
+      <path d="M6 1.5h4a1.4 1.4 0 0 1 1.4 1.7l-.6 2.5a1 1 0 0 0 1 1.3h1A1.7 1.7 0 0 1 14.5 8.7v1.5H1.5V8.7A1.7 1.7 0 0 1 3.2 7h1a1 1 0 0 0 1-1.3L4.6 3.2A1.4 1.4 0 0 1 6 1.5Z" />
+      <path d="M1.5 12.8h13" />
+    </template>
+
     <!-- 도움말 -->
     <template v-else-if="path === '/help'">
       <circle cx="8" cy="8" r="6" />

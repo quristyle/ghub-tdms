@@ -237,4 +237,6 @@ export const MENU: readonly { path: string; label: string; permission: Permissio
   // 10번째 — 레거시에 없던 화면. 새 권한 리프를 만들지 않고 사용자·권한 관리와 같은 것을
   // 쓴다(리프 36개 패리티를 지키기 위해서다 — groups.html 이 쓰던 방식과 같다).
   { path: '/menus',         label: '메뉴 관리',     permission: 'screen.users.access' },
+  { path: '/permissions',   label: '접속권한 관리', permission: 'screen.users.access' },
+  { path: '/stamps',        label: '스탬프 관리',   permission: 'screen.users.access' },
 ] as const

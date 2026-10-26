@@ -73,6 +73,12 @@ describe('권한 트리', () => {
     expect(menus?.permission).toBe('screen.users.access')
   })
 
+  it('스탬프 관리 화면이 메뉴에 올바르게 포함되어 있다', () => {
+    const stamps = MENU.find((m) => m.path === '/stamps')
+    expect(stamps?.label).toBe('스탬프 관리')
+    expect(stamps?.permission).toBe('screen.users.access')
+  })
+
   it('모든 메뉴의 권한 키가 권한 트리에 있다', () => {
     for (const m of MENU) expect(LEAF_KEY_SET.has(m.permission)).toBe(true)
   })

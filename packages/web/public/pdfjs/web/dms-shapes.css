@@ -188,8 +188,12 @@
 }
 
 .dmsStampChoices {
-  display: grid;
-  gap: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 /* 도장 그림 + 이름 — 어떤 도장인지 눌러 보지 않아도 알 수 있게 (2026-09-04 CM 지시) */
@@ -206,15 +210,43 @@
   font: menu;
   font-size: 11px;
   cursor: pointer;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.dmsStampMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 4px;
+}
+
+.dmsStampName {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dmsStampCategoryBadge {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+  flex-shrink: 0;
 }
 
 /* 버튼 안에 넣은 도장 그림 — 흰 바탕이 함께 그려져 있어 어두운 화면에서도 그대로 보인다 */
 .dmsStampThumb {
   display: block;
   width: 100%;
-  height: auto;
+  max-height: 72px;
+  object-fit: contain;
   border: 1px solid var(--separator-color);
   border-radius: 2px;
+  background-color: #ffffff;
 }
 
 .dmsStampChoice:hover {

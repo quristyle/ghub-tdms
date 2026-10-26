@@ -250,6 +250,125 @@ let justStamped = false; // 방금 찍은 도장 때문에 도구가 바뀐 것�
 let stampGuard = null;   // 그 표시를 오래 세워 두지 않도록 스스로 내리는 시계
 let lastStamp = null;    // 방금 찍은 도장 — 찍자마자 골라 두려고 기억한다
 
+let currentStamp = null;
+let stampsList = [];
+
+function getActiveStamp() {
+  if (currentStamp) return currentStamp;
+  if (stampsList.length > 0) return stampsList[0];
+  return {
+    id: "blind",
+    name: "Blind List 확인",
+    category: "표",
+    width: STAMP_W,
+    height: STAMP_H,
+    aspectRatio: STAMP_ASPECT,
+    imageUrl: stampImageUrl(300),
+    isBuiltinBlind: true,
+  };
+}
+
+function getActiveStampAspect() {
+  const s = getActiveStamp();
+  return s.aspectRatio || (s.width && s.height ? s.width / s.height : STAMP_ASPECT);
+}
+
+async function loadStamps() {
+  try {
+    const res = await fetch("/api/stamps", { credentials: "same-origin" });
+    if (!res.ok) throw new Error("stamps fetch failed: " + res.status);
+    const data = await res.json();
+    if (Array.isArray(data.items) && data.items.length > 0) {
+      stampsList = data.items.map((item) => ({
+        id: item.id,
+        name: item.name,
+        category: item.category || "도장",
+        width: item.width || 300,
+        height: item.height || 150,
+        aspectRatio: (item.width && item.height) ? (item.width / item.height) : (300 / 150),
+        imageUrl: item.imageUrl,
+        description: item.description,
+        isBuiltinBlind: item.name === "Blind List 확인" && !item.imageUrl?.startsWith("data:image/svg"),
+      }));
+    }
+  } catch (err) {
+    console.warn("[dms] loadStamps fallback to builtin:", err);
+  }
+
+  if (stampsList.length === 0) {
+    stampsList = [{
+      id: "blind",
+      name: "Blind List 확인",
+      category: "표",
+      width: STAMP_W,
+      height: STAMP_H,
+      aspectRatio: STAMP_ASPECT,
+      imageUrl: stampImageUrl(300),
+      isBuiltinBlind: true,
+    }];
+  }
+
+  if (!currentStamp || !stampsList.some((s) => s.id === currentStamp.id)) {
+    currentStamp = stampsList[0];
+  }
+
+  renderStampChoices();
+}
+
+function renderStampChoices() {
+  const container = panel?.querySelector(".dmsStampChoices");
+  if (!container) return;
+  container.innerHTML = "";
+
+  const active = getActiveStamp();
+  for (const stamp of stampsList) {
+    const isChosen = active && (active.id === stamp.id);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "dmsStampChoice" + (isChosen ? " chosen" : "");
+    btn.dataset.stampId = String(stamp.id);
+    btn.title = stamp.description ? `${stamp.name} - ${stamp.description}` : stamp.name;
+
+    const img = document.createElement("img");
+    img.className = "dmsStampThumb";
+    img.alt = stamp.name;
+    img.src = stamp.imageUrl;
+
+    const metaWrap = document.createElement("div");
+    metaWrap.className = "dmsStampMeta";
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "dmsStampName";
+    nameSpan.textContent = stamp.name;
+
+    if (stamp.category) {
+      const badge = document.createElement("span");
+      badge.className = "dmsStampCategoryBadge";
+      badge.textContent = stamp.category;
+      metaWrap.append(nameSpan, badge);
+    } else {
+      metaWrap.append(nameSpan);
+    }
+
+    btn.append(img, metaWrap);
+
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      selectStamp(stamp);
+    });
+
+    container.append(btn);
+  }
+}
+
+function selectStamp(stamp) {
+  currentStamp = stamp;
+  if (!panel) return;
+  for (const b of panel.querySelectorAll(".dmsStampChoice")) {
+    b.classList.toggle("chosen", b.dataset.stampId === String(stamp.id));
+  }
+}
+
 function buildUi() {
   const box = document.createElement("div");
   box.id = "dmsStamp";
@@ -265,10 +384,6 @@ function buildUi() {
         <div class="dmsStampChoiceBox">
           <span class="editorParamsLabel">스탬프 선택</span>
           <div class="dmsStampChoices">
-            <button type="button" class="dmsStampChoice chosen" data-stamp="blind">
-              <img class="dmsStampThumb" alt="" />
-              <span>Blind List 확인</span>
-            </button>
           </div>
         </div>
       </div>
@@ -282,15 +397,8 @@ function buildUi() {
   button = document.getElementById("dmsStampButton");
   panel = document.getElementById("dmsStampParamsToolbar");
 
-  // 어떤 도장인지 한눈에 보이도록 그 그림을 버튼에 축소해 넣는다 (2026-09-04 CM 지시).
-  // 미리보기라 흰 바탕은 비치지 않게 그리고, 작게 줄여도 선이 보이도록 조금 굵게 그린다.
-  const thumb = panel.querySelector(".dmsStampThumb");
-  if (thumb) {
-    thumb.src = drawStamp(STAMP_THUMB_WIDTH, { ...STAMP_STYLE, thickness: 3, fillOpacity: 1 })
-      .toDataURL("image/png");
-  }
-
   button.addEventListener("click", () => {
+    void loadStamps();
     // 켜져 있으면 아이콘은 창만 열고 닫는다 — 도구는 켜진 채 남는다(2026-09-19 CM 지시).
     // 도구를 끄려면 [선택]·[손 도구]·다른 도구를 누르거나 Esc.
     if (state.on) showPanel(panel.classList.contains("hidden"));
@@ -356,8 +464,9 @@ function layerForPageElement(pageEl) {
 function fitBox(x0, y0, x1, y1) {
   let w = Math.abs(x1 - x0);
   let h = Math.abs(y1 - y0);
-  if (w / Math.max(h, 1e-6) > STAMP_ASPECT) w = h * STAMP_ASPECT;
-  else h = w / STAMP_ASPECT;
+  const aspect = getActiveStampAspect();
+  if (w / Math.max(h, 1e-6) > aspect) w = h * aspect;
+  else h = w / aspect;
   const left = x1 >= x0 ? x0 : x0 - w;
   const top = y1 >= y0 ? y0 : y0 - h;
   return { x0: left, y0: top, x1: left + w, y1: top + h };
@@ -408,7 +517,8 @@ function onPointerDown(e) {
   const image = document.createElementNS(SVG_NS, "image");
   image.setAttribute("preserveAspectRatio", "none");
   // 끄는 동안 보여줄 그림은 작게 한 장만 만들어 두고 크기만 늘려 보여준다(매번 다시 그리면 느리다).
-  image.setAttribute("href", stampImageUrl(300));
+  const active = getActiveStamp();
+  image.setAttribute("href", active.imageUrl || stampImageUrl(300));
   svg.append(image);
   pageEl.append(svg);
   placePreview(svg, pageEl, rect);
@@ -467,10 +577,16 @@ async function onPointerUp() {
   const widthPt = Math.hypot(qx - px0, qy - py0);
   if (widthPt < 1) return;
 
+  const active = getActiveStamp();
+  const isSvg = active.imageUrl ? (active.imageUrl.startsWith("data:image/svg") || active.imageUrl.endsWith(".svg")) : false;
+  const bitmapUrl = (active.isBuiltinBlind || (!active.imageUrl && active.name === "Blind List 확인"))
+    ? stampImageUrl(widthPt)
+    : (active.imageUrl || stampImageUrl(widthPt));
+
   const editorData = {
     annotationType: AnnotationEditorType.STAMP,
-    bitmapUrl: stampImageUrl(widthPt),
-    isSvg: false,
+    bitmapUrl,
+    isSvg,
     rect: [Math.min(px0, px1), Math.min(py0, py1), Math.max(px0, px1), Math.max(py0, py1)],
     pageIndex: pageView.id - 1,
     // 지금 화면에 보이는 각도로 넣어야 도장이 화면에서 똑바로 찍힌다 (2026-09-18 CM 지시).
@@ -562,6 +678,7 @@ function cancelDrag() {
 export function installStampTool(pdfViewerApplication) {
   app = pdfViewerApplication;
   buildUi();
+  void loadStamps();
   watchUiManager(app);
   registerCustomTool("stamp", (keepMode) => deactivate({ keepMode }));
 
