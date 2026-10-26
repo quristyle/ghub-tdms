@@ -98,7 +98,24 @@ sudo ln -sfn /etc/nginx/sites-available/tdms.jsini.co.kr.conf \
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-certbot 이 vhost 를 먼저 만들어 버리므로, **인증서를 받은 뒤 이 파일로 덮어쓴다.**
+#### certbot 이 `default` 에 끼워 넣는 중복 vhost 를 반드시 걷어낸다
+
+`tdms.jsini.co.kr` 에 해당하는 server 블록이 아직 없으면 certbot 은 **기본 서버를
+집어** `sites-available/default` 안에 443 블록과 80 리다이렉트 블록을 만들어 넣는다
+(`# managed by Certbot`). 그대로 두면 우리 전용 conf 와 중복되고, 파일명 순서상
+`default` 가 먼저 읽혀 **TDMS 대신 /var/www/html 의 기본 페이지가 뜬다.**
+
+```bash
+sudo cp /etc/nginx/sites-available/default /etc/nginx/sites-available/default.bak
+sudo nano /etc/nginx/sites-available/default
+# → `# managed by Certbot` 이 붙은 server 블록 둘을 지우고,
+#   맨 위 `listen 80 default_server;` 블록만 남긴다.
+sudo nginx -t
+```
+
+`nginx -t` 는 **인증서가 발급된 뒤에야** 통과한다. 우리 conf 가 인증서 파일을
+가리키기 때문이다 — 그래서 순서가 certbot 먼저, 복사가 나중이다.
+
 기존 12개 사이트 설정은 건드리지 않는다.
 
 ### 5. 첫 배포
@@ -127,6 +144,9 @@ main 에 푸시하면 자동으로 돈다. 손으로 돌리려면 Actions → �
 - 변환(DWG·오피스) 핸들러가 붙으면 worker 이미지에 LibreOffice 를 더해야 한다.
   ODA File Converter 는 재배포가 막혀 있어 이미지에 굽지 못한다 — 호스트에 두고
   볼륨으로 붙인 뒤 `PREVIEW_ODA_PATH` 로 가리킨다.
+- 이 서버의 nginx 는 **1.24** 다. `http2 on;` 독립 지시어(1.25.1+)를 쓰면
+  `unknown directive` 로 막힌다. 1.24 식으로 listen 줄에 붙이는 것도 안 된다 —
+  같은 443 소켓을 쓰는 다른 사이트들과 옵션이 어긋난다. 그래서 HTTP/2 는 끈 채로 둔다.
 - `deploy/systemd/`, `deploy/nginx/_참고-단독설치.conf` 는 컨테이너를 쓰지 않는
   단독 설치용 참고본이다. 지금 운영 경로는 컨테이너다.
 
