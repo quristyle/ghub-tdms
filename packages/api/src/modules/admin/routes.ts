@@ -4,7 +4,8 @@ import {
   AuditListResponse, AuditMeta, AuditQuery, BackupListResponse, BackupRunRequest,
   BackupRunResult, BackupStatus, ErrorResponse, GroupListResponse, GroupMembersResponse,
   GroupPermissionsRequest, GroupPermissionsResponse, GroupSaveRequest, NoteRequest, NoteResult,
-  PERMISSION_TREE, PasswordResetResult, UserCreateRequest, UserListResponse, UserUpdateRequest,
+  PERMISSION_TREE, PartnerCompanyListResponse, PasswordResetResult,
+  UserCreateRequest, UserListResponse, UserUpdateRequest,
 } from '@tdms/contracts'
 import { AUTHENTICATED, defineRoute, permission } from '../../core/route.js'
 import { Errors } from '../../core/errors.js'
@@ -57,6 +58,14 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     access: permission('screen.users.access'),
     schema: { response: { 200: UserListResponse, 403: ErrorResponse } },
     handler: async () => svc.users(),
+  })
+
+  defineRoute(app, {
+    method: 'GET',
+    url: '/partner-companies',
+    access: permission('screen.users.access'),
+    schema: { response: { 200: PartnerCompanyListResponse, 403: ErrorResponse } },
+    handler: async () => svc.partnerCompanies(),
   })
 
   defineRoute(app, {

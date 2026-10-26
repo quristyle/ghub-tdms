@@ -94,23 +94,85 @@ export interface UserRowDb {
   groupId: number | null
   groupName: string | null
   isActive: boolean
+  employmentStatus: 'ACTIVE' | 'RETIRED' | 'DELETED'
   mustChangePassword: boolean
   lastLoginAt: Date | null
+  previousLoginAt: Date | null
   createdAt: Date
   updatedAt: Date
+  employeeNumber: string | null
+  email: string | null
+  phone: string | null
+  extensionNumber: string | null
+  department: string | null
+  position: string | null
+  companyCode: string
+  partnerCompanyId: number | null
+  partnerCompanyName: string | null
+  thumbnailUrl: string | null
+  hireDate: string | null
+  syncedAt: Date | null
+}
+
+/** 사용자 신원·조직 — 추가와 수정이 같은 칸을 쓴다. */
+export interface UserProfileInput {
+  employeeNumber?: string | null
+  email?: string | null
+  phone?: string | null
+  extensionNumber?: string | null
+  department?: string | null
+  position?: string | null
+  companyCode?: string
+  partnerCompanyId?: number | null
+  hireDate?: string | null
 }
 
 export function listUsers() {
+  // u.position 은 반드시 테이블을 붙여 쓴다 — position() 은 PostgreSQL 내장 함수다.
   return many<UserRowDb>(
     `SELECT u.id, u.login_id AS "loginId", u.name, u.role,
             u.group_id AS "groupId", g.name AS "groupName",
             u.is_active AS "isActive",
+            u.employment_status AS "employmentStatus",
             u.must_change_password AS "mustChangePassword",
             u.last_login_at AS "lastLoginAt",
-            u.created_at AS "createdAt", u.updated_at AS "updatedAt"
-       FROM users u LEFT JOIN groups g ON g.id = u.group_id
+            u.previous_login_at AS "previousLoginAt",
+            u.created_at AS "createdAt", u.updated_at AS "updatedAt",
+            u.employee_number AS "employeeNumber",
+            u.email, u.phone, u.extension_number AS "extensionNumber",
+            u.department, u.position, u.company_code AS "companyCode",
+            u.partner_company_id AS "partnerCompanyId", pc.name AS "partnerCompanyName",
+            u.thumbnail_url AS "thumbnailUrl",
+            -- date 를 Date 객체로 받으면 toISOString() 에서 KST 자정이 UTC 전날로 내려가
+            -- 입사일이 하루 밀린다. 여기서 문자열로 끝내면 그 자리가 없어진다.
+            to_char(u.hire_date, 'YYYY-MM-DD') AS "hireDate", u.synced_at AS "syncedAt"
+       FROM users u
+       LEFT JOIN groups g ON g.id = u.group_id
+       LEFT JOIN partner_companies pc ON pc.id = u.partner_company_id
       ORDER BY u.login_id`,
     [], 'users_list',
+  )
+}
+
+export interface PartnerCompanyRowDb {
+  id: number
+  name: string
+  companyCode: string | null
+  representative: string | null
+  businessType: string | null
+  isActive: boolean
+  memberCount: number
+}
+
+export function listPartnerCompanies() {
+  return many<PartnerCompanyRowDb>(
+    `SELECT pc.id, pc.name, pc.company_code AS "companyCode",
+            pc.representative, pc.business_type AS "businessType",
+            pc.is_active AS "isActive",
+            (SELECT count(*)::int FROM users u WHERE u.partner_company_id = pc.id) AS "memberCount"
+       FROM partner_companies pc
+      ORDER BY pc.name`,
+    [], 'partner_companies',
   )
 }
 
@@ -120,29 +182,68 @@ export function findByLoginId(c: pg.PoolClient, loginId: string) {
 
 export async function insertUser(
   c: pg.PoolClient,
-  v: { loginId: string; name: string; role: string; groupId: number | null; passwordHash: string },
+  v: {
+    loginId: string; name: string; role: string; groupId: number | null; passwordHash: string
+  } & UserProfileInput,
 ): Promise<number> {
   const r = await c.query<{ id: number }>(
-    `INSERT INTO users (login_id, name, role, group_id, password_hash, must_change_password)
-     VALUES ($1,$2,$3,$4,$5,true) RETURNING id`,
-    [v.loginId, v.name, v.role, v.groupId, v.passwordHash],
+    `INSERT INTO users (login_id, name, role, group_id, password_hash, must_change_password,
+                        employee_number, email, phone, extension_number,
+                        department, position, company_code, partner_company_id, hire_date)
+     VALUES ($1,$2,$3,$4,$5,true,
+             $6,$7,$8,$9,$10,$11,coalesce($12,'SKGAS'),$13::bigint,$14::date) RETURNING id`,
+    [
+      v.loginId, v.name, v.role, v.groupId, v.passwordHash,
+      v.employeeNumber ?? null, v.email ?? null, v.phone ?? null, v.extensionNumber ?? null,
+      v.department ?? null, v.position ?? null, v.companyCode ?? null,
+      v.partnerCompanyId ?? null, v.hireDate ?? null,
+    ],
   )
   return r.rows[0]!.id
 }
 
 export function updateUser(
   c: pg.PoolClient, id: number,
-  v: { name?: string; role?: string; groupId?: number | null; isActive?: boolean },
+  v: {
+    name?: string; role?: string; groupId?: number | null
+    isActive?: boolean; employmentStatus?: string
+  } & UserProfileInput,
 ) {
+  // null 로 **지우는 것**과 손대지 않는 것을 가려야 한다. coalesce 만 쓰면 둘이 같아진다.
+  // 그래서 칸마다 "보냈는가"를 boolean 으로 함께 넘긴다.
+  const sent = (x: unknown) => x !== undefined
   return c.query(
     `UPDATE users
-        SET name       = coalesce($2, name),
-            role       = coalesce($3, role),
-            group_id   = CASE WHEN $4::boolean THEN $5 ELSE group_id END,
-            is_active  = coalesce($6, is_active),
+        SET name              = coalesce($2, name),
+            role              = coalesce($3, role),
+            group_id          = CASE WHEN $4::boolean  THEN $5::bigint  ELSE group_id END,
+            is_active         = coalesce($6, is_active),
+            employment_status = coalesce($7, employment_status),
+            employee_number   = CASE WHEN $8::boolean  THEN $9::text    ELSE employee_number END,
+            email             = CASE WHEN $10::boolean THEN $11::text   ELSE email END,
+            phone             = CASE WHEN $12::boolean THEN $13::text   ELSE phone END,
+            extension_number  = CASE WHEN $14::boolean THEN $15::text   ELSE extension_number END,
+            department        = CASE WHEN $16::boolean THEN $17::text   ELSE department END,
+            position          = CASE WHEN $18::boolean THEN $19::text   ELSE position END,
+            company_code      = coalesce($20, company_code),
+            partner_company_id = CASE WHEN $21::boolean THEN $22::bigint ELSE partner_company_id END,
+            hire_date         = CASE WHEN $23::boolean THEN $24::date   ELSE hire_date END,
             updated_at = now()
       WHERE id = $1`,
-    [id, v.name ?? null, v.role ?? null, v.groupId !== undefined, v.groupId ?? null, v.isActive ?? null],
+    [
+      id, v.name ?? null, v.role ?? null,
+      sent(v.groupId), v.groupId ?? null,
+      v.isActive ?? null, v.employmentStatus ?? null,
+      sent(v.employeeNumber), v.employeeNumber ?? null,
+      sent(v.email), v.email ?? null,
+      sent(v.phone), v.phone ?? null,
+      sent(v.extensionNumber), v.extensionNumber ?? null,
+      sent(v.department), v.department ?? null,
+      sent(v.position), v.position ?? null,
+      v.companyCode ?? null,
+      sent(v.partnerCompanyId), v.partnerCompanyId ?? null,
+      sent(v.hireDate), v.hireDate ?? null,
+    ],
   )
 }
 

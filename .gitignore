@@ -34,3 +34,9 @@ devctl/logs/
 
 # 고객 전달물 — 레거시 사내 소스와 요건서가 들어 있다. 외부 저장소에 올리지 않는다.
 docs/고객요청사항/
+
+# 포털 사용자 동기화 입력물 — 실명·휴대전화·생년월일이 들어 있다. 저장소에 올리지 않는다.
+# (import-users.mjs 는 경로를 인자로 받는다 — 파일은 서버에만 둔다)
+*users*.json
+!package.json
+!package-lock.json

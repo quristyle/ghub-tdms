@@ -52,10 +52,16 @@ export async function users() {
     items: (await q.listUsers()).map((u) => ({
       ...u,
       lastLoginAt: u.lastLoginAt ? u.lastLoginAt.toISOString() : null,
+      previousLoginAt: u.previousLoginAt ? u.previousLoginAt.toISOString() : null,
+      syncedAt: u.syncedAt ? u.syncedAt.toISOString() : null,
       createdAt: u.createdAt.toISOString(),
       updatedAt: u.updatedAt.toISOString(),
     })),
   }
+}
+
+export async function partnerCompanies() {
+  return { items: await q.listPartnerCompanies() }
 }
 
 export async function createUser(v: UserCreateRequest) {
@@ -76,16 +82,23 @@ export async function updateUser(id: number, v: UserUpdateRequest, actorId: numb
     const user = found.rows[0]
     if (!user) throw Errors.notFound('계정')
 
+    // 재직 상태와 로그인 가능 여부가 어긋나면 "퇴직인데 로그인되는" 계정이 생긴다.
+    // 상태만 바꿨으면 is_active 를 따라오게 한다(재직=사용, 퇴직·삭제=중지).
+    const patch = { ...v }
+    if (v.employmentStatus !== undefined && v.isActive === undefined) {
+      patch.isActive = v.employmentStatus === 'ACTIVE'
+    }
+
     // 마지막 관리자를 잃으면 아무도 권한을 고칠 수 없게 된다
     const losingAdmin =
       (v.role !== undefined && v.role !== 'ADMIN' && user.role === 'ADMIN') ||
-      (v.isActive === false && user.role === 'ADMIN')
+      (patch.isActive === false && user.role === 'ADMIN')
     if (losingAdmin && (await q.activeAdminCount(c, id)) === 0) {
       throw Errors.conflict('LAST_ADMIN', '마지막 관리자는 내리거나 중지할 수 없습니다.')
     }
 
-    await q.updateUser(c, id, v)
-    if (v.isActive === false) await destroyAllSessions(id)
+    await q.updateUser(c, id, patch)
+    if (patch.isActive === false) await destroyAllSessions(id)
     void actorId
   })
   await invalidate('cache_perm')

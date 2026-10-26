@@ -42,6 +42,29 @@ export type AuditMeta = z.infer<typeof AuditMeta>
 
 // ── 사용자 관리 ─────────────────────────────────────────────────────────
 
+/**
+ * 재직 상태 3단계 — 기존 시스템(employment_status)과 같다.
+ * "삭제"도 실제로 지우지 않는다(D-6). 로그인 차단은 isActive 가 하고
+ * 이 값은 표시·거르기용이다 — 둘이 어긋나지 않게 서버가 함께 움직인다.
+ */
+export const EmploymentStatus = z.enum(['ACTIVE', 'RETIRED', 'DELETED'])
+export type EmploymentStatus = z.infer<typeof EmploymentStatus>
+
+/** 사람이 소속된 협력업체. 도면 제작 업체(vendor)와 다른 것이다. */
+export const PartnerCompanyRow = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  companyCode: z.string().nullable(),
+  representative: z.string().nullable(),
+  businessType: z.string().nullable(),
+  isActive: z.boolean(),
+  memberCount: z.number().int(),
+})
+export type PartnerCompanyRow = z.infer<typeof PartnerCompanyRow>
+
+export const PartnerCompanyListResponse = z.object({ items: z.array(PartnerCompanyRow) })
+export type PartnerCompanyListResponse = z.infer<typeof PartnerCompanyListResponse>
+
 export const UserRow = z.object({
   id: z.number().int(),
   loginId: z.string(),
@@ -50,21 +73,54 @@ export const UserRow = z.object({
   groupId: z.number().int().nullable(),
   groupName: z.string().nullable(),
   isActive: z.boolean(),
+  employmentStatus: EmploymentStatus,
   mustChangePassword: z.boolean(),
   lastLoginAt: z.string().nullable(),
+  previousLoginAt: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
+
+  // ── 신원·조직 ────────────────────────────────────────────────────────
+  // 반출 기록에 "누가 가져갔나"를 이름 하나로만 남기면 동명이인과 퇴직자가
+  // 구분되지 않는다. 사번·부서·소속사가 그 자리를 메운다.
+  employeeNumber: z.string().nullable(),
+  email: z.string().nullable(),
+  phone: z.string().nullable(),
+  extensionNumber: z.string().nullable(),
+  department: z.string().nullable(),
+  position: z.string().nullable(),
+  companyCode: z.string(),
+  partnerCompanyId: z.number().int().nullable(),
+  partnerCompanyName: z.string().nullable(),
+  thumbnailUrl: z.string().nullable(),
+  hireDate: z.string().nullable(),
+  /** 포털에서 마지막으로 받아 온 시각. 손으로 만든 계정은 null. */
+  syncedAt: z.string().nullable(),
 })
 export type UserRow = z.infer<typeof UserRow>
 
 export const UserListResponse = z.object({ items: z.array(UserRow) })
 export type UserListResponse = z.infer<typeof UserListResponse>
 
+/** 신원·연락처 — 추가와 수정이 같은 모양이라 한 벌로 쓴다. */
+const UserProfileFields = {
+  employeeNumber: z.string().max(32).nullable().default(null),
+  email: z.string().max(200).nullable().default(null),
+  phone: z.string().max(40).nullable().default(null),
+  extensionNumber: z.string().max(40).nullable().default(null),
+  department: z.string().max(100).nullable().default(null),
+  position: z.string().max(100).nullable().default(null),
+  companyCode: z.string().max(40).default('SKGAS'),
+  partnerCompanyId: z.number().int().nullable().default(null),
+  hireDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null),
+}
+
 export const UserCreateRequest = z.object({
   loginId: z.string().min(2).max(64).regex(/^[A-Za-z0-9_.-]+$/, '영문·숫자·._- 만 쓸 수 있습니다'),
   name: z.string().min(1).max(100),
   role: z.enum(['ADMIN', 'VIEWER']).default('VIEWER'),
   groupId: z.number().int().nullable().default(null),
+  ...UserProfileFields,
 })
 export type UserCreateRequest = z.infer<typeof UserCreateRequest>
 
@@ -73,6 +129,16 @@ export const UserUpdateRequest = z.object({
   role: z.enum(['ADMIN', 'VIEWER']).optional(),
   groupId: z.number().int().nullable().optional(),
   isActive: z.boolean().optional(),
+  employmentStatus: EmploymentStatus.optional(),
+  employeeNumber: z.string().max(32).nullable().optional(),
+  email: z.string().max(200).nullable().optional(),
+  phone: z.string().max(40).nullable().optional(),
+  extensionNumber: z.string().max(40).nullable().optional(),
+  department: z.string().max(100).nullable().optional(),
+  position: z.string().max(100).nullable().optional(),
+  companyCode: z.string().max(40).optional(),
+  partnerCompanyId: z.number().int().nullable().optional(),
+  hireDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
 })
 export type UserUpdateRequest = z.infer<typeof UserUpdateRequest>
 

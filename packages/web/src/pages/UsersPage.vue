@@ -2,8 +2,8 @@
 import { computed, ref, watch } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type {
-  GroupListResponse, GroupMembersResponse, GroupPermissionsResponse,
-  PermissionNode, UserListResponse, UserRow,
+  EmploymentStatus, GroupListResponse, GroupMembersResponse, GroupPermissionsResponse,
+  PartnerCompanyListResponse, PermissionNode, UserListResponse, UserRow,
 } from '@tdms/contracts'
 import Modal from '@/ui/Modal.vue'
 import Tabs from '@/ui/Tabs.vue'
@@ -33,41 +33,104 @@ const { data: groups } = useQuery({
   staleTime: 30_000,
 })
 
+const { data: partners } = useQuery({
+  queryKey: ['partner-companies'],
+  queryFn: () => api.get<PartnerCompanyListResponse>('/partner-companies'),
+  staleTime: 60_000,
+})
+
+interface StatusOption { key: EmploymentStatus; label: string; cls: string }
+const STATUS: StatusOption[] = [
+  { key: 'ACTIVE',  label: '재직', cls: '' },
+  { key: 'RETIRED', label: '퇴직', cls: 'warn-tag' },
+  { key: 'DELETED', label: '삭제', cls: 'tag-danger' },
+]
+const statusLabel = (k: EmploymentStatus) => STATUS.find((x) => x.key === k)?.label ?? k
+
+// 처음 열었을 때는 재직만 보인다 — 퇴직·삭제까지 섞이면 목록이 쓸모없어진다
+// (기존 시스템 2026-08-12 CM 요청과 같은 기본값).
+const shown = ref(new Set<EmploymentStatus>(['ACTIVE']))
+function toggleStatus(k: EmploymentStatus) {
+  const next = new Set(shown.value)
+  next.has(k) ? next.delete(k) : next.add(k)
+  shown.value = next
+}
+const dept = ref('')
+const departments = computed(() =>
+  [...new Set((users.value?.items ?? []).map((u) => u.department).filter(Boolean))].sort() as string[],
+)
+
 const rows = computed(() =>
-  (users.value?.items ?? []).filter(
-    (u) => !keyword.value || u.loginId.includes(keyword.value) || u.name.includes(keyword.value),
-  ),
+  (users.value?.items ?? []).filter((u) => {
+    if (shown.value.size && !shown.value.has(u.employmentStatus)) return false
+    if (dept.value && u.department !== dept.value) return false
+    const k = keyword.value.trim().toLowerCase()
+    if (!k) return true
+    return [u.loginId, u.name, u.employeeNumber, u.email, u.phone, u.extensionNumber,
+            u.department, u.position, u.partnerCompanyName]
+      .some((v) => v?.toLowerCase().includes(k))
+  }),
 )
 
 const userDialog = ref<'create' | 'edit' | null>(null)
-const form = ref({ id: 0, loginId: '', name: '', role: 'VIEWER' as 'ADMIN' | 'VIEWER', groupId: '' as string | number, isActive: true })
+type Form = {
+  id: number; loginId: string; name: string
+  role: 'ADMIN' | 'VIEWER'; groupId: string | number
+  employmentStatus: EmploymentStatus
+  employeeNumber: string; email: string; phone: string; extensionNumber: string
+  department: string; position: string; companyCode: string
+  partnerCompanyId: string | number; hireDate: string
+}
+const EMPTY: Form = {
+  id: 0, loginId: '', name: '', role: 'VIEWER', groupId: '', employmentStatus: 'ACTIVE',
+  employeeNumber: '', email: '', phone: '', extensionNumber: '',
+  department: '', position: '', companyCode: 'SKGAS', partnerCompanyId: '', hireDate: '',
+}
+const form = ref<Form>({ ...EMPTY })
 
 function openCreate() {
-  form.value = { id: 0, loginId: '', name: '', role: 'VIEWER', groupId: '', isActive: true }
+  form.value = { ...EMPTY }
   userDialog.value = 'create'
 }
 function openEdit(u: UserRow) {
-  form.value = { id: u.id, loginId: u.loginId, name: u.name, role: u.role, groupId: u.groupId ?? '', isActive: u.isActive }
+  form.value = {
+    id: u.id, loginId: u.loginId, name: u.name, role: u.role, groupId: u.groupId ?? '',
+    employmentStatus: u.employmentStatus,
+    employeeNumber: u.employeeNumber ?? '', email: u.email ?? '', phone: u.phone ?? '',
+    extensionNumber: u.extensionNumber ?? '', department: u.department ?? '',
+    position: u.position ?? '', companyCode: u.companyCode,
+    partnerCompanyId: u.partnerCompanyId ?? '', hireDate: u.hireDate ?? '',
+  }
   userDialog.value = 'edit'
 }
 
+/** 빈 칸은 null 로 보낸다 — ''를 저장하면 "값이 있는데 비어 있는" 칸이 생긴다. */
+const n = (v: string) => (v.trim() === '' ? null : v.trim())
+
 async function submitUser() {
   const mode = userDialog.value
+  const f = form.value
   userDialog.value = null
   try {
-    const groupId = form.value.groupId === '' ? null : Number(form.value.groupId)
+    const profile = {
+      employeeNumber: n(f.employeeNumber), email: n(f.email), phone: n(f.phone),
+      extensionNumber: n(f.extensionNumber), department: n(f.department),
+      position: n(f.position), companyCode: f.companyCode.trim() || 'SKGAS',
+      partnerCompanyId: f.partnerCompanyId === '' ? null : Number(f.partnerCompanyId),
+      hireDate: n(f.hireDate),
+    }
+    const groupId = f.groupId === '' ? null : Number(f.groupId)
     if (mode === 'create') {
-      await api.post('/users', {
-        loginId: form.value.loginId, name: form.value.name, role: form.value.role, groupId,
-      })
-      say('ok', `"${form.value.loginId}" 계정을 만들었습니다. 초기 비밀번호는 ghub${form.value.loginId} 입니다.`)
+      await api.post('/users', { loginId: f.loginId, name: f.name, role: f.role, groupId, ...profile })
+      say('ok', `"${f.loginId}" 계정을 만들었습니다. 초기 비밀번호는 ghub${f.loginId} 입니다.`)
     } else {
-      await api.patch(`/users/${form.value.id}`, {
-        name: form.value.name, role: form.value.role, groupId, isActive: form.value.isActive,
+      await api.patch(`/users/${f.id}`, {
+        name: f.name, role: f.role, groupId, employmentStatus: f.employmentStatus, ...profile,
       })
       say('ok', '계정을 수정했습니다.')
     }
     void qc.invalidateQueries({ queryKey: ['users'] })
+    void qc.invalidateQueries({ queryKey: ['partner-companies'] })
   } catch (e) { fail(e) }
 }
 
@@ -149,38 +212,65 @@ async function savePermissions() {
       <!-- 사용자 -->
       <section v-if="tab === 'users'" class="pad">
         <div class="bar">
-          <input v-model="keyword" type="text" placeholder="아이디·이름" style="width:180px" />
+          <input v-model="keyword" type="text" placeholder="아이디·이름·사번·부서·연락처" style="width:240px" />
+          <select v-model="dept" style="width:140px">
+            <option value="">부서 전체</option>
+            <option v-for="d in departments" :key="d" :value="d">{{ d }}</option>
+          </select>
+          <span class="seg">
+            <button
+              v-for="st in STATUS" :key="st.key" type="button"
+              class="btn btn-sm" :class="{ on: shown.has(st.key) }"
+              @click="toggleStatus(st.key)"
+            >{{ st.label }}</button>
+          </span>
           <span class="muted">{{ rows.length }}명</span>
           <span style="flex:1" />
           <button class="btn btn-sm btn-primary" @click="openCreate">사용자 추가</button>
         </div>
-        <table class="grid">
-          <thead>
-            <tr><th style="width:50px">No</th><th>아이디</th><th>이름</th><th>권한</th><th>그룹</th>
-                <th>상태</th><th>접속일</th><th>등록일</th><th>조치</th></tr>
-          </thead>
-          <tbody>
-            <tr v-for="(u, i) in rows" :key="u.id" :class="{ off: !u.isActive }">
-              <td class="tc muted">{{ i + 1 }}</td>
-              <td>{{ u.loginId }}</td>
-              <td>{{ u.name }}</td>
-              <td class="tc">
-                <span :class="{ tag: u.role === 'ADMIN' }">{{ u.role === 'ADMIN' ? '관리자' : '일반' }}</span>
-              </td>
-              <td class="tc">{{ u.groupName ?? '-' }}</td>
-              <td class="tc">
-                {{ u.isActive ? '사용' : '중지' }}
-                <span v-if="u.mustChangePassword" class="tag warn-tag" title="첫 로그인 때 변경 화면이 열립니다">초기비번</span>
-              </td>
-              <td class="tc">{{ u.lastLoginAt?.slice(0, 10) ?? '-' }}</td>
-              <td class="tc">{{ u.createdAt.slice(0, 10) }}</td>
-              <td class="tc">
-                <button class="btn btn-sm" @click="openEdit(u)">수정</button>
-                <button class="btn btn-sm" @click="resetTarget = u">비밀번호 초기화</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="tablewrap">
+          <table class="grid">
+            <thead>
+              <tr><th style="width:46px">No</th><th>아이디</th><th>이름</th><th>사번</th>
+                  <th>부서</th><th>직위</th><th>소속사</th><th>내선</th><th>휴대전화</th><th>이메일</th>
+                  <th>권한</th><th>그룹</th><th>상태</th><th>접속일</th><th style="width:150px">조치</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="(u, i) in rows" :key="u.id" :class="{ off: !u.isActive }">
+                <td class="tc muted">{{ i + 1 }}</td>
+                <td class="mono">{{ u.loginId }}</td>
+                <td>{{ u.name }}</td>
+                <td class="tc mono">{{ u.employeeNumber ?? '-' }}</td>
+                <td>{{ u.department ?? '-' }}</td>
+                <td class="tc">{{ u.position ?? '-' }}</td>
+                <td>
+                  <span v-if="u.partnerCompanyName" class="tag tag-info">{{ u.partnerCompanyName }}</span>
+                  <span v-else class="muted">{{ u.companyCode }}</span>
+                </td>
+                <td class="tc mono">{{ u.extensionNumber ?? '-' }}</td>
+                <td class="tc mono">{{ u.phone ?? '-' }}</td>
+                <td class="mono">{{ u.email ?? '-' }}</td>
+                <td class="tc">
+                  <span :class="{ tag: u.role === 'ADMIN' }">{{ u.role === 'ADMIN' ? '관리자' : '일반' }}</span>
+                </td>
+                <td class="tc">{{ u.groupName ?? '-' }}</td>
+                <td class="tc">
+                  <span class="tag" :class="STATUS.find(x => x.key === u.employmentStatus)?.cls">
+                    {{ statusLabel(u.employmentStatus) }}
+                  </span>
+                  <span v-if="u.mustChangePassword" class="tag warn-tag" title="첫 로그인 때 변경 화면이 열립니다">초기비번</span>
+                </td>
+                <td class="tc" :title="u.previousLoginAt ? `직전 ${u.previousLoginAt.slice(0, 10)}` : ''">
+                  {{ u.lastLoginAt?.slice(0, 10) ?? '-' }}
+                </td>
+                <td class="tc">
+                  <button class="btn btn-sm" @click="openEdit(u)">수정</button>
+                  <button class="btn btn-sm" @click="resetTarget = u">비밀번호 초기화</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <!-- 권한 관리 -->
@@ -256,8 +346,55 @@ async function savePermissions() {
             </td>
           </tr>
           <tr v-if="userDialog === 'edit'">
-            <th>상태</th>
-            <td><label class="r"><input v-model="form.isActive" type="checkbox" /> 사용</label></td>
+            <th>재직 상태</th>
+            <td>
+              <label v-for="st in STATUS" :key="st.key" class="r">
+                <input v-model="form.employmentStatus" type="radio" :value="st.key" /> {{ st.label }}
+              </label>
+              <div class="muted sub">
+                퇴직·삭제로 바꾸면 로그인이 막히고 열려 있던 세션도 끊깁니다.
+                계정과 기록은 지우지 않습니다.
+              </div>
+            </td>
+          </tr>
+
+          <tr><th colspan="2" class="sect">신원 · 조직</th></tr>
+          <tr>
+            <th>사번</th>
+            <td class="two">
+              <input v-model="form.employeeNumber" type="text" placeholder="0038" />
+              <label>입사일 <input v-model="form.hireDate" type="date" /></label>
+            </td>
+          </tr>
+          <tr>
+            <th>부서 / 직위</th>
+            <td class="two">
+              <input v-model="form.department" type="text" placeholder="설비기술팀" />
+              <input v-model="form.position" type="text" placeholder="과장" />
+            </td>
+          </tr>
+          <tr>
+            <th>소속</th>
+            <td class="two">
+              <input v-model="form.companyCode" type="text" placeholder="SKGAS" />
+              <select v-model="form.partnerCompanyId">
+                <option value="">협력업체 아님</option>
+                <option v-for="c in partners?.items ?? []" :key="c.id" :value="c.id">{{ c.name }}</option>
+              </select>
+            </td>
+          </tr>
+
+          <tr><th colspan="2" class="sect">연락처</th></tr>
+          <tr>
+            <th>전화</th>
+            <td class="two">
+              <input v-model="form.extensionNumber" type="text" placeholder="내선 052-916-2016" />
+              <input v-model="form.phone" type="text" placeholder="휴대전화 010-0000-0000" />
+            </td>
+          </tr>
+          <tr>
+            <th>이메일</th>
+            <td><input v-model="form.email" type="text" placeholder="name@skgas.kr" style="width:100%" /></td>
           </tr>
         </tbody>
       </table>
@@ -283,6 +420,26 @@ async function savePermissions() {
 
 <style scoped>
 .users { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
+
+/* 칸이 15개다 — 좁은 화면에서 본문을 밀지 않고 표 안에서만 가로로 넘긴다 */
+.tablewrap { overflow-x: auto; }
+.tablewrap .grid { min-width: 1180px; }
+
+/* 재직/퇴직/삭제 — 붙은 세 칸으로 묶어 "거르개"임을 보이게 한다 */
+.seg { display: inline-flex; }
+.seg .btn { border-radius: 0; margin-left: -1px; }
+.seg .btn:first-child { border-radius: var(--r) 0 0 var(--r); margin-left: 0; }
+.seg .btn:last-child  { border-radius: 0 var(--r) var(--r) 0; }
+.seg .btn.on { background: var(--primary-soft); border-color: var(--primary-line); color: var(--primary); font-weight: 600; }
+
+/* 폼 구역 머리 */
+.form .sect {
+  text-align: left; padding-top: var(--sp-4);
+  color: var(--fg-muted); font-size: var(--fs-sm); font-weight: 600;
+}
+.form td.two { display: flex; gap: var(--sp-2); }
+.form td.two > * { flex: 1; min-width: 0; }
+.form td.two label { display: flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--fg-muted); }
 .head { padding: 10px 12px; flex: 0 0 auto; }
 .head h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; }
 .body { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }

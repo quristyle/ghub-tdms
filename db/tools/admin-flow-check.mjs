@@ -6,6 +6,7 @@
  *   ② 사용자 관리 — 추가(초기 비밀번호 규칙), 수정, 마지막 관리자 보호, 비밀번호 초기화
  *   ③ 권한 관리 — 트리 36리프, 통째 교체, 트리에 없는 키 거부, 즉시 반영
  *   ④ 백업 관리 — 상태, 만들기(워커), 파일 삭제해도 이력은 남는가
+ *   ⑤ 사용자 프로필 — 신원·조직·연락처, 재직 3단계, 협력업체, 포털 동기화 보존
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
@@ -153,6 +154,68 @@ const main=async()=>{
 
   const members = (await admin('GET',`/groups/${grp.body.id}/members`)).body
   check(members.items.length===1, '구성원을 보여준다', members.items[0]?.name)
+
+  // ── ⑤ 사용자 프로필 ─────────────────────────────────────────────
+  console.log('\n⑤ 사용자 프로필 (신원·조직·재직상태)')
+  {
+    const pc = await admin('GET','/partner-companies')
+    check(pc.status===200 && pc.body.items.length>0, '협력업체 목록을 준다',
+      pc.body.items?.map(c=>c.name).join(','))
+    const jin = pc.body.items.find(c=>c.name==='진네트웍스')
+    check(!!jin && jin.memberCount>0, '업체마다 소속 인원이 센다', jin && `진네트웍스 ${jin.memberCount}명`)
+
+    // 추가할 때 신원·조직이 함께 저장되는가
+    const made = await admin('POST','/users',{
+      loginId:'admtest_prof', name:'프로필시험', role:'VIEWER', groupId:null,
+      employeeNumber:'9901', email:'prof@skgas.kr', phone:'010-0000-1111',
+      extensionNumber:'052-916-9999', department:'설비기술팀', position:'과장',
+      companyCode:'SKGAS', partnerCompanyId:null, hireDate:'2020-03-02',
+    })
+    check(made.status===200, '추가할 때 신원·조직을 함께 저장한다')
+    const uid = made.body.id
+
+    const after = (await admin('GET','/users')).body.items.find(u=>u.id===uid)
+    check(after?.employeeNumber==='9901' && after?.department==='설비기술팀'
+       && after?.position==='과장' && after?.extensionNumber==='052-916-9999'
+       && after?.hireDate==='2020-03-02',
+      '목록이 그대로 돌려준다 (입사일은 날짜만 — 시간대로 하루가 밀리지 않는다)', after?.hireDate)
+    check(after?.employmentStatus==='ACTIVE', '새 계정은 재직으로 시작한다')
+
+    // 빈 값으로 **지우는 것**과 손대지 않는 것이 구분되는가
+    await admin('PATCH',`/users/${uid}`,{ position:null })
+    const cleared = (await admin('GET','/users')).body.items.find(u=>u.id===uid)
+    check(cleared?.position===null && cleared?.department==='설비기술팀',
+      'null 을 보내면 그 칸만 지우고 나머지는 둔다')
+
+    // 재직 상태를 바꾸면 로그인도 함께 막히는가
+    const victim = session()
+    await admin('POST','/users',{loginId:'admtest_quit', name:'퇴직시험', role:'VIEWER', groupId:null})
+    const vlogin = await victim('POST','/auth/login',{loginId:'admtest_quit', password:'ghubadmtest_quit'})
+    check(vlogin.status===200, '퇴직 처리 전에는 로그인된다')
+    const vid = (await admin('GET','/users')).body.items.find(u=>u.loginId==='admtest_quit').id
+    await admin('PATCH',`/users/${vid}`,{ employmentStatus:'RETIRED' })
+    const quit = (await admin('GET','/users')).body.items.find(u=>u.id===vid)
+    check(quit?.employmentStatus==='RETIRED' && quit?.isActive===false,
+      '퇴직으로 바꾸면 사용 여부도 함께 내려간다 — 어긋나지 않는다')
+    const still = await victim('GET','/auth/me')
+    check(still.status===401, '열려 있던 세션도 끊긴다', `HTTP ${still.status}`)
+
+    // 삭제도 실제로 지우지 않는다 (D-6)
+    await admin('PATCH',`/users/${vid}`,{ employmentStatus:'DELETED' })
+    const del = (await admin('GET','/users')).body.items.find(u=>u.id===vid)
+    check(!!del && del.employmentStatus==='DELETED', '"삭제"도 행을 지우지 않는다 — 기록이 남는다')
+
+    // 포털에서 받아 온 값이 살아 있는가 (실데이터)
+    const r = await db.query(
+      `SELECT login_id, employee_number, department, position, synced_at,
+              portal_profile->>'totalAnnualLeave' AS leave
+         FROM users WHERE login_id='ezuno'`)
+    const e = r.rows[0]
+    check(!!e && e.employee_number==='0038' && e.department==='설비기술팀' && !!e.synced_at,
+      '포털 동기화분이 들어와 있다', e && `${e.login_id} ${e.employee_number} ${e.department}`)
+    check(e?.leave==='12',
+      'TDMS 가 쓰지 않는 포털 값도 버리지 않는다 (portal_profile)', e && `연차 ${e.leave}일`)
+  }
 
   // ── ④ 백업 관리 ─────────────────────────────────────────────────
   console.log('\n④ 백업 관리')
