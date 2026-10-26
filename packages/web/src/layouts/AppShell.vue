@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSession } from '@/lib/session'
 import NavIcon from '@/ui/NavIcon.vue'
@@ -58,19 +58,68 @@ async function copyCurrentPath() {
   titleMenuOpen.value = false
 }
 
-// ── 내비 접기 ─────────────────────────────────────────────────────────
-// 폴더 트리를 쓰는 화면에서는 왼쪽이 두 겹이 된다. 접으면 본문이 넓어진다.
+// ── 내비 접기 / 모바일 사이드바 ─────────────────────────────────────────
+// 데스크톱: 폴더 트리를 쓰는 화면에서는 왼쪽이 두 겹이 된다. 접으면 본문이 넓어진다 (레일 모드).
+// 모바일(휴대전화): 사이드바가 완전히 접히고 오버레이로 완전히 펼쳐지는 형태.
 const rail = ref(false)
+const mobileOpen = ref(false)
+const isMobile = ref(false)
+
+function checkMobile() {
+  if (typeof window !== 'undefined') {
+    isMobile.value = window.innerWidth <= 768
+  }
+}
+
+function handleResize() {
+  checkMobile()
+  if (!isMobile.value && mobileOpen.value) {
+    mobileOpen.value = false
+  }
+}
+
 onMounted(() => {
+  checkMobile()
   const saved = localStorage.getItem('tdms.rail')
   // 고른 적이 없으면 좁은 화면에서 접어 둔다. 고른 뒤에는 그 선택이 이긴다 —
   // 폭으로 못박으면 펼치려 해도 펼쳐지지 않는다.
   rail.value = saved !== null ? saved === '1' : window.innerWidth < 1360
+  window.addEventListener('resize', handleResize)
 })
-function toggleRail() {
-  rail.value = !rail.value
-  localStorage.setItem('tdms.rail', rail.value ? '1' : '0')
+
+onUnmounted(() => {
+  document.body.style.overflow = ''
+  window.removeEventListener('resize', handleResize)
+})
+
+watch(mobileOpen, (open) => {
+  if (isMobile.value) {
+    document.body.style.overflow = open ? 'hidden' : ''
+  }
+})
+
+watch(() => route.fullPath, () => {
+  closeMobileNav()
+})
+
+function toggleNav() {
+  if (isMobile.value) {
+    mobileOpen.value = !mobileOpen.value
+  } else {
+    rail.value = !rail.value
+    localStorage.setItem('tdms.rail', rail.value ? '1' : '0')
+  }
 }
+
+function closeMobileNav() {
+  if (isMobile.value) {
+    mobileOpen.value = false
+  }
+}
+
+const isNavCollapsed = computed(() => {
+  return isMobile.value ? !mobileOpen.value : rail.value
+})
 
 // ── 밝게 / 어둡게 ─────────────────────────────────────────────────────
 const dark = ref(false)
@@ -97,16 +146,39 @@ async function logout() {
 </script>
 
 <template>
-  <div class="app-shell" :class="{ rail }" @click="copyStatus = ''; titleMenuOpen = false">
+  <div class="app-shell" :class="{ rail, 'mobile-open': mobileOpen }" @click="copyStatus = ''; titleMenuOpen = false">
+    <!-- 모바일 내비 배경 딤 (터치 시 닫기) -->
+    <Transition name="fade">
+      <div
+        v-if="mobileOpen"
+        class="nav-backdrop"
+        aria-hidden="true"
+        @click.stop="closeMobileNav"
+      />
+    </Transition>
+
     <!-- 왼쪽 내비게이션 -->
     <nav class="nav" aria-label="주 메뉴">
-      <RouterLink to="/" class="nav-brand" title="TDMS 기술자료 관리 시스템">
-        <TdmsLogo :size="28" />
-        <span class="nav-brand-text">
-          <strong>TDMS</strong>
-          <span class="nav-brand-sub">기술자료 관리</span>
-        </span>
-      </RouterLink>
+      <div class="nav-brand-bar">
+        <RouterLink to="/" class="nav-brand" title="TDMS 기술자료 관리 시스템" @click="closeMobileNav">
+          <TdmsLogo :size="28" />
+          <span class="nav-brand-text">
+            <strong>TDMS</strong>
+            <span class="nav-brand-sub">기술자료 관리</span>
+          </span>
+        </RouterLink>
+        <button
+          class="btn btn-sm btn-ghost btn-icon mobile-close-btn"
+          aria-label="메뉴 닫기"
+          title="메뉴 닫기"
+          @click="closeMobileNav"
+        >
+          <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M3 3l10 10M13 3L3 13" fill="none" stroke="currentColor"
+                  stroke-width="1.5" stroke-linecap="round" />
+          </svg>
+        </button>
+      </div>
 
       <div class="nav-scroll">
         <template v-for="g in groups" :key="g.title">
@@ -114,6 +186,7 @@ async function logout() {
           <RouterLink
             v-for="m in g.items" :key="m.path" :to="m.path"
             class="nav-item" :class="{ on: route.path === m.path }" :title="m.label"
+            @click="closeMobileNav"
           >
             <NavIcon :path="m.path" />
             <span class="nav-text">{{ m.label }}</span>
@@ -125,6 +198,7 @@ async function logout() {
           <RouterLink
             v-for="m in ungrouped" :key="m.path" :to="m.path"
             class="nav-item" :class="{ on: route.path === m.path }" :title="m.label"
+            @click="closeMobileNav"
           >
             <NavIcon :path="m.path" />
             <span class="nav-text">{{ m.label }}</span>
@@ -132,7 +206,13 @@ async function logout() {
         </template>
       </div>
 
-      <RouterLink to="/help" class="nav-item nav-foot" :class="{ on: route.path === '/help' }" title="도움말">
+      <RouterLink
+        to="/help"
+        class="nav-item nav-foot"
+        :class="{ on: route.path === '/help' }"
+        title="도움말"
+        @click="closeMobileNav"
+      >
         <NavIcon path="/help" />
         <span class="nav-text">도움말</span>
       </RouterLink>
@@ -143,9 +223,9 @@ async function logout() {
       <header class="topbar">
         <button
           class="btn btn-sm btn-ghost btn-icon"
-          :title="rail ? '메뉴 펼치기' : '메뉴 접기'"
-          :aria-label="rail ? '메뉴 펼치기' : '메뉴 접기'"
-          @click="toggleRail"
+          :title="isNavCollapsed ? '메뉴 펼치기' : '메뉴 접기'"
+          :aria-label="isNavCollapsed ? '메뉴 펼치기' : '메뉴 접기'"
+          @click="toggleNav"
         >
           <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
             <path d="M2 4h12M2 8h12M2 12h12" fill="none" stroke="currentColor"
@@ -222,14 +302,25 @@ async function logout() {
   overflow: hidden;
 }
 
+.nav-brand-bar {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
 .nav-brand {
   height: var(--topbar-h);
   display: flex;
   align-items: center;
   gap: 9px;
   padding: 0 14px;
-  border-bottom: 1px solid var(--border);
-  flex: 0 0 auto;
+  flex: 1;
+  min-width: 0;
+}
+.mobile-close-btn {
+  display: none;
+  margin-right: 8px;
 }
 .nav-brand-text {
   display: flex; flex-direction: column; justify-content: center;
@@ -372,4 +463,84 @@ async function logout() {
 .user-link:hover { background: var(--surface-2); }
 
 @media (max-width: 720px) { .user-name { display: none; } }
+
+/* ── 모바일 백드롭 ────────────────────────────────────────────── */
+.nav-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 990;
+  backdrop-filter: blur(1px);
+}
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity .2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* ── 모바일 사이드바 (휴대전화 화면 768px 이하) ─────────────────── */
+@media (max-width: 768px) {
+  .mobile-close-btn {
+    display: inline-flex;
+  }
+
+  /* 휴대전화 환경에서는 사이드바가 완전히 접혀져 화면 밖으로 나가 숨겨진다 */
+  .nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: var(--sidebar-w);
+    max-width: calc(100vw - 48px);
+    z-index: 1000;
+    box-shadow: none;
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform .22s cubic-bezier(0.4, 0, 0.2, 1), visibility .22s cubic-bezier(0.4, 0, 0.2, 1), box-shadow .22s ease;
+  }
+
+  /* 메뉴 토글 시 완전히 펼쳐진다 */
+  .app-shell.mobile-open .nav {
+    transform: translateX(0);
+    visibility: visible;
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* 모바일에서는 rail 상태와 관계없이 펼쳐졌을 때 텍스트가 모두 보이는 온전한 사이드바여야 한다 */
+  .app-shell.rail .nav-text {
+    display: inline !important;
+  }
+  .app-shell.rail .nav-brand-text {
+    display: flex !important;
+  }
+  .app-shell.rail .nav-brand-text strong,
+  .app-shell.rail .nav-brand-text span {
+    display: block !important;
+  }
+  .app-shell.rail .nav-group {
+    padding: 12px 8px 5px !important;
+    text-align: left !important;
+    font-size: var(--fs-xs) !important;
+  }
+  .app-shell.rail .nav-group::after {
+    display: none !important;
+  }
+  .app-shell.rail .nav-item {
+    justify-content: flex-start !important;
+    padding: 0 9px !important;
+  }
+  .app-shell.rail .nav-brand {
+    justify-content: flex-start !important;
+    padding: 0 14px !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .nav-backdrop {
+    display: none !important;
+  }
+}
 </style>

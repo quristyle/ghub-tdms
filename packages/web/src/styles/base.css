@@ -58,6 +58,14 @@ table, .tabnum { font-variant-numeric: tabular-nums; }
 }
 .app-shell.rail { grid-template-columns: var(--rail-w) 1fr; }
 
+/* 휴대전화 등 모바일 환경에서는 사이드바가 그리드를 차지하지 않고 완전히 접혀 1열이 된다 */
+@media (max-width: 768px) {
+  .app-shell,
+  .app-shell.rail {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* 좁은 화면에서 레일로 '시작'하는 것은 AppShell 이 정한다 —
    미디어 쿼리로 폭을 못박으면 사용자가 펼치려 해도 펼쳐지지 않는다. */
 
