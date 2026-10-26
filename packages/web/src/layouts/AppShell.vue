@@ -41,6 +41,23 @@ const title = computed(() => {
   return m?.label ?? (route.meta.title as string) ?? ''
 })
 
+const titleMenuOpen = ref(false)
+const copyStatus = ref('')
+function toggleTitleMenu() {
+  titleMenuOpen.value = !titleMenuOpen.value
+  copyStatus.value = ''
+}
+async function copyCurrentPath() {
+  const path = `${window.location.pathname}${window.location.search}${window.location.hash}`
+  try {
+    await navigator.clipboard.writeText(path)
+    copyStatus.value = 'URL을 복사했습니다'
+  } catch {
+    copyStatus.value = 'URL 복사에 실패했습니다'
+  }
+  titleMenuOpen.value = false
+}
+
 // ── 내비 접기 ─────────────────────────────────────────────────────────
 // 폴더 트리를 쓰는 화면에서는 왼쪽이 두 겹이 된다. 접으면 본문이 넓어진다.
 const rail = ref(false)
@@ -80,7 +97,7 @@ async function logout() {
 </script>
 
 <template>
-  <div class="app-shell" :class="{ rail }">
+  <div class="app-shell" :class="{ rail }" @click="copyStatus = ''; titleMenuOpen = false">
     <!-- 왼쪽 내비게이션 -->
     <nav class="nav" aria-label="주 메뉴">
       <RouterLink to="/" class="nav-brand" title="TDMS 기술자료 관리 시스템">
@@ -136,7 +153,22 @@ async function logout() {
           </svg>
         </button>
 
-        <h1 class="topbar-title">{{ title }}</h1>
+        <div class="topbar-title-wrap" @click.stop>
+          <h1 class="topbar-title">
+            <button
+              class="topbar-title-trigger"
+              aria-haspopup="menu"
+              :aria-expanded="titleMenuOpen"
+              @click="toggleTitleMenu"
+            >{{ title }}</button>
+          </h1>
+          <div v-if="titleMenuOpen" class="title-menu" role="menu">
+            <button class="title-menu-item" role="menuitem" @click="copyCurrentPath">
+              현재 URL 복사
+            </button>
+          </div>
+          <span v-if="copyStatus" class="copy-status" role="status">{{ copyStatus }}</span>
+        </div>
         <span style="flex:1" />
 
         <button
@@ -265,6 +297,7 @@ async function logout() {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
+.topbar-title-wrap { position: relative; min-width: 0; }
 .topbar-title {
   font-size: var(--fs-md);
   font-weight: 600;
@@ -272,6 +305,38 @@ async function logout() {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.topbar-title-trigger {
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  white-space: inherit;
+  overflow: hidden;
+  text-overflow: inherit;
+  cursor: pointer;
+}
+.topbar-title-trigger:hover { color: var(--primary); }
+.title-menu {
+  position: absolute; top: calc(100% + 8px); left: 0; z-index: 50;
+  min-width: 160px; padding: 5px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); box-shadow: var(--shadow);
+}
+.title-menu-item {
+  display: block; width: 100%; padding: 7px 9px; border: 0;
+  background: transparent; color: var(--fg); border-radius: var(--r);
+  font-size: var(--fs); text-align: left; white-space: nowrap;
+}
+.title-menu-item:hover { background: var(--surface-2); }
+.copy-status {
+  position: absolute; left: 0; top: calc(100% + 8px); z-index: 50;
+  padding: 6px 9px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); box-shadow: var(--shadow); font-size: var(--fs-sm);
+  white-space: nowrap;
 }
 
 /* ── 사용자 ───────────────────────────────────────────────────── */
