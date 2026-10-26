@@ -32,14 +32,37 @@ function auditFilters(qp: AuditQuery, params: unknown[]): string[] {
   return where
 }
 
+/**
+ * 정렬 키 → SQL 식.
+ * **여기 적힌 것만 쓴다** — 요청 문자열을 ORDER BY 에 바로 끼우면 SQL 주입이 된다.
+ */
+const AUDIT_SORT_SQL: Record<string, string> = {
+  occurredAt: 'a.occurred_at',
+  userName:   'a.user_name',
+  screen:     'a.screen',
+  action:     'a.action',
+  target:     'a.target',
+  clientIp:   'a.client_ip',
+}
+/** 커서에 담긴 문자열을 다시 원래 자료형으로 돌려놓을 때 쓴다. */
+const auditCast = (sort: string) => (sort === 'occurredAt' ? 'timestamptz' : sort === 'clientIp' ? 'inet' : 'text')
+
 export function listAudit(qp: AuditQuery) {
   const params: unknown[] = []
   const where = auditFilters(qp, params)
 
+  const sortCol = AUDIT_SORT_SQL[qp.sort] ?? AUDIT_SORT_SQL.occurredAt!
+  const desc = qp.dir === 'desc'
+  const cmp = desc ? '<' : '>'
+  // 비어 있는 줄이 섞여도 순서가 흔들리지 않게 NULL 자리를 고정한다
+  const nulls = desc ? 'NULLS LAST' : 'NULLS FIRST'
+
   const cur = decodeCursor(qp.cursor)
   if (cur) {
     params.push(cur.sortValue, cur.id)
-    where.push(`(a.occurred_at, a.id) < ($${params.length - 1}::timestamptz, $${params.length}::bigint)`)
+    where.push(
+      `(${sortCol}, a.id) ${cmp} ($${params.length - 1}::text::${auditCast(qp.sort)}, $${params.length}::bigint)`,
+    )
   }
   params.push(qp.limit + 1)
 
@@ -51,7 +74,7 @@ export function listAudit(qp: AuditQuery) {
             host(a.client_ip) AS "clientIp"
        FROM audit_log a
       ${where.length ? `WHERE ${where.join('\n        AND ')}` : ''}
-      ORDER BY a.occurred_at DESC, a.id DESC
+      ORDER BY ${sortCol} ${desc ? 'DESC' : 'ASC'} ${nulls}, a.id ${desc ? 'DESC' : 'ASC'}
       LIMIT $${params.length}`,
     params,
   )

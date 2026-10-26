@@ -283,7 +283,7 @@ async function uploadZip(ev: Event) {
     <div class="panel table-panel">
       <DataTable
         :columns="columns" :rows="rows" selectable :selected="picked" :loading="isFetching"
-        :total="data?.total ?? null" :sort-key="sort" :sort-dir="dir" storage-key="tdb-editor"
+        :total="data?.total ?? null" :sort-key="sort" :sort-dir="dir" storage-key="tdb-editor" excel-name="TDB 관리"
         @toggle="toggle" @toggle-all="toggleAll" @sort="onSort"
       />
     </div>

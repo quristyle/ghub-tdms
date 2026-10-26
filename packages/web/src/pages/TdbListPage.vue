@@ -242,7 +242,7 @@ const columns = computed<Column<DocumentListItem>[]>(() => [
     <div class="panel table-panel">
       <DataTable
         :columns="columns" :rows="rows" selectable :selected="cart" :loading="isFetching"
-        :total="total" :sort-key="sort" :sort-dir="dir" storage-key="tdb-list"
+        :total="total" :sort-key="sort" :sort-dir="dir" storage-key="tdb-list" excel-name="TDB 자료목록"
         @toggle="toggle" @toggle-all="toggleAll" @sort="onSort"
         @row-hover="prefetch"
         @row-click="(r) => router.push(`/documents/${r.id}`)"

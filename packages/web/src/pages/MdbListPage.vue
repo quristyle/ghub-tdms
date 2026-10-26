@@ -181,7 +181,7 @@ const columns = computed<Column<MdbListItem>[]>(() => [
     <div class="panel table-panel">
       <DataTable
         :columns="columns" :rows="rows" selectable :selected="cart" :loading="isFetching"
-        :total="data?.total ?? null" :sort-key="sort" :sort-dir="dir" storage-key="mdb-list"
+        :total="data?.total ?? null" :sort-key="sort" :sort-dir="dir" storage-key="mdb-list" excel-name="MDB 자료목록"
         @toggle="toggle" @toggle-all="toggleAll" @sort="onSort"
         @row-click="(r) => router.push(`/mdb/${r.id}`)"
       />

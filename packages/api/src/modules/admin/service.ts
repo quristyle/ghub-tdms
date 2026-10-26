@@ -11,6 +11,20 @@ import * as q from './queries.js'
 
 // ── 시스템 로그 ─────────────────────────────────────────────────────────
 
+type AuditSortable = { occurredAt: Date; userName: string | null; screen: string | null
+  action: string | null; target: string | null; clientIp: string | null }
+
+function auditCursorValue(r: AuditSortable, sort: string): string {
+  switch (sort) {
+    case 'userName': return r.userName ?? ''
+    case 'screen':   return r.screen ?? ''
+    case 'action':   return r.action ?? ''
+    case 'target':   return r.target ?? ''
+    case 'clientIp': return r.clientIp ?? ''
+    default:         return r.occurredAt.toISOString()
+  }
+}
+
 export async function audit(qp: AuditQuery) {
   const rows = await q.listAudit(qp)
   const hasMore = rows.length > qp.limit
@@ -28,8 +42,12 @@ export async function audit(qp: AuditQuery) {
       detail: a.detail,
       clientIp: a.clientIp,
     })),
+    // 커서는 **지금 정렬 중인 칸**의 값을 담아야 한다. 늘 시각을 담으면
+    // 다른 칸으로 정렬했을 때 다음 쪽이 엉뚱한 곳에서 이어진다.
     nextCursor:
-      hasMore && last ? encodeCursor({ sortValue: last.occurredAt.toISOString(), id: last.id }) : null,
+      hasMore && last
+        ? encodeCursor({ sortValue: auditCursorValue(last, qp.sort), id: last.id })
+        : null,
     total: qp.cursor ? null : await q.countAudit(qp),
   }
 }

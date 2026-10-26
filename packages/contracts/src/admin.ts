@@ -1,11 +1,23 @@
 import { z } from 'zod'
-import { PageQuery, pageResult } from './common.js'
+import { PageQuery, SortDir, pageResult } from './common.js'
 
 /** 운영 화면 — 시스템 로그 / 사용자·권한 / 백업 (기존 화면 7·8·9·10) */
 
 // ── 시스템 로그 ─────────────────────────────────────────────────────────
 
+/**
+ * 정렬할 수 있는 칸.
+ *
+ * **서버가 정렬한다.** 불러온 300건만 정렬하면 "가장 오래된 기록"이 실제로는
+ * 아닐 수 있다 — 수십만 건 중 앞 300건만 보고 고른 것이기 때문이다.
+ * keyset 커서도 이 칸을 기준으로 움직인다.
+ */
+export const AuditSort = z.enum(['occurredAt', 'userName', 'screen', 'action', 'target', 'clientIp'])
+export type AuditSort = z.infer<typeof AuditSort>
+
 export const AuditQuery = PageQuery.extend({
+  sort: AuditSort.default('occurredAt'),
+  dir: SortDir.default('desc'),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
   screen: z.string().max(100).optional(),

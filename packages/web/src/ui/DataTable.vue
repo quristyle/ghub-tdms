@@ -1,6 +1,7 @@
 <script setup lang="ts" generic="T extends { id: number }">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
+import { downloadXlsx } from '@/lib/xlsx'
 
 /**
  * 가상 스크롤 표.
@@ -13,6 +14,7 @@ import { useVirtualizer } from '@tanstack/vue-virtual'
  *   · 머리글 눌러 정렬
  *   · 머리글 아래 칸별 거르기
  *   · 아래쪽에 전체·불러온·보이는·선택 건수와 고른 줄 순번
+ *   · 아래쪽 엑셀 내려받기 — **화면에 보이는 그대로**(지금 칸 순서·너비 아님·거른 결과)
  *
  * ## 정렬과 거르기의 범위가 다르다
  *
@@ -62,9 +64,14 @@ const props = withDefaults(defineProps<{
   rowNumber?: boolean
   /** 거르기 줄을 보일지 */
   filterRow?: boolean
+  /** 엑셀 내려받기 단추를 보일지 */
+  excel?: boolean
+  /** 내려받을 파일·시트 이름. 없으면 storageKey, 그것도 없으면 '목록'. */
+  excelName?: string
 }>(), {
   rowNumber: true,
   filterRow: true,
+  excel: true,
 })
 
 const emit = defineEmits<{
@@ -243,6 +250,31 @@ function cell(row: T, col: Column<T>): string {
 }
 
 const n = (v: number) => v.toLocaleString('ko-KR')
+
+// ── 엑셀 내려받기 ───────────────────────────────────────────────────────
+// 담는 것은 **지금 보이는 것**이다 — 칸 순서도, 거른 결과도 화면과 같다.
+// 서버에 더 남아 있으면(total > rows.length) 아래쪽에 그렇게 적혀 있으므로
+// 사람이 "이게 전부가 아니다"를 알 수 있다. 전체가 필요하면 화면이 따로
+// 서버 내보내기를 둔다(수만 건은 워커가 만든다).
+const exporting = ref(false)
+
+async function exportExcel() {
+  if (exporting.value || !visible.value.length) return
+  exporting.value = true
+  try {
+    const name = props.excelName ?? props.storageKey ?? '목록'
+    await downloadXlsx(name, {
+      sheetName: name,
+      headers: [...(showNo.value ? ['No'] : []), ...props.columns.map((c) => c.label)],
+      rows: visible.value.map((row, i) => [
+        ...(showNo.value ? [String(i + 1)] : []),
+        ...props.columns.map((c) => cell(row, c)),
+      ]),
+    })
+  } finally {
+    exporting.value = false
+  }
+}
 </script>
 
 <template>
@@ -357,6 +389,27 @@ const n = (v: number) => v.toLocaleString('ko-KR')
       <span v-if="selectable && selectedCount > 0" class="dt-foot-sel">
         선택 <strong>{{ n(selectedCount) }}</strong>건
       </span>
+
+      <button
+        v-if="excel"
+        class="dt-xls" :disabled="exporting || !visible.length"
+        :title="exporting ? '엑셀을 만드는 중입니다' : `보이는 ${n(visible.length)}건을 엑셀로 내려받기`"
+        :aria-label="`보이는 ${n(visible.length)}건을 엑셀로 내려받기`"
+        @click="exportExcel"
+      >
+        <svg v-if="!exporting" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M9 1.6H4.4a1.2 1.2 0 0 0-1.2 1.2v10.4a1.2 1.2 0 0 0 1.2 1.2h7.2a1.2 1.2 0 0 0 1.2-1.2V5.4z"
+                fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" />
+          <path d="M9 1.6V5.4h3.8" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" />
+          <path d="M5.9 8.4l3.4 4.1M9.3 8.4l-3.4 4.1"
+                stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
+        </svg>
+        <svg v-else class="dt-spin" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"
+                  stroke-linecap="round" stroke-dasharray="28 10" />
+        </svg>
+        <span>엑셀</span>
+      </button>
     </div>
   </div>
 </template>
@@ -482,4 +535,18 @@ const n = (v: number) => v.toLocaleString('ko-KR')
 .dt-foot-filter strong { color: var(--warn); }
 .dt-foot-sel { color: var(--primary); margin-left: 10px; }
 .dt-foot-sel strong { color: var(--primary); }
+
+/* 엑셀 내려받기 — 집계 줄 오른쪽 끝. 자주 쓰지만 주인공은 아니라 조용하게 둔다. */
+.dt-xls {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 21px; padding: 0 8px; margin-left: 10px;
+  border: 1px solid var(--border-strong); border-radius: var(--r-sm);
+  background: var(--surface); color: var(--fg-muted);
+  font-size: var(--fs-xs); font-weight: 500;
+  transition: color .12s ease, border-color .12s ease, background-color .12s ease;
+}
+.dt-xls:hover:not(:disabled) { color: var(--ok); border-color: var(--ok-line); background: var(--ok-soft); }
+.dt-xls:disabled { opacity: .4; cursor: not-allowed; }
+.dt-spin { animation: dt-spin 1s linear infinite; }
+@keyframes dt-spin { to { transform: rotate(360deg); } }
 </style>

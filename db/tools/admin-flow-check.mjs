@@ -2,7 +2,7 @@
 /**
  * 운영 화면 흐름 검증 (실제 API 호출).
  *
- *   ① 시스템 로그 — 검색, 사용자 조회 권한(남의 id 차단)
+ *   ① 시스템 로그 — 검색, 사용자 조회 권한(남의 id 차단), 서버 정렬·keyset 이어짐
  *   ② 사용자 관리 — 추가(초기 비밀번호 규칙), 수정, 마지막 관리자 보호, 비밀번호 초기화
  *   ③ 권한 관리 — 트리 36리프, 통째 교체, 트리에 없는 키 거부, 즉시 반영
  *   ④ 백업 관리 — 상태, 만들기(워커), 파일 삭제해도 이력은 남는가
@@ -61,6 +61,39 @@ const main=async()=>{
 
   const byAction = await admin('GET','/audit-log?limit=50&action=' + encodeURIComponent('로그인'))
   check(byAction.body.items.every(a=>a.action==='로그인'), '동작으로 거른다', `${byAction.body.total}건`)
+
+  // ── 정렬은 서버가 한다 (화면 300건만 뒤집으면 "가장 오래된 기록"이 거짓이 된다) ──
+  {
+    const asc = await admin('GET','/audit-log?limit=20&sort=occurredAt&dir=asc')
+    const desc = await admin('GET','/audit-log?limit=20&sort=occurredAt&dir=desc')
+    const up = asc.body.items.map(a=>a.occurredAt)
+    check(up.every((v,i)=>i===0||up[i-1]<=v), '시각 오름차순이 실제로 오름차순이다', up[0]?.slice(0,19))
+    check(asc.body.items[0].occurredAt < desc.body.items[0].occurredAt,
+      '오름/내림이 서로 다른 끝을 집는다 — 불러온 것만 뒤집은 게 아니다')
+
+    // 전체에서 가장 오래된 기록이 맞는가 — DB 에 직접 물어 맞춰 본다
+    const oldest = (await db.query(`SELECT min(occurred_at) AS t FROM audit_log`)).rows[0].t
+    check(new Date(asc.body.items[0].occurredAt).getTime() === oldest.getTime(),
+      '첫 줄이 전체에서 가장 오래된 기록이다 (300건 안에서 고른 게 아니다)')
+
+    const byUser = await admin('GET','/audit-log?limit=30&sort=userName&dir=asc')
+    const names = byUser.body.items.map(a=>a.userName ?? '')
+    check(names.every((v,i)=>i===0||names[i-1]<=v), '사용자 이름으로도 정렬된다', names[0] || '(빈값)')
+
+    // 정렬을 바꿔도 다음 쪽이 이어 붙는가 — 커서가 정렬 칸을 따라가야 한다
+    const p1 = await admin('GET','/audit-log?limit=10&sort=userName&dir=asc')
+    const p2 = await admin('GET','/audit-log?limit=10&sort=userName&dir=asc&cursor=' + encodeURIComponent(p1.body.nextCursor))
+    const ids1 = new Set(p1.body.items.map(a=>a.id))
+    check(p2.status===200 && p2.body.items.length>0 && p2.body.items.every(a=>!ids1.has(a.id)),
+      '정렬을 바꿔도 다음 쪽이 겹치지 않고 이어진다', `${p1.body.items.length}+${p2.body.items.length}건`)
+    const last1 = p1.body.items.at(-1).userName ?? ''
+    check((p2.body.items[0].userName ?? '') >= last1,
+      '이어진 쪽이 정렬 순서를 지킨다', `${last1} → ${p2.body.items[0].userName ?? '(빈값)'}`)
+
+    const bad = await admin('GET','/audit-log?limit=5&sort=occurred_at;DROP')
+    check(bad.status===400, '모르는 정렬 키는 거부한다 — ORDER BY 에 문자열을 끼우지 않는다',
+      `HTTP ${bad.status}`)
+  }
 
   // 권한 없는 사용자는 자기 것만
   await db.query(`DELETE FROM group_permissions
