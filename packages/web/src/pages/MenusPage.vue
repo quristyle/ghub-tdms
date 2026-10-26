@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
-import type { MenuAdminRow, MenuListResponse } from '@tdms/contracts'
+import type { MenuListResponse } from '@tdms/contracts'
 import { api, ApiError } from '@/lib/api'
 import { qk } from '@/lib/queryKeys'
 import { useSession } from '@/lib/session'
@@ -40,8 +40,8 @@ watch(data, (d) => {
   if (d) draft.value = d.items.map((m) => ({ path: m.path, label: m.label, isEnabled: m.isEnabled }))
 }, { immediate: true })
 
-const byPath = computed(() => new Map((data.value?.items ?? []).map((m) => [m.path, m])));
-const meta = (path: string): MenuAdminRow | undefined => byPath.value.get(path)
+const byPath = computed(() => new Map((data.value?.items ?? []).map((m) => [m.path, m])))
+const meta = (path: string) => byPath.value.get(path)
 
 const dirty = computed(() => {
   const saved = data.value?.items ?? []
@@ -131,7 +131,6 @@ async function save() {
               <th style="width:120px" class="tc">올리기·내리기</th>
               <th>메뉴 이름</th>
               <th style="width:150px">경로</th>
-              <th style="width:230px">접속 권한</th>
               <th style="width:80px" class="tc">사용</th>
               <th style="width:170px">마지막 변경</th>
             </tr>
@@ -154,7 +153,6 @@ async function save() {
                 />
               </td>
               <td class="muted mono">{{ m.path }}</td>
-              <td class="muted mono sm">{{ meta(m.path)?.permissionKey }}</td>
               <td class="tc">
                 <input
                   v-model="m.isEnabled" type="checkbox"
