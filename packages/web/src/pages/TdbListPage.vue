@@ -203,10 +203,6 @@ const columns = computed<Column<DocumentListItem>[]>(() => [
 </script>
 
 <template>
-  <aside class="app-side">
-    <LazyTree doc-class="TDB" :selected-id="folder?.id ?? null" @select="(f) => (folder = f)" />
-  </aside>
-
   <main class="app-main list-main">
     <div class="panel search-panel">
       <div class="search-row">
@@ -239,14 +235,20 @@ const columns = computed<Column<DocumentListItem>[]>(() => [
       </div>
     </div>
 
-    <div class="panel table-panel">
-      <DataTable
-        :columns="columns" :rows="rows" selectable :selected="cart" :loading="isFetching"
-        :total="total" :sort-key="sort" :sort-dir="dir" storage-key="tdb-list" excel-name="TDB 자료목록"
-        @toggle="toggle" @toggle-all="toggleAll" @sort="onSort"
-        @row-hover="prefetch"
-        @row-click="(r) => router.push(`/documents/${r.id}`)"
-      />
+    <div class="split">
+      <aside class="panel tree-panel">
+        <LazyTree doc-class="TDB" :selected-id="folder?.id ?? null" @select="(f) => (folder = f)" />
+      </aside>
+
+      <div class="panel table-panel">
+        <DataTable
+          :columns="columns" :rows="rows" selectable :selected="cart" :loading="isFetching"
+          :total="total" :sort-key="sort" :sort-dir="dir" storage-key="tdb-list" excel-name="TDB 자료목록"
+          @toggle="toggle" @toggle-all="toggleAll" @sort="onSort"
+          @row-hover="prefetch"
+          @row-click="(r) => router.push(`/documents/${r.id}`)"
+        />
+      </div>
     </div>
 
     <div v-if="message" class="panel msg" :class="message.kind">
@@ -336,7 +338,24 @@ const columns = computed<Column<DocumentListItem>[]>(() => [
 .search-row { display: flex; gap: var(--gap-sm); flex-wrap: wrap; align-items: center; }
 .search-meta { margin-top: 8px; font-size: var(--fs-sm); }
 .chk { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+
+/* 조회부는 맨 위에 가로로 펴 두고, 그 아래를 트리·그리드 두 칸으로 가른다.
+   트리를 셸의 app-side(내비 옆 기둥)에 두면 조회부까지 옆으로 밀려 검색 줄이
+   좁아진다 — 거르개가 7개라 그 줄이 제일 먼저 접힌다.
+   다른 화면(MDB 조회·TDB/MDB 관리)은 app-side 를 그대로 쓰므로 공통 CSS 는 건드리지 않았다. */
+.split { flex: 1; display: flex; gap: var(--gap); min-height: 0; }
+.tree-panel {
+  width: 268px; min-width: 268px;
+  overflow: auto;
+}
 .table-panel { flex: 1; display: flex; min-height: 0; overflow: hidden; }
+
+/* 좁은 화면에서는 세로로 쌓는다 — 268px 를 빼면 그리드가 읽히지 않는다 */
+@media (max-width: 900px) {
+  .split { flex-direction: column; }
+  .tree-panel { width: auto; min-width: 0; max-height: 240px; flex: 0 0 auto; }
+  .table-panel { min-height: 320px; }
+}
 .cart { flex: 0 0 auto; }
 .msg { display: flex; align-items: flex-start; gap: 8px; padding: 9px 12px; flex: 0 0 auto; }
 .sub { font-size: var(--fs-sm); margin-top: 3px; }
