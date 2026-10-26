@@ -4,6 +4,7 @@
 action_start() {
   local targets=("${@}")
   [[ ${#targets[@]} -eq 0 ]] && targets=("${SERVICES[@]}")
+  storage_guard || return 1
   head1 "시작"
   local failed=0
   for s in "${targets[@]}"; do svc_start "$s" || failed=1; done
@@ -171,4 +172,76 @@ action_clean() {
   rm -f "$RUN_DIR"/*.pid && ok "PID 파일 정리"
   : > "$LOG_DIR/api.log"; : > "$LOG_DIR/web.log"; : > "$LOG_DIR/worker.log" 2>/dev/null || true
   ok "로그 비움"
+}
+
+# ── 운영 blob 저장소 붙이기/떼기 ───────────────────────────────────────────
+#
+#   ./dev.sh storage          지금 어디를 보고 있는지
+#   ./dev.sh storage mount    운영 저장소에 붙인다 (sshfs)
+#   ./dev.sh storage umount   뗀다
+#
+# 붙이는 자리와 이유는 common.sh 의 PROD_* 주석에 적어 두었다.
+action_storage() {
+  case "${1:-status}" in
+    mount)  storage_mount ;;
+    umount|unmount) storage_umount ;;
+    status) storage_status ;;
+    *) die "storage 뒤에는 mount·umount·status 중 하나를 씁니다" ;;
+  esac
+}
+
+storage_status() {
+  head1 "blob 저장소"
+  info "STORAGE_ROOT=${STORAGE_ROOT:-(없음)}"
+  if prod_mounted; then
+    ok "운영 저장소에 붙어 있음 — $PROD_SSH_HOST:$PROD_REMOTE_DIR"
+    info "blob $(find "$PROD_MOUNT/blobs" -type f 2>/dev/null | wc -l)개"
+  else
+    warn "운영 저장소에 붙어 있지 않습니다 ($PROD_MOUNT)"
+    info "./dev.sh storage mount"
+  fi
+}
+
+storage_mount() {
+  if prod_mounted; then ok "이미 붙어 있습니다 — $PROD_MOUNT"; return 0; fi
+
+  command -v sshfs >/dev/null || {
+    bad "sshfs 가 없습니다. 한 번만 설치하면 됩니다:"
+    info "sudo apt install -y sshfs"
+    return 1
+  }
+
+  # fusermount 는 마운트 지점에 쓰기 권한을 요구한다 — 권한으로는 잠글 수 없다.
+  # 안 붙은 채로 쓰이는 것은 storage_guard 가 시작 지점에서 막는다.
+  mkdir -p "$PROD_MOUNT"
+  chmod 700 "$PROD_MOUNT"
+
+  sshfs -p "$PROD_SSH_PORT" \
+        -o reconnect,ServerAliveInterval=15,ServerAliveCountMax=3 \
+        -o idmap=user,uid="$(id -u)",gid="$(id -g)" \
+        "$PROD_SSH_HOST:$PROD_REMOTE_DIR" "$PROD_MOUNT" || {
+    die "붙이지 못했습니다 — ssh -p $PROD_SSH_PORT $PROD_SSH_HOST 가 되는지 확인하세요"
+  }
+
+  prod_mounted || die "sshfs 는 끝났는데 마운트가 보이지 않습니다"
+  ok "붙었습니다 — $PROD_MOUNT ($(find "$PROD_MOUNT/blobs" -type f 2>/dev/null | wc -l)개)"
+  info "API·워커가 떠 있다면 다시 시작하세요: ./dev.sh restart api worker"
+}
+
+storage_umount() {
+  prod_mounted || { info "붙어 있지 않습니다"; return 0; }
+  fusermount3 -u "$PROD_MOUNT" 2>/dev/null || fusermount -u "$PROD_MOUNT" || die "떼지 못했습니다"
+  ok "뗐습니다 — $PROD_MOUNT"
+}
+
+# STORAGE_ROOT 이 운영 마운트를 가리키는데 붙어 있지 않으면 **시작하지 않는다**.
+# 그대로 띄우면 DB 는 운영을 보는데 파일만 개발 장비의 빈 디렉터리에 쌓여,
+# 목록은 보이는데 미리보기만 비는 어긋남이 그대로 되살아난다.
+storage_guard() {
+  [[ "${STORAGE_ROOT:-}" == "$PROD_MOUNT"* ]] || return 0
+  prod_mounted && return 0
+  bad "STORAGE_ROOT 이 운영 저장소($PROD_MOUNT)를 가리키는데 붙어 있지 않습니다"
+  info "붙이기:   ./dev.sh storage mount"
+  info "로컬로:   .env 의 STORAGE_ROOT 를 $ROOT/.storage 로 되돌린다"
+  return 1
 }

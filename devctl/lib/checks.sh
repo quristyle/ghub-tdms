@@ -126,11 +126,33 @@ check_ports() {
   done
 }
 
+check_storage() {
+  head1 "blob 저장소"
+  local root="${STORAGE_ROOT:-}"
+  [[ -n "$root" ]] || { bad "STORAGE_ROOT 이 없습니다"; return 1; }
+
+  if [[ "$root" == "$PROD_MOUNT"* ]]; then
+    if prod_mounted; then
+      ok "운영 저장소 ($PROD_SSH_HOST:$PROD_REMOTE_DIR) — blob $(find "$root/blobs" -type f 2>/dev/null | wc -l)개"
+    else
+      # 여기서 넘어가면 DB 는 운영을 보는데 파일만 개발 장비에 쌓인다.
+      bad "운영 저장소를 가리키는데 붙어 있지 않습니다 — ./dev.sh storage mount"
+      return 1
+    fi
+  elif [[ -d "$root/blobs" ]]; then
+    ok "로컬 저장소 $root — blob $(find "$root/blobs" -type f 2>/dev/null | wc -l)개"
+    info "DB 는 운영과 공유입니다. 운영과 같은 파일을 보려면 ./dev.sh storage mount"
+  else
+    warn "$root/blobs 가 없습니다 — node db/tools/seed-files.mjs 로 만들 수 있습니다"
+  fi
+}
+
 doctor() {
   printf '%sGHub TDMS — 개발 환경 점검%s\n' "$C_BOLD" "$C_RESET"
   check_tools
   check_config || true
   check_db || true
+  check_storage || true
   check_ports
   printf '\n'
 }

@@ -51,6 +51,7 @@ GHub TDMS — 개발서버 제어판
 
 환경
   doctor                       도구·설정·DB·포트 점검
+  storage [mount|umount]       blob 저장소 — 운영 것에 붙이기·떼기
   setup-worker                 파이썬 가상환경 준비
 
 DB
@@ -91,6 +92,7 @@ case "$cmd" in
   status|st)     [[ "${1:-}" == --json ]] && status_json || action_status ;;
   logs|log)      action_logs "${1:-}" ;;
   doctor|check)  doctor ;;
+  storage)       action_storage "$@" ;;
   setup-worker)  action_setup_worker ;;
   db)            action_db_status ;;
   migrate)       action_migrate ;;

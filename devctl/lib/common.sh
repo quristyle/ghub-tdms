@@ -63,6 +63,22 @@ load_env() {
   done < "$f"
 }
 
+# ── 운영 blob 저장소 ──────────────────────────────────────────────────────
+#
+# 개발과 운영이 **같은 DB** 를 본다(ghub_tdms @ 31015). blob 은 그 DB 의
+# blobs 테이블과 짝인 파일이라, 저장소가 둘로 갈리면 한쪽에서 올린 자료를
+# 다른 쪽이 열지 못한다. 그래서 개발도 운영 저장소 한 곳만 본다.
+#
+# /srv/tdms 를 **통째로** 붙인다 — blobs 만 붙이면 안 된다. 업로드는 tmp 에
+# 받아 blobs 로 rename 하는데(core/blob.ts), 파일시스템이 다르면 rename 이
+# EXDEV 로 실패한다. 둘이 같은 마운트 안에 있어야 원자적 교체가 성립한다.
+PROD_SSH_HOST="${PROD_SSH_HOST:-lee@jin114.co.kr}"
+PROD_SSH_PORT="${PROD_SSH_PORT:-31010}"
+PROD_REMOTE_DIR="${PROD_REMOTE_DIR:-/srv/tdms}"
+PROD_MOUNT="${PROD_MOUNT:-$HOME/mnt/tdms-prod}"
+
+prod_mounted() { mountpoint -q "$PROD_MOUNT" 2>/dev/null; }
+
 # 포트를 쓰는 프로세스 PID (없으면 빈 문자열)
 port_pid() {
   local port="$1"
