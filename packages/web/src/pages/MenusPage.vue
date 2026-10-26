@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type { MenuListResponse } from '@tdms/contracts'
+import DataTable, { type Column } from '@/ui/DataTable.vue'
 import { api, ApiError } from '@/lib/api'
 import { qk } from '@/lib/queryKeys'
 import { useSession } from '@/lib/session'
@@ -31,13 +32,15 @@ const { data, isLoading } = useQuery({
 })
 
 /** 편집용 사본. 저장을 누를 때까지 서버에 보내지 않는다. */
-type Draft = { path: string; label: string; isEnabled: boolean }
+type Draft = { id: number; path: string; label: string; isEnabled: boolean }
 const draft = ref<Draft[]>([])
 const saving = ref(false)
 
 // 서버에서 받아올 때마다 사본을 새로 만든다(저장 직후 응답도 여기로 들어온다).
 watch(data, (d) => {
-  if (d) draft.value = d.items.map((m) => ({ path: m.path, label: m.label, isEnabled: m.isEnabled }))
+  if (d) draft.value = d.items.map((m, i) => ({
+    id: i + 1, path: m.path, label: m.label, isEnabled: m.isEnabled,
+  }))
 }, { immediate: true })
 
 const byPath = computed(() => new Map((data.value?.items ?? []).map((m) => [m.path, m])))
@@ -67,10 +70,31 @@ function move(i: number, by: -1 | 1) {
 
 function reset() {
   if (data.value) {
-    draft.value = data.value.items.map((m) => ({ path: m.path, label: m.label, isEnabled: m.isEnabled }))
+    draft.value = data.value.items.map((m, i) => ({
+      id: i + 1, path: m.path, label: m.label, isEnabled: m.isEnabled,
+    }))
   }
   message.value = null
 }
+
+const COLUMNS: Column<Draft>[] = [
+  {
+    key: 'order', label: '순서', width: '56px', align: 'center', filterable: false,
+    render: (m) => String(draft.value.findIndex((item) => item.path === m.path) + 1),
+  },
+  { key: 'move', label: '올리기·내리기', width: '120px', align: 'center', filterable: false, render: () => '' },
+  { key: 'label', label: '메뉴 이름', render: (m) => m.label },
+  { key: 'path', label: '경로', width: '150px', render: (m) => m.path },
+  { key: 'isEnabled', label: '사용', width: '80px', align: 'center', filterable: false,
+    render: (m) => m.isEnabled ? '사용' : '미사용' },
+  {
+    key: 'updatedAt', label: '마지막 변경', width: '170px', filterable: false,
+    render: (m) => {
+      const updated = meta(m.path)
+      return `${updated?.updatedAt?.slice(0, 10) ?? '-'}${updated?.updatedBy ? ` · ${updated.updatedBy}` : ''}`
+    },
+  },
+]
 
 async function save() {
   if (!dirty.value || invalid.value) return
@@ -124,52 +148,54 @@ async function save() {
       <div v-if="isLoading" class="pad muted">불러오는 중…</div>
 
       <div v-else class="tablewrap">
-        <table class="grid">
-          <thead>
-            <tr>
-              <th style="width:56px" class="tc">순서</th>
-              <th style="width:120px" class="tc">올리기·내리기</th>
-              <th>메뉴 이름</th>
-              <th style="width:150px">경로</th>
-              <th style="width:80px" class="tc">사용</th>
-              <th style="width:170px">마지막 변경</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(m, i) in draft" :key="m.path" :class="{ off: !m.isEnabled }">
-              <td class="tc muted">{{ i + 1 }}</td>
-              <td class="tc nowrap">
-                <button class="btn btn-sm" :disabled="i === 0" title="위로" @click="move(i, -1)">↑</button>
-                <button
-                  class="btn btn-sm" :disabled="i === draft.length - 1" title="아래로"
-                  @click="move(i, 1)"
-                >↓</button>
-              </td>
-              <td>
-                <input
-                  v-model="m.label" class="in" maxlength="40"
-                  :class="{ bad: m.label.trim() === '' }"
-                  :aria-label="`${m.path} 메뉴 이름`"
-                />
-              </td>
-              <td class="muted mono">{{ m.path }}</td>
-              <td class="tc">
-                <input
-                  v-model="m.isEnabled" type="checkbox"
-                  :disabled="meta(m.path)?.isFixed"
-                  :title="meta(m.path)?.isFixed
-                    ? '이 메뉴는 끌 수 없습니다 — 끄면 되돌릴 화면이 없어집니다'
-                    : ''"
-                  :aria-label="`${m.label} 사용`"
-                />
-              </td>
-              <td class="muted sm">
-                {{ meta(m.path)?.updatedAt?.slice(0, 10) ?? '-' }}
-                <span v-if="meta(m.path)?.updatedBy"> · {{ meta(m.path)?.updatedBy }}</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <DataTable
+          :columns="COLUMNS" :rows="draft" :row-class="(m) => m.isEnabled ? '' : 'off'"
+          :row-number="false" :filter-row="false" :excel="false" auto-height
+          empty-text="메뉴가 없습니다."
+        >
+          <template #cell:order="{ index }">{{ index + 1 }}</template>
+
+          <template #cell:move="{ index }">
+            <button
+              class="btn btn-sm" :disabled="index === 0"
+              title="위로" @click.stop="move(index, -1)"
+            >↑</button>
+            <button
+              class="btn btn-sm" :disabled="index === draft.length - 1"
+              title="아래로" @click.stop="move(index, 1)"
+            >↓</button>
+          </template>
+
+          <template #cell:label="{ row }">
+            <input
+              v-model="row.label" class="in" maxlength="40"
+              :class="{ bad: row.label.trim() === '' }"
+              :aria-label="`${row.path} 메뉴 이름`"
+            />
+          </template>
+
+          <template #cell:path="{ row }">
+            <span class="muted mono">{{ row.path }}</span>
+          </template>
+
+          <template #cell:isEnabled="{ row }">
+            <input
+              v-model="row.isEnabled" type="checkbox"
+              :disabled="meta(row.path)?.isFixed"
+              :title="meta(row.path)?.isFixed
+                ? '이 메뉴는 끌 수 없습니다 — 끄면 되돌릴 화면이 없어집니다'
+                : ''"
+              :aria-label="`${row.label} 사용`"
+            />
+          </template>
+
+          <template #cell:updatedAt="{ row }">
+            <span class="muted sm">
+              {{ meta(row.path)?.updatedAt?.slice(0, 10) ?? '-' }}
+              <span v-if="meta(row.path)?.updatedBy"> · {{ meta(row.path)?.updatedBy }}</span>
+            </span>
+          </template>
+        </DataTable>
       </div>
 
       <div v-if="invalid" class="pad msg err">메뉴 이름을 비울 수 없습니다.</div>
@@ -185,9 +211,8 @@ async function save() {
 .note a { text-decoration: underline; }
 .mono { font-family: var(--font-mono, monospace); }
 .sm { font-size: var(--fs-xs); }
-.nowrap { white-space: nowrap; }
 .in { width: 100%; }
 .in.bad { border-color: var(--danger, #c33); }
 /* 꺼 둔 메뉴는 흐리게 — 순서는 그대로 보여야 하므로 숨기지 않는다. */
-tr.off td:not(:nth-child(2)) { opacity: .55; }
+:deep(.dt-row.off .dt-cell:not(:nth-child(2))) { opacity: .55; }
 </style>
