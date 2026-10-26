@@ -49,7 +49,11 @@ pnpm db:status     # 적용 상태 확인
 pnpm db:migrate    # 마이그레이션 적용
 pnpm db:seed       # 기본 데이터 (계정·그룹·분류·샘플 폴더)
 node db/seed/hash.mjs   # 시드 계정 비밀번호 설정
+node db/tools/seed-files.mjs && node db/tools/seed-mdb.mjs   # 샘플 파일 (STORAGE_ROOT 아래)
 ```
+
+blob 저장소(`STORAGE_ROOT`)는 **저장소에 담지 않는다** — DB 의 `blobs` 테이블과 짝인
+런타임 상태라, git 이 한쪽만 되감으면 DB 와 어긋난다. 비어 있으면 위 두 줄로 다시 만든다.
 
 시드 계정 — 초기 비밀번호는 기존 규칙 `ghub` + 아이디. 첫 로그인 시 변경 화면이 열린다(미루기 가능).
 
