@@ -29,4 +29,19 @@ export async function scopeIds(
   return ids
 }
 
-export const ancestorChain = q.ancestorChain
+/**
+ * 자료 상세의 폴더 경로(빵부스러기).
+ *
+ * 목록에서 행에 마우스를 올리면 상세를 미리 받는다(TdbListPage 의 prefetch). 같은 폴더의
+ * 자료를 훑으면 같은 조상 경로를 그 횟수만큼 다시 묻게 되므로 캐시한다 —
+ * 06 성능기준의 "프로세스 내 캐시(권한·트리·타입)" 에 트리가 들어 있는데 이 경로만
+ * 빠져 있었다.
+ *
+ * cache_tree 를 쓴다. 폴더 이름이 결과에 들어 있어 이름 변경·이동에 낡으면 안 되는데,
+ * 그 셋은 이미 이 채널을 통째로 비운다(editor·mdb·archive 서비스).
+ */
+export function ancestorChain(folderId: number) {
+  return cached('cache_tree', `chain:${folderId}`, async () => ({
+    items: await q.ancestorChain(folderId),
+  })).then((v) => v.items)
+}

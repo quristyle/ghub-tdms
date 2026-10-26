@@ -228,6 +228,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('pointermove', onResize)
   document.body.style.cursor = ''
   document.body.style.userSelect = ''
+  // 떠난 뒤에 타이머가 터지면 없는 화면을 위해 요청이 한 발 나간다
+  cancelHover()
 })
 
 // ── 정렬 ────────────────────────────────────────────────────────────────
@@ -274,6 +276,34 @@ const activeIndex = computed(() => {
 function onRowClick(row: T) {
   activeId.value = row.id
   emit('rowClick', row)
+}
+
+/**
+ * rowHover 는 **머무른 뒤에** 쏜다.
+ *
+ * 듣는 쪽이 이걸로 상세를 미리 받는다(TdbListPage 의 prefetch). mouseenter 를 그대로
+ * 흘려보내면 그리드를 한 번 쓸 때 지나친 행마다 요청이 한 발씩 나간다 — 200건 목록을
+ * 세로로 훑으면 수십 건이 한꺼번에 뜨고, 그 대부분은 누를 생각도 없던 행이다.
+ *
+ * 120ms 는 "눈이 멈춘" 자리를 고르는 값이다. 올리고 → 확인하고 → 누르기까지는 그보다
+ * 한참 걸리므로 미리 받는 이득은 그대로 남는다. 스쳐 간 행은 타이머가 취소된다.
+ */
+const HOVER_DELAY_MS = 120
+let hoverTimer: ReturnType<typeof setTimeout> | undefined
+
+function cancelHover() {
+  if (hoverTimer !== undefined) {
+    clearTimeout(hoverTimer)
+    hoverTimer = undefined
+  }
+}
+
+function onRowEnter(row: T) {
+  cancelHover()
+  hoverTimer = setTimeout(() => {
+    hoverTimer = undefined
+    emit('rowHover', row)
+  }, HOVER_DELAY_MS)
 }
 
 function cell(row: T, col: Column<T>): string {
@@ -376,14 +406,17 @@ async function exportExcel() {
           <button class="btn btn-sm" style="margin-left:8px" @click="clearFilters">거르기 지우기</button>
         </div>
 
-        <div v-else class="dt-rows" :style="{ height: `${totalSize}px` }">
+        <div
+          v-else class="dt-rows" :style="{ height: `${totalSize}px` }"
+          @mouseleave="cancelHover"
+        >
           <div
             v-for="v in items" :key="visible[v.index]!.id"
             class="dt-row"
             :class="[rowClass?.(visible[v.index]!), { active: visible[v.index]!.id === activeId }]"
             :style="{ height: `${v.size}px`, transform: `translateY(${v.start}px)` }"
             @click="onRowClick(visible[v.index]!)"
-            @mouseenter="emit('rowHover', visible[v.index]!)"
+            @mouseenter="onRowEnter(visible[v.index]!)"
           >
             <div v-if="showNo" class="dt-cell dt-no">{{ v.index + 1 }}</div>
 
