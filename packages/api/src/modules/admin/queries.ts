@@ -519,3 +519,48 @@ export function saveMenus(
     }
   })
 }
+
+// ── 사용자 개인 권한 (0016) ─────────────────────────────────────────────
+
+/** 접속권한 화면이 쓰는 한 사람 — 소속 그룹과 역할까지 함께 본다(풀 기반). */
+export function findUser(id: number) {
+  return one<{ id: number; name: string; loginId: string; role: string
+               groupId: number | null; groupName: string | null }>(
+    `SELECT u.id, u.name, u.login_id AS "loginId", u.role,
+            u.group_id AS "groupId", g.name AS "groupName"
+       FROM users u
+  LEFT JOIN groups g ON g.id = u.group_id
+      WHERE u.id = $1`,
+    [id], 'user_for_perms',
+  )
+}
+
+export function userGrantedPermissions(userId: number) {
+  return many<{ permission_key: string }>(
+    'SELECT permission_key FROM user_permissions WHERE user_id = $1',
+    [userId], 'user_granted',
+  )
+}
+
+/** 통째로 갈아 끼운다 — 화면이 보낸 것이 그 사람의 개인 권한 전부다 */
+export async function replaceUserPermissions(
+  c: pg.PoolClient, userId: number, keys: string[], grantedBy: number,
+) {
+  await c.query('DELETE FROM user_permissions WHERE user_id = $1', [userId])
+  if (!keys.length) return
+  await c.query(
+    `INSERT INTO user_permissions (user_id, permission_key, granted_by)
+     SELECT $1::bigint, k, $3::bigint FROM unnest($2::text[]) AS k
+     ON CONFLICT DO NOTHING`,
+    [userId, keys, grantedBy],
+  )
+}
+
+/** 개인 권한을 한 개라도 가진 사람 — 목록에서 표시를 붙이는 데 쓴다. */
+export function usersWithOwnPermissions() {
+  return many<{ userId: number; n: number }>(
+    `SELECT user_id AS "userId", count(*)::int AS n
+       FROM user_permissions GROUP BY user_id`,
+    [], 'users_with_perms',
+  )
+}

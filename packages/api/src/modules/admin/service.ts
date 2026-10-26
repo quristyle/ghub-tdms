@@ -274,3 +274,70 @@ export async function saveMenus(
   await invalidate('cache_menu')
   return menus()
 }
+
+// ── 접속권한 관리 — 사용자 개인 권한 (0016) ─────────────────────────────
+
+/**
+ * 한 사람의 권한 현황.
+ *
+ * 개인 권한과 그룹 권한을 **나눠서** 내려준다. 화면이 합쳐 놓으면 운영자가
+ * "이건 내가 준 건가, 그룹에서 오는 건가" 를 구분하지 못해, 지우려 해도 안 지워지는
+ * 체크박스를 만나게 된다.
+ */
+export async function userPermissions(userId: number) {
+  const user = await q.findUser(userId)
+  if (!user) throw Errors.notFound('계정')
+
+  const [own, group] = await Promise.all([
+    q.userGrantedPermissions(userId),
+    user.groupId === null
+      ? Promise.resolve([])
+      : q.grantedPermissions(user.groupId),
+  ])
+
+  return {
+    userId,
+    granted: own.map((r) => r.permission_key),
+    fromGroup: group.map((r) => r.permission_key),
+    groupId: user.groupId,
+    groupName: user.groupName,
+    isAdmin: user.role === 'ADMIN',
+  }
+}
+
+/**
+ * 개인 권한 저장 — 보낸 것이 그 사람의 개인 권한 전부다(통째로 교체).
+ *
+ * 그룹에서 이미 오는 권한을 개인에도 적으면 지울 수 없는 중복이 된다
+ * (합집합이라 결과가 같고, 나중에 그룹에서 내려도 개인 쪽이 남아 안 내려간다).
+ * 그래서 **그룹에 있는 키는 받지 않는다** — 화면도 그 칸을 상속으로 잠근다.
+ */
+export async function setUserPermissions(userId: number, granted: string[], actorId: number) {
+  const user = await q.findUser(userId)
+  if (!user) throw Errors.notFound('계정')
+
+  const unknown = granted.filter((k) => !LEAF_KEY_SET.has(k))
+  if (unknown.length) {
+    throw Errors.invalid('UNKNOWN_PERMISSION', `권한 트리에 없는 항목입니다: ${unknown.join(', ')}`)
+  }
+
+  if (user.groupId !== null) {
+    const group = new Set((await q.grantedPermissions(user.groupId)).map((r) => r.permission_key))
+    const dup = granted.filter((k) => group.has(k))
+    if (dup.length) {
+      throw Errors.invalid(
+        'ALREADY_FROM_GROUP',
+        `소속 그룹에서 이미 오는 권한입니다: ${dup.join(', ')}`,
+      )
+    }
+  }
+
+  await tx((c) => q.replaceUserPermissions(c, userId, granted, actorId))
+  await invalidate('cache_perm')
+  return userPermissions(userId)
+}
+
+export async function ownPermissionCounts() {
+  const rows = await q.usersWithOwnPermissions()
+  return { items: rows.map((r) => ({ userId: Number(r.userId), count: r.n })) }
+}

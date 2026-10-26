@@ -96,16 +96,35 @@ export async function deferPasswordChange(sessionId: string): Promise<void> {
  */
 export async function loadPermissions(user: SessionUser): Promise<ReadonlySet<string>> {
   if (user.role === 'ADMIN') return new Set(LEAF_KEYS)
-  if (user.groupId === null) return new Set()
 
-  return cached('cache_perm', `g:${user.groupId}`, async () => {
-    const rows = await many<{ permission_key: string }>(
-      'SELECT permission_key FROM group_permissions WHERE group_id = $1',
-      [user.groupId],
-      'perm_by_group',
-    )
-    return new Set(rows.map((r) => r.permission_key))
-  })
+  // 최종 권한 = 그룹 권한 ∪ 개인 권한 (0016). 빼기는 없다 — 한 방향이라
+  // "왜 안 되는지" 를 한 군데만 보면 되고, 실수로 접근이 끊기지 않는다.
+  //
+  // 두 벌을 따로 캐시한다. 그룹 몫은 같은 그룹의 사람들이 함께 쓰므로 g: 키로 공유하고,
+  // 개인 몫만 u: 키로 둔다 — 합쳐서 한 벌로 캐시하면 그룹 권한이 사람 수만큼 복제된다.
+  const [fromGroup, fromUser] = await Promise.all([
+    user.groupId === null
+      ? Promise.resolve(new Set<string>())
+      : cached('cache_perm', `g:${user.groupId}`, async () => {
+          const rows = await many<{ permission_key: string }>(
+            'SELECT permission_key FROM group_permissions WHERE group_id = $1',
+            [user.groupId],
+            'perm_by_group',
+          )
+          return new Set(rows.map((r) => r.permission_key))
+        }),
+    cached('cache_perm', `u:${user.id}`, async () => {
+      const rows = await many<{ permission_key: string }>(
+        'SELECT permission_key FROM user_permissions WHERE user_id = $1',
+        [user.id],
+        'perm_by_user',
+      )
+      return new Set(rows.map((r) => r.permission_key))
+    }),
+  ])
+
+  if (fromUser.size === 0) return fromGroup      // 흔한 쪽 — 합치지 않고 그대로 쓴다
+  return new Set([...fromGroup, ...fromUser])
 }
 
 export function setSessionCookie(reply: FastifyReply, sessionId: string): void {

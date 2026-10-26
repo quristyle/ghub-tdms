@@ -286,3 +286,33 @@ export const MenuSaveRequest = z.object({
   })).min(1),
 })
 export type MenuSaveRequest = z.infer<typeof MenuSaveRequest>
+
+// ── 접속권한 관리 (0016) ────────────────────────────────────────────────
+// 그룹 권한은 기존 /groups/:id/permissions 를 그대로 쓴다 — 새 화면과 기존
+// [사용자 관리 > 권한 관리] 탭이 **같은 API** 를 지나므로 두 화면이 갈라지지 않는다.
+
+export const UserPermissionsResponse = z.object({
+  userId: z.number().int(),
+  /** 이 사람에게 직접 준 권한 */
+  granted: z.array(z.string()),
+  /** 소속 그룹에서 오는 권한 — 화면이 "상속" 으로 흐리게 보여준다 */
+  fromGroup: z.array(z.string()),
+  groupId: z.number().int().nullable(),
+  groupName: z.string().nullable(),
+  /** ADMIN 은 권한 트리와 무관하게 전부 통과한다 */
+  isAdmin: z.boolean(),
+})
+export type UserPermissionsResponse = z.infer<typeof UserPermissionsResponse>
+
+export const UserPermissionsRequest = z.object({
+  granted: z.array(z.string()).max(200),
+})
+export type UserPermissionsRequest = z.infer<typeof UserPermissionsRequest>
+
+/** 개인 권한을 따로 가진 사람 — 목록에 표시를 붙인다 */
+export const OwnPermissionCount = z.object({
+  userId: z.number().int(),
+  count: z.number().int(),
+})
+export const OwnPermissionCounts = z.object({ items: z.array(OwnPermissionCount) })
+export type OwnPermissionCounts = z.infer<typeof OwnPermissionCounts>

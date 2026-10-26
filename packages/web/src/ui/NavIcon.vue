@@ -64,6 +64,12 @@ defineProps<{ path: string }>()
       <path d="M11 3.6a2.2 2.2 0 0 1 0 4.1M12.4 13.4c0-1.5-.5-2.5-1.3-3.2" />
     </template>
 
+    <!-- 접속권한 관리 — 열쇠 -->
+    <template v-else-if="path === '/permissions'">
+      <circle cx="5.6" cy="6.4" r="3.1" />
+      <path d="M7.9 8.7 13 13.8M10.6 11.4l-1.3 1.3M12 12.8l-1.2 1.2" />
+    </template>
+
     <!-- 메뉴 관리 — 목록과 위아래 화살표 -->
     <template v-else-if="path === '/menus'">
       <path d="M2.2 4.2h6.4M2.2 8h6.4M2.2 11.8h6.4" />

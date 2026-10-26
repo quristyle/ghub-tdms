@@ -26,6 +26,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/backup',        component: () => import('@/pages/BackupPage.vue'), meta: { permission: 'screen.backup.access', title: '백업 관리' } },
   // 메뉴 관리 — 권한은 사용자·권한 관리와 같은 리프를 쓴다(새 리프를 만들면 레거시 패리티가 깨진다).
   { path: '/menus',         component: () => import('@/pages/MenusPage.vue'), meta: { permission: 'screen.users.access', title: '메뉴 관리' } },
+  { path: '/permissions',   component: () => import('@/pages/PermissionsPage.vue'), meta: { permission: 'screen.users.access', title: '접속권한 관리' } },
 
   { path: '/documents/:id', component: () => import('@/pages/TdbDetailPage.vue'), meta: { title: 'TDB 자료 상세' } },
   { path: '/mdb/:id',       component: () => import('@/pages/MdbDetailPage.vue'), meta: { title: 'MDB 자료 상세' } },

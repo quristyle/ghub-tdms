@@ -23,7 +23,7 @@ const router = useRouter()
 const GROUPS: { title: string; paths: string[] }[] = [
   { title: '도면 (TDB)', paths: ['/', '/import', '/editor', '/distributions'] },
   { title: '데이터북 (MDB)', paths: ['/mdb', '/mdb-editor'] },
-  { title: '운영', paths: ['/audit', '/users', '/menus', '/backup'] },
+  { title: '운영', paths: ['/audit', '/users', '/permissions', '/menus', '/backup'] },
 ]
 
 const groups = computed(() =>

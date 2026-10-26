@@ -4,7 +4,8 @@ import {
   AuditListResponse, AuditMeta, AuditQuery, BackupListResponse, BackupRunRequest,
   BackupRunResult, BackupStatus, ErrorResponse, GroupListResponse, GroupMembersResponse,
   GroupPermissionsRequest, GroupPermissionsResponse, GroupSaveRequest,
-  MenuListResponse, MenuSaveRequest, NoteRequest, NoteResult,
+  MenuListResponse, MenuSaveRequest, NoteRequest, NoteResult, OwnPermissionCounts,
+  UserPermissionsRequest, UserPermissionsResponse,
   PERMISSION_TREE, PartnerCompanyListResponse, PasswordResetResult,
   UserCreateRequest, UserListResponse, UserUpdateRequest,
 } from '@tdms/contracts'
@@ -203,6 +204,48 @@ export function registerAdminRoutes(app: FastifyInstance): void {
       const b = GroupPermissionsRequest.parse(req.body)
       const out = await svc.setPermissions(id, b.granted)
       req.setAuditTarget(`그룹 ${id}`, { count: b.granted.length })
+      return out
+    },
+  })
+
+  // ── 접속권한 관리 — 사용자 개인 권한 (0016) ──────────────────────────
+  // 그룹 권한은 위의 /groups/:id/permissions 를 그대로 쓴다. 새 화면과 기존
+  // [사용자 관리 > 권한 관리] 탭이 같은 API 를 지나므로 두 화면이 갈라지지 않는다.
+  defineRoute(app, {
+    method: 'GET',
+    url: '/users/permission-counts',
+    access: permission('screen.users.access'),
+    schema: { response: { 200: OwnPermissionCounts, 403: ErrorResponse } },
+    handler: async () => svc.ownPermissionCounts(),
+  })
+
+  defineRoute(app, {
+    method: 'GET',
+    url: '/users/:id/permissions',
+    access: permission('screen.users.access'),
+    schema: {
+      params: IdParam,
+      response: { 200: UserPermissionsResponse, 403: ErrorResponse, 404: ErrorResponse },
+    },
+    handler: async (req) => svc.userPermissions(IdParam.parse(req.params).id),
+  })
+
+  defineRoute(app, {
+    method: 'PUT',
+    url: '/users/:id/permissions',
+    access: permission('screen.users.access'),
+    audit: { screen: '접속권한 관리', action: '개인 권한 저장' },
+    schema: {
+      params: IdParam, body: UserPermissionsRequest,
+      response: {
+        200: UserPermissionsResponse, 403: ErrorResponse, 404: ErrorResponse, 422: ErrorResponse,
+      },
+    },
+    handler: async (req) => {
+      const { id } = IdParam.parse(req.params)
+      const b = UserPermissionsRequest.parse(req.body)
+      const out = await svc.setUserPermissions(id, b.granted, req.auth.user.id)
+      req.setAuditTarget(`계정 ${id}`, { count: b.granted.length, granted: b.granted })
       return out
     },
   })
