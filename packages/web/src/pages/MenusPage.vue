@@ -180,6 +180,9 @@ async function save() {
 </template>
 
 <style scoped>
+.menus { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
+.head { padding: 10px 12px; flex: 0 0 auto; }
+.head h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; }
 .note { line-height: 1.6; }
 .note a { text-decoration: underline; }
 .mono { font-family: var(--font-mono, monospace); }
