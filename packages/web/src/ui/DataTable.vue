@@ -14,7 +14,22 @@ import { downloadXlsx } from '@/lib/xlsx'
  *   · 머리글 눌러 정렬
  *   · 머리글 아래 칸별 거르기
  *   · 아래쪽에 전체·불러온·보이는·선택 건수와 고른 줄 순번
- *   · 아래쪽 엑셀 내려받기 — **화면에 보이는 그대로**(지금 칸 순서·너비 아님·거른 결과)
+ *   · 아래쪽 엑셀 내려받기 — **화면에 보이는 그대로**(지금 칸 순서·거른 결과)
+ *   · 칸 슬롯 — 링크·배지·단추 같은 것을 칸 안에 넣을 수 있다
+ *   · 줄 상태 색 — 미입고·확인필요처럼 한눈에 보여야 하는 줄
+ *
+ * ## 칸 슬롯과 render 는 역할이 다르다
+ *
+ * `render` 는 **그 칸의 글자값**이다 — 거르기·툴팁·엑셀이 이것을 쓴다.
+ * 슬롯은 **그 글자를 어떻게 그릴지**만 바꾼다.
+ * 그래서 슬롯을 쓰더라도 `render` 를 함께 주어야 거르기와 엑셀이 맞는다.
+ * (슬롯만 주고 render 를 빼면 엑셀에 빈 칸이 나간다 — 받은 사람이 알 수 없다.)
+ *
+ *     <DataTable :columns="cols" :rows="rows">
+ *       <template #cell:title="{ row }">
+ *         <RouterLink :to="`/documents/${row.id}`">{{ row.title }}</RouterLink>
+ *       </template>
+ *     </DataTable>
  *
  * ## 정렬과 거르기의 범위가 다르다
  *
@@ -68,6 +83,8 @@ const props = withDefaults(defineProps<{
   excel?: boolean
   /** 내려받을 파일·시트 이름. 없으면 storageKey, 그것도 없으면 '목록'. */
   excelName?: string
+  /** 줄에 붙일 상태 class — base.css 의 warn/issue/off/cur 를 그대로 쓴다 */
+  rowClass?: (row: T) => string
 }>(), {
   rowNumber: true,
   filterRow: true,
@@ -346,7 +363,8 @@ async function exportExcel() {
         <div v-else class="dt-rows" :style="{ height: `${totalSize}px` }">
           <div
             v-for="v in items" :key="visible[v.index]!.id"
-            class="dt-row" :class="{ active: visible[v.index]!.id === activeId }"
+            class="dt-row"
+            :class="[rowClass?.(visible[v.index]!), { active: visible[v.index]!.id === activeId }]"
             :style="{ height: `${v.size}px`, transform: `translateY(${v.start}px)` }"
             @click="onRowClick(visible[v.index]!)"
             @mouseenter="emit('rowHover', visible[v.index]!)"
@@ -363,8 +381,17 @@ async function exportExcel() {
 
             <div
               v-for="col in columns" :key="col.key" class="dt-cell"
-              :style="cellStyle(col)" :title="cell(visible[v.index]!, col)"
-            >{{ cell(visible[v.index]!, col) }}</div>
+              :class="{ 'dt-slot': !!$slots[`cell:${col.key}`] }"
+              :style="cellStyle(col)"
+              :title="$slots[`cell:${col.key}`] ? undefined : cell(visible[v.index]!, col)"
+            >
+              <slot
+                :name="`cell:${col.key}`"
+                :row="visible[v.index]!"
+                :value="cell(visible[v.index]!, col)"
+                :index="v.index"
+              >{{ cell(visible[v.index]!, col) }}</slot>
+            </div>
           </div>
         </div>
       </div>
@@ -494,7 +521,15 @@ async function exportExcel() {
   border-bottom: 1px solid var(--border);
 }
 .dt-row:hover { background: var(--surface-2); }
-.dt-row.active { background: var(--primary-soft); }
+
+/* 상태 색 — 표 전체에서 뜻이 같아야 한다(base.css 의 .grid 와 같은 이름).
+   고른 줄(active)이 늘 이긴다. 안 그러면 뭘 눌렀는지 보이지 않는다. */
+.dt-row.warn  { background: var(--warn-soft); }
+.dt-row.issue { background: var(--danger-soft); }
+.dt-row.off   { color: var(--fg-subtle); }
+.dt-row.warn:hover  { background: var(--warn-soft); filter: brightness(.98); }
+.dt-row.issue:hover { background: var(--danger-soft); filter: brightness(.98); }
+.dt-row.active, .dt-row.active:hover { background: var(--primary-soft); filter: none; }
 
 .dt-cell {
   padding: 0 9px; line-height: calc(var(--row-h) - 1px);
@@ -503,6 +538,14 @@ async function exportExcel() {
 }
 .dt-head .dt-cell { line-height: 28px; height: 29px; }
 .dt-cell:not(.dt-th):not(.dt-no):not(.dt-check) { display: block; }
+
+/* 슬롯 칸 — 안에 단추·배지가 들어가므로 가운데 맞춤을 되살린다.
+   한 줄 높이를 넘기지 않게 넘치는 것은 잘라 둔다(줄 높이가 흔들리면 가상 스크롤이 어긋난다). */
+.dt-cell.dt-slot { display: flex; align-items: center; gap: 4px; overflow: hidden; }
+.dt-cell.dt-slot :deep(.btn) { flex: 0 0 auto; }
+.dt-cell.dt-slot :deep(input[type=text]) { height: 22px; font-size: var(--fs-sm); min-width: 0; }
+.dt-cell.dt-slot :deep(a) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dt-cell.dt-slot :deep(a:hover) { color: var(--primary); text-decoration: underline; }
 
 .dt-no {
   flex: 0 0 48px; width: 48px;

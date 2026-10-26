@@ -5,6 +5,7 @@ import type {
   DistributionListResult, DistributionRow, FilterOptions,
   ForImportResult, OutstandingResult, ZipExportListResult, ZipExportRow, ZipStatusResult,
 } from '@tdms/contracts'
+import DataTable, { type Column } from '@/ui/DataTable.vue'
 import Modal from '@/ui/Modal.vue'
 import { api, ApiError, qs } from '@/lib/api'
 import { staleTime } from '@/lib/queryKeys'
@@ -148,6 +149,55 @@ async function exportExcel() {
 function stateClass(s: string) {
   return s === 'INCOMPLETE' ? 'warn' : s === 'ISSUE' ? 'issue' : ''
 }
+
+// ── 표 칸 ──────────────────────────────────────────────────────────────
+// render 는 **글자값**이다 — 거르기·엑셀이 이것을 쓴다. 슬롯은 그리는 법만 바꾼다.
+const day = (v: string) => v.slice(0, 10)
+
+const COLUMNS: Column<DistributionRow>[] = [
+  { key: 'documentLabel', label: '자료명', width: '220px',
+    render: (r) => (r.title ? `${r.documentLabel} ${r.title}` : r.documentLabel) },
+  { key: 'revAtDistribution', label: '반출Rev', width: '76px', align: 'center',
+    render: (r) => `Rev${r.revAtDistribution}` },
+  { key: 'vendorName', label: '업체', width: '130px' },
+  { key: 'projectName', label: '공사', width: '120px', align: 'center', render: (r) => r.projectName ?? '' },
+  { key: 'purpose', label: '목적', width: '92px', align: 'center',
+    render: (r) => PURPOSE_LABEL[r.purpose] ?? r.purpose },
+  { key: 'distributedBy', label: '반출자', width: '96px', align: 'center', render: (r) => r.distributedBy ?? '' },
+  { key: 'distributedAt', label: '반출일시', width: '104px', align: 'center', render: (r) => day(r.distributedAt) },
+  { key: 'returnedAt', label: '반입일시', width: '104px', align: 'center',
+    render: (r) => (r.returnedAt ? day(r.returnedAt) : '') },
+  { key: 'state', label: '상태', width: '136px',
+    // 엑셀에도 "수정없음"·"21일"이 함께 나가야 화면과 같은 뜻이 된다
+    render: (r) => [
+      DISTRIBUTION_STATE_LABEL[r.state],
+      r.manualReturn ? '수정없음' : '',
+      r.daysOut !== null && r.daysOut >= 14 ? `${r.daysOut}일` : '',
+    ].filter(Boolean).join(' ') },
+  { key: 'note', label: '비고', width: '180px', render: (r) => r.note ?? '' },
+]
+
+const ZIP_COLUMNS: Column<ZipExportRow & { id: number }>[] = [
+  { key: 'zipName', label: 'Zip', width: '240px' },
+  { key: 'vendorName', label: '업체', width: '140px' },
+  { key: 'projectName', label: '공사', width: '120px', align: 'center', render: (z) => z.projectName ?? '' },
+  { key: 'purpose', label: '목적', width: '92px', align: 'center',
+    render: (z) => PURPOSE_LABEL[z.purpose] ?? z.purpose },
+  { key: 'distributedBy', label: '반출자', width: '96px', align: 'center', render: (z) => z.distributedBy ?? '' },
+  { key: 'distributedAt', label: '반출일시', width: '104px', align: 'center', render: (z) => day(z.distributedAt) },
+  { key: 'itemCount', label: '건수', width: '70px', align: 'right', render: (z) => String(z.itemCount) },
+  { key: 'returnedCount', label: '반입', width: '70px', align: 'right', render: (z) => String(z.returnedCount) },
+  { key: 'complete', label: '상태', width: '100px', align: 'center',
+    render: (z) => (z.complete ? '반입완료' : '반입미완료') },
+  { key: 'act', label: '조치', width: '92px', align: 'center', filterable: false, render: () => '' },
+]
+
+/**
+ * Zip 목록에는 id 가 없다 — 공통 그리드는 줄을 id 로 가린다(가상 스크롤의 key).
+ * Zip 이름이 그 자리의 열쇠이므로 목록 안 위치를 id 로 삼는다.
+ * 목록이 통째로 다시 올 때만 바뀌므로 줄이 섞일 일이 없다.
+ */
+const zipRows = computed(() => zips.value.map((z, i) => ({ ...z, id: i + 1 })))
 </script>
 
 <template>
@@ -199,17 +249,15 @@ function stateClass(s: string) {
         <button class="btn btn-sm" @click="reset">조건 초기화</button>
       </div>
       <div class="bar">
-        <span class="muted">
-          총 <strong>{{ byZip ? zips.length : (list?.total ?? 0) }}</strong>건
-          <template v-if="!byZip"> · 선택 {{ picked.size }}건</template>
-          <template v-if="isFetching"> · 조회 중…</template>
-        </span>
+        <!-- 건수·선택수는 그리드 아래쪽이 적는다. 두 군데 적으면 서로 어긋난다. -->
+        <span v-if="isFetching" class="muted">조회 중…</span>
         <span style="flex:1" />
         <button class="btn btn-sm" :disabled="!openPicked" @click="doReturn(false)">선택 반납처리</button>
         <button class="btn btn-sm" :disabled="!openPicked || !canManualReturn"
                 :title="canManualReturn ? '' : '권한이 없습니다'"
                 @click="doReturn(true)">수정없이 반납처리</button>
-        <button class="btn btn-sm" @click="exportExcel">엑셀 내보내기</button>
+        <button class="btn btn-sm" title="조건에 맞는 전체를 워커가 만든다 — 수만 건도 받을 수 있다"
+                @click="exportExcel">전체 엑셀 내보내기</button>
       </div>
       <JobProgressSlot :job-id="exportJobId" />
     </div>
@@ -221,66 +269,53 @@ function stateClass(s: string) {
 
     <div class="panel table-panel">
       <!-- 자료별 -->
-      <table v-if="!byZip" class="grid">
-        <thead>
-          <tr>
-            <th style="width:34px"></th>
-            <th>자료명</th><th>반출Rev</th><th>업체</th><th>공사</th><th>목적</th>
-            <th>반출자</th><th>반출일시</th><th>반입일시</th><th>상태</th><th>비고</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="r in rows" :key="r.id" :class="stateClass(r.state)">
-            <td class="tc"><input type="checkbox" :checked="picked.has(r.id)" @change="toggle(r.id)" /></td>
-            <td>
-              <RouterLink v-if="r.documentId" :to="`/documents/${r.documentId}`">{{ r.documentLabel }}</RouterLink>
-              <span v-else class="muted">{{ r.documentLabel }}</span>
-              <div v-if="r.title" class="sub muted">{{ r.title }}</div>
-            </td>
-            <td class="tc">Rev{{ r.revAtDistribution }}</td>
-            <td>{{ r.vendorName }}</td>
-            <td class="tc">{{ r.projectName ?? '-' }}</td>
-            <td class="tc">{{ PURPOSE_LABEL[r.purpose] ?? r.purpose }}</td>
-            <td class="tc">{{ r.distributedBy ?? '-' }}</td>
-            <td class="tc">{{ r.distributedAt.slice(0, 10) }}</td>
-            <td class="tc">{{ r.returnedAt?.slice(0, 10) ?? '-' }}</td>
-            <td class="tc">
-              {{ DISTRIBUTION_STATE_LABEL[r.state] }}
-              <span v-if="r.manualReturn" class="tag" title="수정 없이 반납 처리된 건">수정없음</span>
-              <span v-if="r.daysOut !== null && r.daysOut >= 14" class="tag warn-tag">{{ r.daysOut }}일</span>
-            </td>
-            <td>
-              <span v-if="!canNote">{{ r.note ?? '-' }}</span>
-              <input v-else type="text" :value="r.note ?? ''" placeholder="비고" style="width:100%"
-                     @change="saveNote(r, ($event.target as HTMLInputElement).value)" />
-            </td>
-          </tr>
-          <tr v-if="!rows.length"><td colspan="11" class="tc muted">반출 기록이 없습니다.</td></tr>
-        </tbody>
-      </table>
+      <DataTable
+        v-if="!byZip"
+        :columns="COLUMNS" :rows="rows" selectable :selected="picked"
+        :total="list?.total ?? null" :loading="isFetching && !rows.length"
+        :row-class="(r) => stateClass(r.state)"
+        storage-key="dist-items" excel-name="TDB 반출이력"
+        empty-text="반출 기록이 없습니다."
+        @toggle="toggle"
+        @toggle-all="(on) => { picked = on ? new Set(rows.map(r => r.id)) : new Set() }"
+      >
+        <template #cell:documentLabel="{ row }">
+          <RouterLink v-if="row.documentId" :to="`/documents/${row.documentId}`" @click.stop>
+            {{ row.documentLabel }}
+          </RouterLink>
+          <span v-else class="muted">{{ row.documentLabel }}</span>
+          <span v-if="row.title" class="muted small sub-inline">{{ row.title }}</span>
+        </template>
+
+        <template #cell:state="{ row }">
+          <span>{{ DISTRIBUTION_STATE_LABEL[row.state] }}</span>
+          <span v-if="row.manualReturn" class="tag" title="수정 없이 반납 처리된 건">수정없음</span>
+          <span v-if="row.daysOut !== null && row.daysOut >= 14" class="tag warn-tag">{{ row.daysOut }}일</span>
+        </template>
+
+        <template #cell:note="{ row }">
+          <span v-if="!canNote">{{ row.note ?? '-' }}</span>
+          <input
+            v-else type="text" :value="row.note ?? ''" placeholder="비고" style="width:100%"
+            @click.stop
+            @change="saveNote(row, ($event.target as HTMLInputElement).value)"
+          />
+        </template>
+      </DataTable>
 
       <!-- Zip별 -->
-      <table v-else class="grid">
-        <thead>
-          <tr><th>Zip</th><th>업체</th><th>공사</th><th>목적</th><th>반출자</th><th>반출일시</th>
-              <th>건수</th><th>반입</th><th>상태</th><th>조치</th></tr>
-        </thead>
-        <tbody>
-          <tr v-for="z in zips" :key="z.zipName" :class="{ warn: !z.complete }">
-            <td>{{ z.zipName }}</td>
-            <td>{{ z.vendorName }}</td>
-            <td class="tc">{{ z.projectName ?? '-' }}</td>
-            <td class="tc">{{ PURPOSE_LABEL[z.purpose] ?? z.purpose }}</td>
-            <td class="tc">{{ z.distributedBy ?? '-' }}</td>
-            <td class="tc">{{ z.distributedAt.slice(0, 10) }}</td>
-            <td class="tc">{{ z.itemCount }}</td>
-            <td class="tc">{{ z.returnedCount }}</td>
-            <td class="tc">{{ z.complete ? '반입완료' : '반입미완료' }}</td>
-            <td class="tc"><button class="btn btn-sm" @click="zipDetail = z.zipName">상세 현황</button></td>
-          </tr>
-          <tr v-if="!zips.length"><td colspan="10" class="tc muted">Zip 반출 기록이 없습니다.</td></tr>
-        </tbody>
-      </table>
+      <DataTable
+        v-else
+        :columns="ZIP_COLUMNS" :rows="zipRows" :total="zipRows.length"
+        :row-class="(z) => (z.complete ? '' : 'warn')"
+        storage-key="dist-zips" excel-name="TDB 반출이력 (Zip별)"
+        empty-text="Zip 반출 기록이 없습니다."
+        @row-click="(z) => (zipDetail = z.zipName)"
+      >
+        <template #cell:act="{ row }">
+          <button class="btn btn-sm" @click.stop="zipDetail = row.zipName">상세 현황</button>
+        </template>
+      </DataTable>
     </div>
 
     <!-- 미입고 현황 -->
@@ -386,7 +421,12 @@ export default { components: { JobProgressSlot } }
   display: inline-block; min-width: 17px; padding: 0 4px; margin-left: 3px;
   background: var(--accent); color: var(--primary-fg); border-radius: 9px; font-size: 10px; text-align: center;
 }
-.table-panel { flex: 1; overflow: auto; min-height: 0; }
+/* 스크롤은 DataTable 이 자기 안에서 맡는다 — 바깥에서 또 스크롤하면
+   머리글 고정이 깨진다. 여기서는 자리만 내준다. */
+.table-panel { flex: 1; min-height: 0; overflow: hidden; display: flex; }
+.table-panel > * { flex: 1; min-width: 0; }
+/* 자료명 칸의 보조 설명 — 줄 높이를 늘리지 않게 같은 줄에 잇는다 */
+.sub-inline { margin-left: 6px; }
 .grid tr.issue { background: var(--danger-soft); }
 .sub { font-size: 11px; }
 .summary { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; font-size: var(--fs-sm); }

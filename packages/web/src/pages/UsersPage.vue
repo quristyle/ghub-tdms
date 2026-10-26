@@ -5,6 +5,7 @@ import type {
   EmploymentStatus, GroupListResponse, GroupMembersResponse, GroupPermissionsResponse,
   PartnerCompanyListResponse, PermissionNode, UserListResponse, UserRow,
 } from '@tdms/contracts'
+import DataTable, { type Column } from '@/ui/DataTable.vue'
 import Modal from '@/ui/Modal.vue'
 import Tabs from '@/ui/Tabs.vue'
 import PermissionTree from '@/ui/PermissionTree.vue'
@@ -103,6 +104,32 @@ function openEdit(u: UserRow) {
   }
   userDialog.value = 'edit'
 }
+
+// ── 표 칸 ──────────────────────────────────────────────────────────────
+// render 는 **글자값**이다 — 거르기·엑셀이 이것을 쓴다. 슬롯은 그리는 법만 바꾼다.
+const COLUMNS: Column<UserRow>[] = [
+  { key: 'loginId', label: '아이디', width: '130px' },
+  { key: 'name', label: '이름', width: '96px' },
+  { key: 'employeeNumber', label: '사번', width: '88px', align: 'center', render: (u) => u.employeeNumber ?? '' },
+  { key: 'department', label: '부서', width: '120px', render: (u) => u.department ?? '' },
+  { key: 'position', label: '직위', width: '92px', align: 'center', render: (u) => u.position ?? '' },
+  { key: 'company', label: '소속사', width: '130px',
+    render: (u) => u.partnerCompanyName ?? u.companyCode },
+  { key: 'extensionNumber', label: '내선', width: '126px', align: 'center', render: (u) => u.extensionNumber ?? '' },
+  { key: 'phone', label: '휴대전화', width: '126px', align: 'center', render: (u) => u.phone ?? '' },
+  { key: 'email', label: '이메일', width: '180px', render: (u) => u.email ?? '' },
+  { key: 'role', label: '권한', width: '74px', align: 'center',
+    render: (u) => (u.role === 'ADMIN' ? '관리자' : '일반') },
+  { key: 'groupName', label: '그룹', width: '110px', align: 'center', render: (u) => u.groupName ?? '' },
+  { key: 'employmentStatus', label: '상태', width: '110px',
+    // 엑셀에도 "초기비번"이 함께 나가야 화면과 같은 뜻이 된다
+    render: (u) => [statusLabel(u.employmentStatus), u.mustChangePassword ? '초기비번' : '']
+      .filter(Boolean).join(' ') },
+  { key: 'hireDate', label: '입사일', width: '100px', align: 'center', render: (u) => u.hireDate ?? '' },
+  { key: 'lastLoginAt', label: '접속일', width: '100px', align: 'center',
+    render: (u) => u.lastLoginAt?.slice(0, 10) ?? '' },
+  { key: 'act', label: '조치', width: '152px', align: 'center', filterable: false, render: () => '' },
+]
 
 /** 빈 칸은 null 로 보낸다 — ''를 저장하면 "값이 있는데 비어 있는" 칸이 생긴다. */
 const n = (v: string) => (v.trim() === '' ? null : v.trim())
@@ -210,7 +237,7 @@ async function savePermissions() {
       <Tabs v-model="tab" :tabs="TABS" />
 
       <!-- 사용자 -->
-      <section v-if="tab === 'users'" class="pad">
+      <section v-if="tab === 'users'" class="pad users-tab">
         <div class="bar">
           <input v-model="keyword" type="text" placeholder="아이디·이름·사번·부서·연락처" style="width:240px" />
           <select v-model="dept" style="width:140px">
@@ -224,52 +251,46 @@ async function savePermissions() {
               @click="toggleStatus(st.key)"
             >{{ st.label }}</button>
           </span>
-          <span class="muted">{{ rows.length }}명</span>
+          <!-- 건수는 그리드 아래쪽이 적는다. 두 군데 적으면 서로 어긋난다. -->
           <span style="flex:1" />
           <button class="btn btn-sm btn-primary" @click="openCreate">사용자 추가</button>
         </div>
         <div class="tablewrap">
-          <table class="grid">
-            <thead>
-              <tr><th style="width:46px">No</th><th>아이디</th><th>이름</th><th>사번</th>
-                  <th>부서</th><th>직위</th><th>소속사</th><th>내선</th><th>휴대전화</th><th>이메일</th>
-                  <th>권한</th><th>그룹</th><th>상태</th><th>접속일</th><th style="width:150px">조치</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="(u, i) in rows" :key="u.id" :class="{ off: !u.isActive }">
-                <td class="tc muted">{{ i + 1 }}</td>
-                <td class="mono">{{ u.loginId }}</td>
-                <td>{{ u.name }}</td>
-                <td class="tc mono">{{ u.employeeNumber ?? '-' }}</td>
-                <td>{{ u.department ?? '-' }}</td>
-                <td class="tc">{{ u.position ?? '-' }}</td>
-                <td>
-                  <span v-if="u.partnerCompanyName" class="tag tag-info">{{ u.partnerCompanyName }}</span>
-                  <span v-else class="muted">{{ u.companyCode }}</span>
-                </td>
-                <td class="tc mono">{{ u.extensionNumber ?? '-' }}</td>
-                <td class="tc mono">{{ u.phone ?? '-' }}</td>
-                <td class="mono">{{ u.email ?? '-' }}</td>
-                <td class="tc">
-                  <span :class="{ tag: u.role === 'ADMIN' }">{{ u.role === 'ADMIN' ? '관리자' : '일반' }}</span>
-                </td>
-                <td class="tc">{{ u.groupName ?? '-' }}</td>
-                <td class="tc">
-                  <span class="tag" :class="STATUS.find(x => x.key === u.employmentStatus)?.cls">
-                    {{ statusLabel(u.employmentStatus) }}
-                  </span>
-                  <span v-if="u.mustChangePassword" class="tag warn-tag" title="첫 로그인 때 변경 화면이 열립니다">초기비번</span>
-                </td>
-                <td class="tc" :title="u.previousLoginAt ? `직전 ${u.previousLoginAt.slice(0, 10)}` : ''">
-                  {{ u.lastLoginAt?.slice(0, 10) ?? '-' }}
-                </td>
-                <td class="tc">
-                  <button class="btn btn-sm" @click="openEdit(u)">수정</button>
-                  <button class="btn btn-sm" @click="resetTarget = u">비밀번호 초기화</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <DataTable
+            :columns="COLUMNS" :rows="rows" :total="rows.length"
+            :row-class="(u) => (u.isActive ? '' : 'off')"
+            storage-key="users" excel-name="사용자 목록"
+            empty-text="조건에 맞는 사용자가 없습니다."
+            @row-click="openEdit"
+          >
+            <template #cell:company="{ row }">
+              <span v-if="row.partnerCompanyName" class="tag tag-info">{{ row.partnerCompanyName }}</span>
+              <span v-else class="muted">{{ row.companyCode }}</span>
+            </template>
+
+            <template #cell:role="{ row }">
+              <span :class="{ tag: row.role === 'ADMIN' }">{{ row.role === 'ADMIN' ? '관리자' : '일반' }}</span>
+            </template>
+
+            <template #cell:employmentStatus="{ row }">
+              <span class="tag" :class="STATUS.find(x => x.key === row.employmentStatus)?.cls">
+                {{ statusLabel(row.employmentStatus) }}
+              </span>
+              <span v-if="row.mustChangePassword" class="tag warn-tag"
+                    title="첫 로그인 때 변경 화면이 열립니다">초기비번</span>
+            </template>
+
+            <template #cell:lastLoginAt="{ row }">
+              <span :title="row.previousLoginAt ? `직전 ${row.previousLoginAt.slice(0, 10)}` : ''">
+                {{ row.lastLoginAt?.slice(0, 10) ?? '-' }}
+              </span>
+            </template>
+
+            <template #cell:act="{ row }">
+              <button class="btn btn-sm" @click.stop="openEdit(row)">수정</button>
+              <button class="btn btn-sm" @click.stop="resetTarget = row">비번 초기화</button>
+            </template>
+          </DataTable>
         </div>
       </section>
 
@@ -420,10 +441,16 @@ async function savePermissions() {
 
 <style scoped>
 .users { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
+/* `.body > section` 이 overflow:auto 라 그대로 두면 바깥이 한 번 더 스크롤되어
+   그리드의 머리글 고정이 깨진다. 사용자 절만 끈다(권한 절은 그대로 스크롤). */
+.body > section.users-tab {
+  display: flex; flex-direction: column; gap: var(--sp-2);
+  min-height: 0; flex: 1; overflow: hidden;
+}
 
-/* 칸이 15개다 — 좁은 화면에서 본문을 밀지 않고 표 안에서만 가로로 넘긴다 */
-.tablewrap { overflow-x: auto; }
-.tablewrap .grid { min-width: 1180px; }
+/* 가로·세로 스크롤은 DataTable 이 자기 안에서 맡는다. 여기서는 자리만 내준다. */
+.tablewrap { flex: 1; min-height: 420px; display: flex; }
+.tablewrap > * { flex: 1; min-width: 0; }
 
 /* 재직/퇴직/삭제 — 붙은 세 칸으로 묶어 "거르개"임을 보이게 한다 */
 .seg { display: inline-flex; }
