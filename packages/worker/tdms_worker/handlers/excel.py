@@ -94,11 +94,72 @@ def run(
         raise ValueError(f"지원하지 않는 내보내기 대상: {target}")
 
     filters = payload.get("filters") or {}
-    params = {
-        "q": filters.get("q") or None,
-        "include_isometric": bool(filters.get("includeIsometric", False)),
-        "folder_ids": filters.get("folderIds") or None,
-    }
+
+    if target == "tdb_documents":
+        where_clauses = ["d.status <> 'RETIRED'"]
+        status = filters.get("status", "all")
+        if status == "normal":
+            where_clauses.append("d.status = 'ACTIVE' AND NOT d.is_archived")
+        elif status == "review":
+            where_clauses.append("d.status = 'PENDING'")
+        elif status == "distributed":
+            where_clauses.append("lent.vendor_name IS NOT NULL")
+        elif status == "archived":
+            where_clauses.append("d.is_archived")
+        else:
+            where_clauses.append("NOT d.is_archived")
+
+        hold = filters.get("hold", "all")
+        if hold == "both":
+            where_clauses.append("d.has_dwg AND d.has_pdf")
+        elif hold == "dwg_only":
+            where_clauses.append("d.has_dwg AND NOT d.has_pdf")
+        elif hold == "pdf_only":
+            where_clauses.append("d.has_pdf AND NOT d.has_dwg")
+
+        if not bool(filters.get("includeIsometric", False)):
+            where_clauses.append("NOT d.is_isometric")
+
+        params: dict[str, Any] = {}
+        q = filters.get("q")
+        if q:
+            params["q"] = f"%{q}%"
+            search_target = filters.get("searchTarget", "title")
+            if search_target == "folder":
+                where_clauses.append("f.name ILIKE %(q)s")
+            else:
+                where_clauses.append("d.search_text ILIKE %(q)s")
+
+        folder_ids = filters.get("folderIds")
+        if folder_ids:
+            params["folder_ids"] = list(folder_ids)
+            where_clauses.append("d.folder_id = ANY(%(folder_ids)s)")
+
+        sql = f"""
+            SELECT row_number() OVER (ORDER BY d.updated_at DESC, d.id DESC) AS no,
+                   d.drawing_no, d.title, f.name AS folder, d.doc_type,
+                   'Rev' || d.current_rev AS rev,
+                   CASE d.status WHEN 'ACTIVE' THEN '정상' WHEN 'PENDING' THEN '검수'
+                                 WHEN 'SUPERSEDED' THEN '구본'
+                                 WHEN 'MERGE_REQUIRED' THEN '병합 필요'
+                                 ELSE '폐기' END AS status,
+                   concat_ws('/', CASE WHEN d.has_dwg THEN 'DWG' END,
+                                  CASE WHEN d.has_pdf THEN 'PDF' END) AS hold,
+                   lent.vendor_name,
+                   to_char(d.updated_at, 'YYYY-MM-DD') AS updated
+              FROM documents d
+              JOIN folders f ON f.id = d.folder_id
+         LEFT JOIN LATERAL (SELECT vendor_name FROM distributions
+                             WHERE document_id = d.id AND returned_at IS NULL
+                             ORDER BY distributed_at DESC LIMIT 1) lent ON true
+             WHERE {' AND '.join(where_clauses)}
+             ORDER BY d.updated_at DESC, d.id DESC
+        """
+    else:
+        params = {
+            "q": filters.get("q") or None,
+        }
+        sql = spec["sql"]
 
     progress(5, "자료를 읽는 중")
 
@@ -123,7 +184,7 @@ def run(
     written = 0
     with conn.cursor(name="export_cursor") as cur:   # 서버 커서 — 전량을 메모리에 올리지 않는다
         cur.itersize = 2000
-        cur.execute(spec["sql"], params)
+        cur.execute(sql, params)
         for row in cur:
             ws.append([neutralize(v) for v in row])
             written += 1

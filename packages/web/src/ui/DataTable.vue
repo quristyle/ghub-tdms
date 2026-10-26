@@ -95,6 +95,16 @@ const props = withDefaults(defineProps<{
   autoHeight?: boolean
   /** autoHeight 일 때의 한계 높이(px) */
   maxHeight?: number
+  /** 무한 스크롤: 다음 페이지가 더 있는지 */
+  hasMore?: boolean
+  /** 무한 스크롤: 다음 페이지를 불러오는 중인지 */
+  loadingMore?: boolean
+  /** 서버 비동기 엑셀 내보내기 단추를 보일지 */
+  serverExcel?: boolean
+  /** 서버 엑셀 버튼 라벨 */
+  serverExcelLabel?: string
+  /** 서버 엑셀 생성 중 여부 */
+  serverExporting?: boolean
 }>(), {
   rowNumber: true,
   filterRow: true,
@@ -108,6 +118,8 @@ const emit = defineEmits<{
   toggle: [id: number]
   toggleAll: [checked: boolean]
   sort: [key: string, dir: SortDir]
+  loadMore: []
+  exportServer: []
 }>()
 
 const rowH = computed(() => props.rowHeight ?? 30)
@@ -253,8 +265,40 @@ const virtualizer = useVirtualizer(
 const items = computed(() => virtualizer.value.getVirtualItems())
 const totalSize = computed(() => virtualizer.value.getTotalSize())
 
-// 목록이 바뀌면 맨 위로
-watch(() => props.rows, () => scrollEl.value?.scrollTo({ top: 0 }))
+// 목록 조건이 바뀌었을 때만 맨 위로 (무한 스크롤 추가 적재 시에는 스크롤 위치 유지)
+watch(
+  () => props.rows,
+  (next, prev) => {
+    if (!prev?.length || !next?.length || prev[0]?.id !== next[0]?.id) {
+      scrollEl.value?.scrollTo({ top: 0 })
+    }
+  },
+)
+
+// ── 무한 스크롤 트리거 ──────────────────────────────────────────────────
+function checkLoadMore() {
+  if (!props.hasMore || props.loadingMore || props.loading) return
+  emit('loadMore')
+}
+
+watch(items, (currentItems) => {
+  if (!props.hasMore || props.loadingMore || props.loading) return
+  const last = currentItems.at(-1)
+  if (!last) return
+  if (last.index >= visible.value.length - 15) {
+    checkLoadMore()
+  }
+})
+
+function onScroll(ev: Event) {
+  if (!props.hasMore || props.loadingMore || props.loading) return
+  const el = ev.target as HTMLElement
+  if (!el) return
+  const remaining = el.scrollHeight - el.scrollTop - el.clientHeight
+  if (remaining < 300) {
+    checkLoadMore()
+  }
+}
 
 // ── 선택 ────────────────────────────────────────────────────────────────
 const allChecked = computed(
@@ -344,7 +388,7 @@ async function exportExcel() {
   <div class="dt" :class="{ auto: autoHeight }">
     <!-- 머리글·거르기·본문이 한 스크롤 안에 있다 —
          가로로 밀면 머리글과 줄이 함께 움직이고, 세로로 내려도 머리글은 붙어 있다. -->
-    <div ref="scrollEl" class="dt-scroll" :style="scrollStyle">
+    <div ref="scrollEl" class="dt-scroll" :style="scrollStyle" @scroll.passive="onScroll">
       <div class="dt-inner">
       <!-- 머리글 -->
       <div class="dt-head" role="row">
@@ -460,6 +504,22 @@ async function exportExcel() {
       <span v-if="filtering" class="dt-foot-filter">
         · 거른 뒤 <strong>{{ n(visible.length) }}</strong>
       </span>
+      <span v-if="loadingMore" class="dt-foot-loading">
+        <svg class="dt-spin" width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-dasharray="28 10" />
+        </svg>
+        더 불러오는 중…
+      </span>
+      <button
+        v-else-if="hasMore"
+        class="dt-more-btn"
+        title="다음 페이지 불러오기"
+        type="button"
+        @click="checkLoadMore"
+      >
+        더 불러오기
+      </button>
       <span style="flex:1" />
       <span v-if="activeIndex !== null" class="muted">{{ n(activeIndex) }}번째 줄</span>
       <span v-if="selectable && selectedCount > 0" class="dt-foot-sel">
@@ -485,6 +545,27 @@ async function exportExcel() {
                   stroke-linecap="round" stroke-dasharray="28 10" />
         </svg>
         <span>엑셀</span>
+      </button>
+
+      <button
+        v-if="serverExcel"
+        class="dt-xls dt-xls-server" :disabled="serverExporting || (!rows.length && !total)"
+        :title="serverExporting ? '서버에서 엑셀을 만드는 중입니다' : '조건에 맞는 전체 자료를 서버에서 엑셀로 생성해 내려받기'"
+        aria-label="전체 엑셀 내려받기(서버)"
+        type="button"
+        @click="emit('exportServer')"
+      >
+        <svg v-if="!serverExporting" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M9 1.6H4.4a1.2 1.2 0 0 0-1.2 1.2v10.4a1.2 1.2 0 0 0 1.2 1.2h7.2a1.2 1.2 0 0 0 1.2-1.2V5.4z"
+                fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" />
+          <path d="M9 1.6V5.4h3.8" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" />
+          <path d="M8 8v5M5.5 10.5L8 13l2.5-2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <svg v-else class="dt-spin" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"
+                  stroke-linecap="round" stroke-dasharray="28 10" />
+        </svg>
+        <span>{{ serverExcelLabel ?? '전체 엑셀(서버)' }}</span>
       </button>
     </div>
   </div>
@@ -651,6 +732,23 @@ async function exportExcel() {
 }
 .dt-xls:hover:not(:disabled) { color: var(--ok); border-color: var(--ok-line); background: var(--ok-soft); }
 .dt-xls:disabled { opacity: .4; cursor: not-allowed; }
+.dt-xls-server { margin-left: 6px; }
+.dt-xls-server:hover:not(:disabled) { color: var(--primary); border-color: var(--primary); background: var(--primary-soft); }
+.dt-foot-loading {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-left: 8px; font-size: var(--fs-xs); color: var(--primary);
+}
+.dt-more-btn {
+  display: inline-flex; align-items: center;
+  height: 20px; padding: 0 6px; margin-left: 8px;
+  border: 1px solid var(--border); border-radius: var(--r-sm);
+  background: var(--surface); color: var(--fg-muted);
+  font-size: var(--fs-xs); cursor: pointer;
+  transition: all .12s ease;
+}
+.dt-more-btn:hover {
+  color: var(--primary); border-color: var(--primary); background: var(--primary-soft);
+}
 .dt-spin { animation: dt-spin 1s linear infinite; }
 @keyframes dt-spin { to { transform: rotate(360deg); } }
 </style>

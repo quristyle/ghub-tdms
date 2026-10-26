@@ -1,8 +1,26 @@
 import { Errors } from '../../core/errors.js'
+import * as folders from '../folders/service.js'
 import * as q from './queries.js'
 
 export async function create(kind: string, payload: unknown, userId: number): Promise<number> {
-  return q.enqueue(kind, payload, userId)
+  let enrichedPayload = payload
+  if (kind === 'excel_export' && typeof payload === 'object' && payload !== null) {
+    const p = payload as { target?: string; filters?: Record<string, unknown> }
+    if (p.target === 'tdb_documents' && p.filters) {
+      const folderId = p.filters.folderId
+      if (folderId && !p.filters.folderIds) {
+        const folderIds = await folders.scopeIds('TDB', Number(folderId), true)
+        enrichedPayload = {
+          ...p,
+          filters: {
+            ...p.filters,
+            folderIds,
+          },
+        }
+      }
+    }
+  }
+  return q.enqueue(kind, enrichedPayload, userId)
 }
 
 function toDetail(j: q.JobRow) {

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useQuery, useQueryClient } from '@tanstack/vue-query'
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { useRouter } from 'vue-router'
 import type {
   CreateDistributionResult, DocumentListItem, DocumentListResponse,
-  FilterOptions, FolderNode,
+  FilterOptions, FolderNode, JobCreated,
 } from '@tdms/contracts'
 import LazyTree from '@/ui/LazyTree.vue'
 import DataTable, { type Column, type SortDir } from '@/ui/DataTable.vue'
@@ -28,6 +28,7 @@ const searchTarget = ref<'title' | 'folder'>('title')
 const includeIsometric = ref(false)
 const status = ref<'all' | 'normal' | 'review' | 'distributed' | 'archived'>('all')
 const hold = ref<'all' | 'both' | 'dwg_only' | 'pdf_only'>('all')
+const limit = ref<number>(200)
 
 // 입력 중에는 요청하지 않는다. IME 조합 중에도 억제한다.
 const debounced = ref('')
@@ -56,18 +57,26 @@ const params = computed(() => ({
   hold: hold.value,
   sort: sort.value,
   dir: dir.value,
-  limit: 200,
+  limit: limit.value,
 }))
 
-const { data, isFetching } = useQuery({
+const {
+  data,
+  isFetching,
+  isFetchingNextPage,
+  hasNextPage,
+  fetchNextPage,
+} = useInfiniteQuery({
   queryKey: computed(() => qk.documents.list(params.value)),
-  queryFn: () => api.get<DocumentListResponse>(`/documents${qs(params.value)}`),
+  queryFn: ({ pageParam }) =>
+    api.get<DocumentListResponse>(`/documents${qs({ ...params.value, cursor: pageParam ?? undefined })}`),
+  initialPageParam: null as string | null,
+  getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   staleTime: staleTime.list,
-  placeholderData: (prev) => prev,
 })
 
-const rows = computed(() => data.value?.items ?? [])
-const total = computed(() => data.value?.total ?? 0)
+const rows = computed(() => data.value?.pages.flatMap((p) => p.items) ?? [])
+const total = computed(() => data.value?.pages[0]?.total ?? 0)
 
 // ── 반출대기함 (장바구니) — 서버 왕복 없이 로컬 상태로 ──────────────────
 const cart = ref(new Set<number>())
@@ -110,6 +119,42 @@ function reset() {
   includeIsometric.value = false
   status.value = 'all'
   hold.value = 'all'
+  limit.value = 200
+}
+
+// ── 전체 엑셀 다운로드 (서버 비동기 작업) ──────────────────────────────
+const exportJobId = ref<number | null>(null)
+const exportingServer = ref(false)
+
+async function startServerExport() {
+  if (exportingServer.value) return
+  exportingServer.value = true
+  try {
+    const res = await api.post<JobCreated>('/jobs/excel-export', {
+      target: 'tdb_documents',
+      filters: {
+        folderId: folder.value?.id,
+        q: debounced.value || undefined,
+        searchTarget: searchTarget.value,
+        includeIsometric: includeIsometric.value,
+        status: status.value,
+        hold: hold.value,
+      },
+      filename: `TDB_자료목록_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    })
+    exportJobId.value = res.jobId
+    message.value = {
+      kind: 'ok',
+      text: '전체 엑셀 생성을 서버에 요청했습니다. 아래 진행률에서 완료 후 다운로드할 수 있습니다.',
+    }
+  } catch (e) {
+    message.value = {
+      kind: 'err',
+      text: e instanceof ApiError ? e.message : '엑셀 내보내기 요청에 실패했습니다.',
+    }
+  } finally {
+    exportingServer.value = false
+  }
 }
 
 // 행에 마우스를 올리면 상세를 미리 받아 둔다 — 클릭 시 체감 0ms
@@ -225,13 +270,26 @@ const columns = computed<Column<DocumentListItem>[]>(() => [
           <option value="all">원본/사본 전체</option><option value="both">원본/사본 있음</option>
           <option value="dwg_only">원본만 있음</option><option value="pdf_only">사본만 있음</option>
         </select>
+        <select v-model="limit" title="한 번에 불러올 건수">
+          <option :value="200">200건씩</option>
+          <option :value="500">500건씩</option>
+          <option :value="1000">1000건씩</option>
+        </select>
         <label class="chk"><input v-model="includeIsometric" type="checkbox" /> Isometric 보기</label>
         <button class="btn btn-sm" @click="reset">조건 초기화</button>
+        <button
+          class="btn btn-sm" :disabled="exportingServer"
+          title="현재 검색 조건에 맞는 전체 자료를 서버에서 엑셀로 생성합니다"
+          @click="startServerExport"
+        >
+          {{ exportingServer ? '생성 요청 중…' : '전체 엑셀 (서버)' }}
+        </button>
       </div>
       <div class="search-meta muted">
         <span v-if="folder">{{ folder.name }}</span>
         <span v-else>전체 폴더</span>
-        <span v-if="isFetching"> · 조회 중…</span>
+        <span v-if="isFetching && !isFetchingNextPage"> · 조회 중…</span>
+        <span v-else-if="isFetchingNextPage"> · 다음 페이지 불러오는 중…</span>
       </div>
     </div>
 
@@ -242,8 +300,12 @@ const columns = computed<Column<DocumentListItem>[]>(() => [
 
       <div class="panel table-panel">
         <DataTable
-          :columns="columns" :rows="rows" selectable :selected="cart" :loading="isFetching"
+          :columns="columns" :rows="rows" selectable :selected="cart" :loading="isFetching && !isFetchingNextPage && !rows.length"
           :total="total" :sort-key="sort" :sort-dir="dir" storage-key="tdb-list" excel-name="TDB 자료목록"
+          :has-more="hasNextPage" :loading-more="isFetchingNextPage"
+          server-excel :server-exporting="exportingServer"
+          @load-more="() => { if (hasNextPage && !isFetchingNextPage) fetchNextPage() }"
+          @export-server="startServerExport"
           @toggle="toggle" @toggle-all="toggleAll" @sort="onSort"
           @row-hover="prefetch"
           @row-click="(r) => router.push(`/documents/${r.id}`)"
@@ -264,6 +326,15 @@ const columns = computed<Column<DocumentListItem>[]>(() => [
 
     <div v-if="distJobId !== null" class="panel">
       <JobProgress :job-id="distJobId" />
+    </div>
+
+    <div v-if="exportJobId !== null" class="panel">
+      <div style="display:flex;align-items:center;padding:8px 12px;font-size:var(--fs-sm);font-weight:600">
+        <span>전체 엑셀 다운로드 (서버 작업)</span>
+        <span style="flex:1" />
+        <button class="btn btn-sm" @click="exportJobId = null">닫기</button>
+      </div>
+      <JobProgress :job-id="exportJobId" @done="message = { kind: 'ok', text: '전체 엑셀 생성이 완료되었습니다. 받기를 눌러 다운로드하세요.' }" />
     </div>
 
     <div v-if="cart.size" class="panel cart">

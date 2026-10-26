@@ -23,7 +23,7 @@ export const Cursor = z.string().max(200)
 
 export const PageQuery = z.object({
   cursor: Cursor.optional(),
-  limit: z.coerce.number().int().min(1).max(500).default(100),
+  limit: z.coerce.number().int().min(1).max(2000).default(100),
 })
 export type PageQuery = z.infer<typeof PageQuery>
 
