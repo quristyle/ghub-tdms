@@ -6,7 +6,23 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[3]
+
+def _root() -> Path:
+    """`.env` 를 찾을 자리.
+
+    저장소에서 돌 때는 packages/worker/tdms_worker/config.py → parents[3] 이 루트다.
+    컨테이너에서는 /app/tdms_worker/config.py 라 그 깊이가 없다 — parents[3] 을 그냥
+    집으면 IndexError 로 **기동 자체가 죽는다**. 거기서는 설정이 환경변수로 들어오므로
+    .env 를 찾지 않아도 된다. API 쪽과 같은 이름(TDMS_ROOT)으로 덮어쓸 수도 있다.
+    """
+    override = os.environ.get("TDMS_ROOT")
+    if override:
+        return Path(override)
+    here = Path(__file__).resolve()
+    return here.parents[3] if len(here.parents) > 3 else here.parent
+
+
+ROOT = _root()
 
 
 def _load_dotenv() -> None:

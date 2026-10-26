@@ -1,0 +1,76 @@
+# 운영 compose — 서버의 /srv/tdms/docker-compose.yml 로 복사되어 돈다.
+# 정본은 이 파일이다. 서버에서 직접 고치지 않는다 — 배포가 덮어쓴다.
+#
+# 이미지 태그는 .env 의 TAG 로 정한다 (배포 = TAG 바꿔서 up, 롤백 = 이전 TAG 로 up).
+# 비밀값은 /srv/tdms/.env 로만 들어간다 — 이미지에 굽지 않는다.
+#
+# 호스트 루프백에 내놓는 것은 **하나뿐**이다.
+#   127.0.0.1:5570  웹 (tdms.jsini.co.kr) — SPA·/api/ 프록시·/_blob/ 직송이 다 여기 안이다.
+# api 와 worker 는 포트를 열지 않는다. 웹은 컨테이너 안에서 `api` 를 이름으로 부르므로
+# 호스트 nginx 가 죽어도 웹↔api 통신은 끊기지 않는다.
+#
+# DB 는 이 호스트의 127.0.0.1:31015 에 이미 떠 있다(개발과 **같은** ghub_tdms).
+# 컨테이너에서는 host.docker.internal 로 닿는다.
+
+x-common: &common
+  restart: unless-stopped
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+x-app-env: &app-env
+  TZ: Etc/UTC
+  NODE_ENV: production
+  STORAGE_ROOT: /srv/tdms
+  # nginx 가 앞에 있으므로 파일 전송은 X-Accel-Redirect 로 넘긴다.
+  USE_X_ACCEL: "true"
+
+services:
+  api:
+    <<: *common
+    image: ghcr.io/quristyle/ghub-tdms-api:${TAG:-latest}
+    env_file: [.env]           # PGHOST·PGPASSWORD·SESSION_SECRET …
+    environment:
+      <<: *app-env
+      API_LISTEN: 0.0.0.0:8080
+    volumes:
+      - /srv/tdms/blobs:/srv/tdms/blobs
+      - /srv/tdms/tmp:/srv/tdms/tmp
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 4s
+      start_period: 20s
+      retries: 3
+
+  worker:
+    <<: *common
+    image: ghcr.io/quristyle/ghub-tdms-worker:${TAG:-latest}
+    env_file: [.env]
+    environment:
+      <<: *app-env
+      BACKUP_ROOT: /srv/tdms/backup
+    volumes:
+      - /srv/tdms/blobs:/srv/tdms/blobs
+      - /srv/tdms/tmp:/srv/tdms/tmp
+      - /srv/tdms/backup:/srv/tdms/backup
+    depends_on:
+      api: { condition: service_healthy }
+    # 큐가 SKIP LOCKED 라 같은 작업을 두 번 집지 않는다. 밀리면 여기만 올리면 된다.
+    deploy:
+      replicas: 1
+
+  web:
+    <<: *common
+    image: ghcr.io/quristyle/ghub-tdms-web:${TAG:-latest}
+    ports:
+      - "127.0.0.1:5570:8080"
+    volumes:
+      # 읽기 전용 — 직송만 한다. 쓰는 쪽은 api·worker 다.
+      - /srv/tdms/blobs:/srv/tdms/blobs:ro
+    depends_on:
+      api: { condition: service_healthy }

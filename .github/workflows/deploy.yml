@@ -1,0 +1,152 @@
+# main 에 푸시되면 이미지를 굽고 운영서버(han)까지 배포한다.
+#
+# 굽기는 GitHub 러너에서 한다 — 운영서버 CPU 를 빌드에 쓰지 않는다.
+# 올리기는 자체 호스팅 러너(han)에서 한다 — 서버로 들어가는 SSH 키를 두지 않기 위해서다.
+#
+# 배포 = .env 의 TAG 를 바꾸고 compose up. 롤백 = 직전 TAG 로 같은 일.
+# 실패하면 이 워크플로가 스스로 직전 TAG 로 되돌린다.
+
+name: 배포
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "배포할 이미지 태그 (비우면 이번 커밋 SHA). 롤백할 때 옛 SHA 를 넣는다."
+        required: false
+
+concurrency:
+  group: tdms-deploy
+  cancel-in-progress: false   # 배포 도중에 끊으면 서버가 어중간한 상태로 남는다
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/ghub-tdms
+
+jobs:
+  # ── 1) 검증 ─────────────────────────────────────────────────────────
+  verify:
+    name: 검증
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r typecheck
+      - run: pnpm -r test
+      - run: pnpm -r build
+
+  # ── 2) 굽기 ─────────────────────────────────────────────────────────
+  build:
+    name: 굽기
+    runs-on: ubuntu-latest
+    needs: [verify]
+    if: ${{ always() && !failure() && !cancelled() }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        image: [api, web, worker]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.${{ matrix.image }}
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}:${{ github.sha }}
+            ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}:latest
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max
+
+  # ── 3) 올리기 ───────────────────────────────────────────────────────
+  release:
+    name: 올리기
+    runs-on: [self-hosted, tdms]      # han 에 등록된 TDMS 전용 러너
+    needs: [build]
+    if: ${{ always() && !failure() && !cancelled() }}
+    permissions:
+      contents: read
+      packages: read
+    env:
+      # jsini 스택이 쓰는 ~/.docker/config.json 을 건드리지 않는다.
+      DOCKER_CONFIG: /srv/tdms/.docker
+      ROOT: /srv/tdms
+      TAG: ${{ github.event.inputs.tag || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 레지스트리 로그인
+        run: |
+          mkdir -p "$DOCKER_CONFIG"
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: 직전 태그 기억 (롤백용)
+        id: prev
+        run: |
+          prev=$(grep -oP '^TAG=\K.*' "$ROOT/.env" 2>/dev/null || true)
+          echo "tag=${prev}" >> "$GITHUB_OUTPUT"
+          echo "직전 TAG: ${prev:-(없음)}"
+
+      - name: compose 정본 반영
+        run: install -m 0644 deploy/docker-compose.yml "$ROOT/docker-compose.yml"
+
+      - name: 이미지 받기
+        run: |
+          cd "$ROOT"
+          TAG="$TAG" docker compose pull --quiet
+
+      - name: DB 마이그레이션
+        run: |
+          cd "$ROOT"
+          # 앞으로만 간다. 이미 적용된 파일이 바뀌었으면 여기서 멈춘다(migrate.mjs 가 거부).
+          TAG="$TAG" docker compose run --rm --no-deps api node db/migrate.mjs up
+
+      - name: 올리기
+        run: |
+          cd "$ROOT"
+          # .env 의 TAG 만 갈아 끼운다 — 비밀값 줄은 손대지 않는다.
+          if grep -q '^TAG=' .env; then
+            sed -i "s|^TAG=.*|TAG=$TAG|" .env
+          else
+            printf 'TAG=%s\n' "$TAG" >> .env
+          fi
+          docker compose up -d --remove-orphans
+
+      - name: 확인
+        id: verify
+        run: |
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -m 5 http://127.0.0.1:5570/api/health || true)
+            if [ "$code" = "200" ]; then echo "health 200 (${i}회차)"; exit 0; fi
+            sleep 3
+          done
+          echo "::error::30회(90초) 동안 health 가 200 이 아니다"
+          cd /srv/tdms && docker compose ps && docker compose logs --tail=80
+          exit 1
+
+      - name: 실패하면 직전 태그로 되돌리기
+        if: failure() && steps.prev.outputs.tag != ''
+        run: |
+          cd "$ROOT"
+          echo "::warning::배포 실패 → ${{ steps.prev.outputs.tag }} 로 되돌린다"
+          sed -i "s|^TAG=.*|TAG=${{ steps.prev.outputs.tag }}|" .env
+          docker compose up -d --remove-orphans
+
+      - name: 쓰지 않는 이미지 정리
+        if: always()
+        run: docker image prune -af --filter "until=720h"

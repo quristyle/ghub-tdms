@@ -1,0 +1,31 @@
+# 이미지에 들어가면 안 되는 것 / 들어갈 필요 없는 것.
+# 빌드 맥락이 작을수록 CI 가 빠르다 — node_modules 하나만 빼도 수백 MB 가 준다.
+
+.git
+.github
+node_modules
+**/node_modules
+**/dist
+**/.venv
+**/__pycache__
+**/*.pyc
+*.tsbuildinfo
+coverage
+playwright-report
+test-results
+
+# 비밀값 — 이미지에 굽지 않는다. 운영 값은 전부 환경변수로 들어간다.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# 개발 전용
+devctl
+dev.sh
+docs
+db/tools
+
+# 고객 전달물 — 레거시 사내 소스. 이미지에도 넣지 않는다.
+docs/고객요청사항
