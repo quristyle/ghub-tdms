@@ -8,10 +8,12 @@ import TdmsLogo from '@/ui/TdmsLogo.vue'
 /**
  * 앱 셸 — 왼쪽 내비게이션 + 상단바.
  *
- * 메뉴 9개의 목록과 순서는 서버(/auth/me)가 주는 그대로다.
+ * 메뉴의 목록과 순서는 서버(/auth/me)가 주는 그대로다 — 정본은 DB 의 menus 이고
+ * 운영자가 [메뉴 관리] 화면에서 바꾼다.
  * 권한 없는 메뉴는 서버가 이미 빼고 내려주므로 화면이 거르지 않는다.
  *
  * 묶음(도면·데이터북·운영)은 그 순서를 끊어 읽기 쉽게 한 것뿐이다 — 순서를 바꾸지 않는다.
+ * 어느 묶음에도 없는 경로가 생기면 ungrouped 가 맨 뒤에 받아 준다.
  */
 
 const session = useSession()
@@ -21,7 +23,7 @@ const router = useRouter()
 const GROUPS: { title: string; paths: string[] }[] = [
   { title: '도면 (TDB)', paths: ['/', '/import', '/editor', '/distributions'] },
   { title: '데이터북 (MDB)', paths: ['/mdb', '/mdb-editor'] },
-  { title: '운영', paths: ['/audit', '/users', '/backup'] },
+  { title: '운영', paths: ['/audit', '/users', '/menus', '/backup'] },
 ]
 
 const groups = computed(() =>

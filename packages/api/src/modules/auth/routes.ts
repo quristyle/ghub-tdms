@@ -9,7 +9,25 @@ import {
   clearSessionCookie, deferPasswordChange, destroySession,
   readSessionCookie, setSessionCookie,
 } from '../../core/session.js'
+import { cached } from '../../core/cache.js'
+import { listEnabledMenus } from '../admin/queries.js'
 import * as svc from './service.js'
+
+/**
+ * 사이드바에 내려보낼 메뉴 — 운영자가 메뉴관리 화면에서 정해 둔 이름·순서·사용여부.
+ *
+ * 정본은 DB 의 menus 다(0015). 바뀌는 일이 드물고 /auth/me 마다 읽히므로 캐시하고,
+ * 저장할 때 admin 서비스가 cache_menu 를 비운다.
+ *
+ * 한 줄도 못 읽으면 MENU 상수로 돌아간다. 메뉴가 통째로 사라지면 사용자가 어느
+ * 화면으로도 갈 수 없어서, 여기서만은 비어 있는 결과를 그대로 내보내지 않는다.
+ */
+async function visibleMenu(): Promise<{ path: string; label: string; permission: string }[]> {
+  const rows = await cached('cache_menu', 'enabled', async () => ({
+    items: await listEnabledMenus(),
+  }))
+  return rows.items.length > 0 ? rows.items : [...MENU]
+}
 
 export function registerAuthRoutes(app: FastifyInstance): void {
   defineRoute(app, {
@@ -65,7 +83,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
         mustChangePassword: user.mustChangePassword,
         passwordDeferred: user.passwordDeferred,
         permissions: perms,
-        menu: MENU.filter((m) => user.role === 'ADMIN' || permissions.has(m.permission)),
+        menu: (await visibleMenu()).filter((m) => user.role === 'ADMIN' || permissions.has(m.permission)),
       }
     },
   })

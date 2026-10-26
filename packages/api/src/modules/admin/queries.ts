@@ -1,6 +1,6 @@
 import type pg from 'pg'
 import type { AuditQuery } from '@tdms/contracts'
-import { many, one } from '../../core/db.js'
+import { many, one, tx } from '../../core/db.js'
 import { decodeCursor } from '../../core/cursor.js'
 
 /** 운영 화면 쿼리 — 시스템 로그 / 사용자·권한 / 백업 */
@@ -438,4 +438,84 @@ export function markBackupFileDeleted(c: pg.PoolClient, runId: number) {
     `UPDATE backup_runs SET state = 'FILE_DELETED' WHERE id = $1 AND state <> 'FILE_DELETED'`,
     [runId],
   )
+}
+
+// ── 메뉴 관리 ───────────────────────────────────────────────────────────
+
+export interface MenuRow {
+  path: string
+  permissionKey: string
+  label: string
+  sortOrder: number
+  isEnabled: boolean
+  isFixed: boolean
+  updatedAt: Date
+  updatedBy: string | null
+}
+
+/** 메뉴관리 화면이 보는 전부 — 꺼 둔 것도 포함한다. */
+export function listMenus() {
+  return many<MenuRow>(
+    `SELECT m.path,
+            m.permission_key AS "permissionKey",
+            m.label,
+            m.sort_order     AS "sortOrder",
+            m.is_enabled     AS "isEnabled",
+            m.is_fixed       AS "isFixed",
+            m.updated_at     AS "updatedAt",
+            u.name           AS "updatedBy"
+       FROM menus m
+  LEFT JOIN users u ON u.id = m.updated_by
+      ORDER BY m.sort_order`,
+    [],
+    'admin_menus',
+  )
+}
+
+/**
+ * 사이드바에 쓸 메뉴 — 켜 둔 것만, 저장된 순서대로.
+ * /auth/me 가 여기에 다시 권한 필터를 건다.
+ */
+export function listEnabledMenus() {
+  return many<{ path: string; label: string; permission: string }>(
+    `SELECT path, label, permission_key AS permission
+       FROM menus
+      WHERE is_enabled
+      ORDER BY sort_order`,
+    [],
+    'menus_enabled',
+  )
+}
+
+/** 지금 DB 에 있는 경로 집합 — 저장 요청이 그 집합과 같은지 검사하는 데 쓴다. */
+export function menuPaths() {
+  return many<{ path: string; isFixed: boolean }>(
+    'SELECT path, is_fixed AS "isFixed" FROM menus',
+    [],
+    'menu_paths',
+  )
+}
+
+/**
+ * 통째로 저장. 받은 차례가 곧 표시 순서다.
+ *
+ * sort_order 에 유일 인덱스가 걸려 있어 한 줄씩 올리면 중간에서 충돌한다.
+ * 한 트랜잭션 안에서 전부 음수로 밀어 둔 뒤 1..N 으로 다시 적는다.
+ */
+export function saveMenus(
+  items: { path: string; label: string; isEnabled: boolean }[],
+  userId: number,
+) {
+  return tx(async (c) => {
+    await c.query('UPDATE menus SET sort_order = -sort_order')
+    for (const [i, m] of items.entries()) {
+      await c.query(
+        `UPDATE menus
+            SET label = $2, is_enabled = $3, sort_order = $4,
+                updated_at = now(), updated_by = $5
+          WHERE path = $1`,
+        [m.path, m.label.trim(), m.isEnabled, i + 1, userId],
+      )
+    }
+  })
 }

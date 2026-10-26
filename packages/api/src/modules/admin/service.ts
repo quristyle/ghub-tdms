@@ -224,3 +224,53 @@ export async function setBackupNote(runId: number, note: string | null) {
 export async function deleteBackupFile(runId: number) {
   await tx((c) => q.markBackupFileDeleted(c, runId))
 }
+
+// ── 메뉴 관리 ───────────────────────────────────────────────────────────
+
+export function menus() {
+  return q.listMenus().then((items) => ({
+    items: items.map((m) => ({ ...m, updatedAt: m.updatedAt.toISOString() })),
+  }))
+}
+
+/**
+ * 메뉴 저장.
+ *
+ * 줄을 늘리거나 지우는 길은 없다 — 보낸 경로 집합이 DB 와 **정확히 같아야** 한다.
+ * 경로는 SPA 라우터에 컴파일되어 있어 새 줄을 만들어도 갈 곳이 없고, 빠뜨린 줄은
+ * 순서에서 사라져 되살릴 화면이 없어진다.
+ */
+export async function saveMenus(
+  items: { path: string; label: string; isEnabled: boolean }[],
+  userId: number,
+) {
+  const known = await q.menuPaths()
+  const knownSet = new Set(known.map((m) => m.path))
+  const sent = new Set(items.map((m) => m.path))
+
+  if (sent.size !== items.length) {
+    throw Errors.invalid('DUPLICATE_MENU', '같은 메뉴가 두 번 들어 있습니다.')
+  }
+  const unknown = items.map((m) => m.path).filter((p) => !knownSet.has(p))
+  if (unknown.length) {
+    throw Errors.invalid('UNKNOWN_MENU', `없는 메뉴입니다: ${unknown.join(', ')}`)
+  }
+  const missing = [...knownSet].filter((p) => !sent.has(p))
+  if (missing.length) {
+    throw Errors.invalid('MENU_MISSING', `빠진 메뉴가 있습니다: ${missing.join(', ')}`)
+  }
+
+  // 자물쇠 걸린 메뉴(메뉴관리 자신)를 끄면 되돌릴 화면이 없어진다.
+  const fixed = new Set(known.filter((m) => m.isFixed).map((m) => m.path))
+  const lockedOff = items.filter((m) => fixed.has(m.path) && !m.isEnabled)
+  if (lockedOff.length) {
+    throw Errors.conflict(
+      'MENU_LOCKED',
+      `${lockedOff.map((m) => m.label).join(', ')} 은(는) 끌 수 없습니다 — 되돌릴 화면이 없어집니다.`,
+    )
+  }
+
+  await q.saveMenus(items, userId)
+  await invalidate('cache_menu')
+  return menus()
+}

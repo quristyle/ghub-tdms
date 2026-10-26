@@ -12,7 +12,9 @@ import { pool } from './db.js'
  * 단일 프로세스여도 이 구조를 지키는 이유: 나중에 프로세스를 늘릴 때 코드 변경이 없다.
  */
 
-export const CHANNELS = ['cache_perm', 'cache_tree', 'cache_types'] as const
+// cache_menu 를 따로 둔 까닭: 상단 메뉴는 /auth/me 마다 읽히는데 바뀌는 일은 드물다.
+// cache_tree(폴더 트리)에 얹으면 메뉴를 한 번 고칠 때마다 폴더 트리까지 비워진다.
+export const CHANNELS = ['cache_perm', 'cache_tree', 'cache_types', 'cache_menu'] as const
 export type Channel = (typeof CHANNELS)[number]
 
 // LRUCache 의 값은 null 이 될 수 없다. 저장하는 값(Set, 배열)은 전부 object 다.
@@ -22,6 +24,7 @@ const caches: Record<Channel, LRUCache<string, CacheValue>> = {
   cache_perm: new LRUCache({ max: 2_000, ttl: 60_000 }),
   cache_tree: new LRUCache({ max: 500 }),
   cache_types: new LRUCache({ max: 100 }),
+  cache_menu: new LRUCache({ max: 4 }),
 }
 
 export function cacheGet<T extends CacheValue>(ch: Channel, key: string): T | undefined {

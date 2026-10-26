@@ -213,7 +213,17 @@ export const PAGE_PERMISSIONS = {
   'backup.html': 'screen.backup.access',
 } as const satisfies Record<string, PermissionKey>
 
-/** 상단 메뉴 9개 — 순서 그대로. 로그인 후 보낼 첫 화면을 고를 때도 이 차례를 쓴다. */
+/**
+ * 상단 메뉴의 **씨앗이자 비상용 기본값**.
+ *
+ * 운영 중에는 DB 의 menus 테이블이 정본이다(0015 마이그레이션). 운영자가 메뉴관리
+ * 화면에서 이름·순서·사용여부를 바꾸면 그쪽이 바뀐다. 이 배열은 두 가지로만 쓴다.
+ *   1. 마이그레이션이 처음 채워 넣는 내용과 같아야 하는 기준
+ *   2. menus 를 한 줄도 읽지 못했을 때의 되돌아갈 자리 (/auth/me)
+ *
+ * 앞의 9개는 레거시에서 그대로 옮겨 온 것이라 순서와 권한 키를 바꾸지 않는다.
+ * 로그인 후 보낼 첫 화면을 고를 때도 이 차례를 쓴다.
+ */
 export const MENU: readonly { path: string; label: string; permission: PermissionKey }[] = [
   { path: '/',              label: 'TDB 조회',      permission: 'screen.tdb_list.access' },
   { path: '/import',        label: 'TDB 반입·검수', permission: 'screen.tdb_import.access' },
@@ -224,4 +234,7 @@ export const MENU: readonly { path: string; label: string; permission: Permissio
   { path: '/audit',         label: '시스템 로그',   permission: 'screen.audit.access' },
   { path: '/users',         label: '사용자 관리',   permission: 'screen.users.access' },
   { path: '/backup',        label: '백업 관리',     permission: 'screen.backup.access' },
+  // 10번째 — 레거시에 없던 화면. 새 권한 리프를 만들지 않고 사용자·권한 관리와 같은 것을
+  // 쓴다(리프 36개 패리티를 지키기 위해서다 — groups.html 이 쓰던 방식과 같다).
+  { path: '/menus',         label: '메뉴 관리',     permission: 'screen.users.access' },
 ] as const

@@ -57,12 +57,28 @@ describe('권한 트리', () => {
     for (const p of pages) expect(LEAF_KEY_SET.has(p)).toBe(true)
   })
 
-  it('상단 메뉴 9개의 순서와 권한이 기존과 같다', () => {
-    expect(MENU.map((m) => m.label)).toEqual([
+  // MENU 는 이제 DB(menus 테이블)의 씨앗이자 비상용 기본값이다.
+  // 레거시에서 옮겨 온 9개는 **앞에서부터 그 순서 그대로** 남아 있어야 한다 —
+  // 로그인 후 보낼 첫 화면을 고르는 차례가 이것이고, 0015 마이그레이션의 시드와도 같아야 한다.
+  it('레거시 메뉴 9개가 앞머리에 그 순서대로 남아 있다', () => {
+    expect(MENU.slice(0, 9).map((m) => m.label)).toEqual([
       'TDB 조회', 'TDB 반입·검수', 'TDB 관리', 'TDB 반출이력',
       'MDB 조회', 'MDB 관리', '시스템 로그', '사용자 관리', '백업 관리',
     ])
+  })
+
+  it('메뉴 관리 화면이 새 권한 리프를 만들지 않는다 (리프 36개 패리티 유지)', () => {
+    const menus = MENU.find((m) => m.path === '/menus')
+    expect(menus?.label).toBe('메뉴 관리')
+    expect(menus?.permission).toBe('screen.users.access')
+  })
+
+  it('모든 메뉴의 권한 키가 권한 트리에 있다', () => {
     for (const m of MENU) expect(LEAF_KEY_SET.has(m.permission)).toBe(true)
+  })
+
+  it('메뉴 경로에 중복이 없다', () => {
+    expect(new Set(MENU.map((m) => m.path)).size).toBe(MENU.length)
   })
 
   it('상위 노드를 켜면 하위 리프가 전부 켜진다 (cascade)', () => {

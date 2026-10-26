@@ -3,7 +3,8 @@ import type { FastifyInstance } from 'fastify'
 import {
   AuditListResponse, AuditMeta, AuditQuery, BackupListResponse, BackupRunRequest,
   BackupRunResult, BackupStatus, ErrorResponse, GroupListResponse, GroupMembersResponse,
-  GroupPermissionsRequest, GroupPermissionsResponse, GroupSaveRequest, NoteRequest, NoteResult,
+  GroupPermissionsRequest, GroupPermissionsResponse, GroupSaveRequest,
+  MenuListResponse, MenuSaveRequest, NoteRequest, NoteResult,
   PERMISSION_TREE, PartnerCompanyListResponse, PasswordResetResult,
   UserCreateRequest, UserListResponse, UserUpdateRequest,
 } from '@tdms/contracts'
@@ -202,6 +203,36 @@ export function registerAdminRoutes(app: FastifyInstance): void {
       const b = GroupPermissionsRequest.parse(req.body)
       const out = await svc.setPermissions(id, b.granted)
       req.setAuditTarget(`그룹 ${id}`, { count: b.granted.length })
+      return out
+    },
+  })
+
+  // ── 메뉴 관리 ────────────────────────────────────────────────────────
+  // 권한은 사용자·권한 관리와 같은 리프를 쓴다(새 리프를 만들면 레거시 패리티가 깨진다).
+  defineRoute(app, {
+    method: 'GET',
+    url: '/menus',
+    access: permission('screen.users.access'),
+    schema: { response: { 200: MenuListResponse, 403: ErrorResponse } },
+    handler: async () => svc.menus(),
+  })
+
+  defineRoute(app, {
+    method: 'PUT',
+    url: '/menus',
+    access: permission('screen.users.access'),
+    audit: { screen: '메뉴 관리', action: '메뉴 저장' },
+    schema: {
+      body: MenuSaveRequest,
+      response: { 200: MenuListResponse, 403: ErrorResponse, 409: ErrorResponse, 422: ErrorResponse },
+    },
+    handler: async (req) => {
+      const b = MenuSaveRequest.parse(req.body)
+      const out = await svc.saveMenus(b.items, req.auth.user.id)
+      req.setAuditTarget(
+        `메뉴 ${b.items.length}개`,
+        { off: b.items.filter((m) => !m.isEnabled).map((m) => m.path) },
+      )
       return out
     },
   })

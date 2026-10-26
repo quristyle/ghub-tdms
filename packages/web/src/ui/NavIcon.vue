@@ -64,6 +64,13 @@ defineProps<{ path: string }>()
       <path d="M11 3.6a2.2 2.2 0 0 1 0 4.1M12.4 13.4c0-1.5-.5-2.5-1.3-3.2" />
     </template>
 
+    <!-- 메뉴 관리 — 목록과 위아래 화살표 -->
+    <template v-else-if="path === '/menus'">
+      <path d="M2.2 4.2h6.4M2.2 8h6.4M2.2 11.8h6.4" />
+      <path d="M12.2 5.4V11M12.2 5.4 10.9 6.8M12.2 5.4l1.3 1.4" />
+      <path d="M12.2 11l-1.3-1.4M12.2 11l1.3-1.4" />
+    </template>
+
     <!-- 백업 관리 — 저장 더미 -->
     <template v-else-if="path === '/backup'">
       <ellipse cx="8" cy="4" rx="5.4" ry="2" />
