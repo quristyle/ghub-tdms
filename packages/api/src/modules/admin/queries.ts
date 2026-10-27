@@ -448,6 +448,7 @@ export interface MenuRow {
   path: string
   permissionKey: string
   label: string
+  category: string
   sortOrder: number
   isEnabled: boolean
   isFixed: boolean
@@ -463,6 +464,7 @@ export function listMenus() {
             m.path,
             m.permission_key AS "permissionKey",
             m.label,
+            m.category,
             m.sort_order     AS "sortOrder",
             m.is_enabled     AS "isEnabled",
             m.is_fixed       AS "isFixed",
@@ -481,8 +483,8 @@ export function listMenus() {
  * /auth/me 가 여기에 다시 권한 필터를 건다.
  */
 export function listEnabledMenus() {
-  return many<{ id: number; code: string; path: string; label: string; permission: string }>(
-    `SELECT id, code, path, label, permission_key AS permission
+  return many<{ id: number; code: string; path: string; label: string; category: string; permission: string }>(
+    `SELECT id, code, path, label, category, permission_key AS permission
        FROM menus
       WHERE is_enabled
       ORDER BY sort_order`,
@@ -507,7 +509,7 @@ export function menuPaths() {
  * 한 트랜잭션 안에서 sort_order 및 path 를 임시 값으로 밀어 둔 뒤 1..N 으로 다시 적는다.
  */
 export function saveMenus(
-  items: { id: number; path: string; label: string; isEnabled: boolean }[],
+  items: { id: number; path: string; label: string; category: string; isEnabled: boolean }[],
   userId: number,
 ) {
   return tx(async (c) => {
@@ -516,10 +518,10 @@ export function saveMenus(
     for (const [i, m] of items.entries()) {
       await c.query(
         `UPDATE menus
-            SET path = $1, label = $2, is_enabled = $3, sort_order = $4,
-                updated_at = now(), updated_by = $5
-          WHERE id = $6`,
-        [m.path, m.label.trim(), m.isEnabled, i + 1, userId, m.id],
+            SET path = $1, label = $2, category = $3, is_enabled = $4, sort_order = $5,
+                updated_at = now(), updated_by = $6
+          WHERE id = $7`,
+        [m.path, m.label.trim(), m.category.trim(), m.isEnabled, i + 1, userId, m.id],
       )
     }
   })

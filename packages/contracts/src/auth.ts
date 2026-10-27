@@ -27,6 +27,7 @@ export const MenuItem = z.object({
   code: z.string().optional(),
   path: z.string(),
   label: z.string(),
+  category: z.string().optional(),
   permission: z.string(),
 })
 export type MenuItem = z.infer<typeof MenuItem>

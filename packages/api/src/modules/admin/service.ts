@@ -240,7 +240,7 @@ export function menus() {
  * 자물쇠 걸린 메뉴(메뉴관리 자신)는 끌 수 없다.
  */
 export async function saveMenus(
-  items: { id?: number; code?: string; path: string; label: string; isEnabled: boolean }[],
+  items: { id?: number; code?: string; path: string; label: string; category?: string; isEnabled: boolean }[],
   userId: number,
 ) {
   const known = await q.listMenus()
@@ -276,11 +276,13 @@ export async function saveMenus(
     let p = item.path.trim()
     if (!p.startsWith('/')) p = `/${p}`
     if (p.length > 1 && p.endsWith('/')) p = p.replace(/\/+$/, '')
+    const cat = item.category?.trim() || match!.category || '일반'
     return {
       id: match!.id,
       code: match!.code,
       path: p,
       label: item.label.trim(),
+      category: cat,
       isEnabled: item.isEnabled,
     }
   })

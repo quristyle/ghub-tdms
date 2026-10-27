@@ -263,6 +263,7 @@ export const MenuAdminRow = z.object({
   path: z.string(),
   permissionKey: z.string(),
   label: z.string(),
+  category: z.string(),
   sortOrder: z.number().int(),
   isEnabled: z.boolean(),
   /** 끌 수 없는 메뉴 — 메뉴관리 자신. 화면이 토글을 잠그는 데 쓴다. */
@@ -285,6 +286,7 @@ export const MenuSaveRequest = z.object({
     code: z.string().optional(),
     path: z.string().trim().min(1, '경로를 비울 수 없습니다'),
     label: z.string().trim().min(1, '메뉴 이름을 비울 수 없습니다').max(40),
+    category: z.string().trim().min(1, '분류(카테고리)를 비울 수 없습니다').max(40).default('일반'),
     isEnabled: z.boolean(),
   })).min(1),
 })

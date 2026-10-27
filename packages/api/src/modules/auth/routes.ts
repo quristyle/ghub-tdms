@@ -22,7 +22,7 @@ import * as svc from './service.js'
  * 한 줄도 못 읽으면 MENU 상수로 돌아간다. 메뉴가 통째로 사라지면 사용자가 어느
  * 화면으로도 갈 수 없어서, 여기서만은 비어 있는 결과를 그대로 내보내지 않는다.
  */
-async function visibleMenu(): Promise<{ id?: number; code?: string; path: string; label: string; permission: string }[]> {
+async function visibleMenu(): Promise<{ id?: number; code?: string; path: string; label: string; category?: string; permission: string }[]> {
   const rows = await cached('cache_menu', 'enabled', async () => ({
     items: await listEnabledMenus(),
   }))

@@ -20,7 +20,7 @@ const session = useSession()
 const route = useRoute()
 const router = useRouter()
 
-const GROUPS: { title: string; codes: string[]; paths: string[] }[] = [
+const FALLBACK_GROUPS: { title: string; codes: string[]; paths: string[] }[] = [
   {
     title: '도면 (TDB)',
     codes: ['tdb_list', 'tdb_import', 'tdb_editor', 'tdb_distributions'],
@@ -38,20 +38,45 @@ const GROUPS: { title: string; codes: string[]; paths: string[] }[] = [
   },
 ]
 
-const isInGroup = (m: { code?: string; path: string }, g: typeof GROUPS[number]) => {
-  if (m.code && g.codes.includes(m.code)) return true
-  return g.paths.includes(m.path)
+const collapsedGroups = ref<Record<string, boolean>>({})
+
+function toggleGroup(title: string) {
+  collapsedGroups.value[title] = !collapsedGroups.value[title]
 }
 
-const groups = computed(() =>
-  GROUPS
-    .map((g) => ({ title: g.title, items: session.menu.filter((m) => isInGroup(m, g)) }))
-    .filter((g) => g.items.length > 0),
-)
+const groups = computed(() => {
+  const menus = session.menu
+  const hasCategories = menus.some((m) => !!m.category)
+  if (hasCategories) {
+    const map = new Map<string, typeof menus>()
+    for (const m of menus) {
+      const cat = m.category?.trim() || '기타'
+      if (!map.has(cat)) map.set(cat, [])
+      map.get(cat)!.push(m)
+    }
+    return Array.from(map.entries()).map(([title, items]) => ({ title, items }))
+  }
+
+  const isInGroup = (m: { code?: string; path: string }, g: (typeof FALLBACK_GROUPS)[number]) => {
+    if (m.code && g.codes.includes(m.code)) return true
+    return g.paths.includes(m.path)
+  }
+  return FALLBACK_GROUPS
+    .map((g) => ({ title: g.title, items: menus.filter((m) => isInGroup(m, g)) }))
+    .filter((g) => g.items.length > 0)
+})
+
 /** 어느 묶음에도 없는 메뉴가 생기면 사라지지 않게 맨 뒤에 둔다 */
-const ungrouped = computed(() =>
-  session.menu.filter((m) => !GROUPS.some((g) => isInGroup(m, g))),
-)
+const ungrouped = computed(() => {
+  const menus = session.menu
+  const hasCategories = menus.some((m) => !!m.category)
+  if (hasCategories) return []
+  const isInGroup = (m: { code?: string; path: string }, g: (typeof FALLBACK_GROUPS)[number]) => {
+    if (m.code && g.codes.includes(m.code)) return true
+    return g.paths.includes(m.path)
+  }
+  return menus.filter((m) => !FALLBACK_GROUPS.some((g) => isInGroup(m, g)))
+})
 
 const title = computed(() => {
   const m = session.menu.find((x) => x.path === route.path)
@@ -199,15 +224,29 @@ async function logout() {
 
       <div class="nav-scroll">
         <template v-for="g in groups" :key="g.title">
-          <div class="nav-group">{{ g.title }}</div>
-          <RouterLink
-            v-for="m in g.items" :key="m.path" :to="m.path"
-            class="nav-item" :class="{ on: route.path === m.path }" :title="m.label"
-            @click="closeMobileNav"
+          <div
+            class="nav-group" :class="{ 'is-collapsed': collapsedGroups[g.title] }"
+            :title="`${g.title} (${g.items.length})`"
+            @click="toggleGroup(g.title)"
           >
-            <NavIcon :path="m.path" :code="m.code" />
-            <span class="nav-text">{{ m.label }}</span>
-          </RouterLink>
+            <span class="nav-group-title">{{ g.title }}</span>
+            <svg
+              class="nav-group-arrow" width="10" height="10" viewBox="0 0 16 16"
+              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            >
+              <path d="M4 6l4 4 4-4" />
+            </svg>
+          </div>
+          <div v-show="!collapsedGroups[g.title]" class="nav-group-items">
+            <RouterLink
+              v-for="m in g.items" :key="m.path" :to="m.path"
+              class="nav-item" :class="{ on: route.path === m.path }" :title="m.label"
+              @click="closeMobileNav"
+            >
+              <NavIcon :path="m.path" :code="m.code" />
+              <span class="nav-text">{{ m.label }}</span>
+            </RouterLink>
+          </div>
         </template>
 
         <template v-if="ungrouped.length">
@@ -351,12 +390,27 @@ async function logout() {
 .nav-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: var(--sp-2) 8px; }
 
 .nav-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 12px 8px 5px;
   font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--fg-subtle);
   white-space: nowrap;
+  user-select: none;
+  cursor: pointer;
+  transition: color .12s ease;
 }
+.nav-group:hover { color: var(--fg-muted); }
+.nav-group-arrow {
+  transition: transform .2s ease;
+  flex: 0 0 auto;
+}
+.nav-group.is-collapsed .nav-group-arrow {
+  transform: rotate(-90deg);
+}
+.app-shell.rail .nav-group-arrow { display: none; }
 .nav-scroll > .nav-group:first-child { padding-top: 4px; }
 
 .nav-item {

@@ -83,6 +83,13 @@ describe('권한 트리', () => {
     for (const m of MENU) expect(LEAF_KEY_SET.has(m.permission)).toBe(true)
   })
 
+  it('모든 메뉴가 카테고리를 가지고 있다', () => {
+    for (const m of MENU) {
+      expect(m.category).toBeDefined()
+      expect(m.category.length).toBeGreaterThan(0)
+    }
+  })
+
   it('메뉴 경로에 중복이 없다', () => {
     expect(new Set(MENU.map((m) => m.path)).size).toBe(MENU.length)
   })
