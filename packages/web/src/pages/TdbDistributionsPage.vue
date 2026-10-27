@@ -189,7 +189,7 @@ const ZIP_COLUMNS: Column<ZipExportRow & { id: number }>[] = [
   { key: 'returnedCount', label: '반입', width: '70px', align: 'right', render: (z) => String(z.returnedCount) },
   { key: 'complete', label: '상태', width: '100px', align: 'center',
     render: (z) => (z.complete ? '반입완료' : '반입미완료') },
-  { key: 'act', label: '조치', width: '92px', align: 'center', filterable: false, render: () => '' },
+  { key: 'act', label: '조치', width: '92px', align: 'center', sortable: false, filterable: false, render: () => '' },
 ]
 
 /**

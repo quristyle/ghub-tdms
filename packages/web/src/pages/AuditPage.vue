@@ -83,7 +83,7 @@ const COLUMNS: Column<AuditEntry>[] = [
   { key: 'target',     label: '자료명',    sortable: true, render: (a) => a.target ?? '' },
   { key: 'clientIp',   label: '접속 주소', width: '130px', align: 'center', sortable: true, render: (a) => a.clientIp ?? '' },
   // 상세는 본문이 JSON 이라 한 줄로 못 보여 준다. 있는지 없는지만 적고 창으로 연다.
-  { key: 'detail',     label: '상세',      width: '64px', align: 'center', filterable: false,
+  { key: 'detail',     label: '상세',      width: '64px', align: 'center', sortable: false, filterable: false,
     render: (a) => (a.detail ? '있음' : '') },
 ]
 

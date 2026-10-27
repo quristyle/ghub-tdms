@@ -190,7 +190,7 @@ const ISSUE_COLUMNS: Column<ImportIssue>[] = [
     render: (i) => i.suggestedDrawingNo ?? '' },
   { key: 'vendorName', label: '업체', width: '130px', align: 'center', render: (i) => i.vendorName ?? '' },
   { key: 'createdAt', label: '등록일시', width: '110px', align: 'center', render: (i) => i.createdAt.slice(0, 10) },
-  { key: 'act', label: '조치', width: '140px', align: 'center', filterable: false, render: () => '' },
+  { key: 'act', label: '조치', width: '140px', align: 'center', sortable: false, filterable: false, render: () => '' },
 ]
 
 function size(b: number): string {

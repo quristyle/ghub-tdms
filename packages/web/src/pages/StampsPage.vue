@@ -35,13 +35,13 @@ const COLUMNS: Column<StampItem>[] = [
     width: '64px',
     align: 'center',
     render: (r) => String(r.sortOrder),
-    sortable: false,
   },
   {
     key: 'preview',
     label: '미리보기',
     width: '120px',
     align: 'center',
+    sortable: false,
     filterable: false,
     render: () => '',
   },
@@ -89,6 +89,7 @@ const COLUMNS: Column<StampItem>[] = [
     label: '관리',
     width: '120px',
     align: 'center',
+    sortable: false,
     filterable: false,
     render: () => '',
   },
@@ -378,6 +379,8 @@ async function toggleEnabled(s: StampItem) {
         :columns="COLUMNS"
         :rows="stamps"
         :total="stamps.length"
+        default-sort-key="sortOrder"
+        default-sort-dir="asc"
         storage-key="stamps-list"
         excel-name="스탬프_목록"
         empty-text="등록된 스탬프가 없습니다."

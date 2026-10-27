@@ -106,18 +106,18 @@ function size(b: number): string {
 /* 'Mechanical Data Book'(자료유형)·'Heat Exchanger'(설비유형)가 들어가는 너비로 잡았다 */
 const columns = computed<Column<MdbListItem>[]>(() => [
   { key: 'title', label: '자료명', width: '288px', sortable: true },
-  { key: 'folderName', label: '폴더' },   // 남는 자리를 받는 칸
+  { key: 'folderName', label: '폴더', sortable: false },   // 남는 자리를 받는 칸
   { key: 'equipmentType', label: '설비유형', width: '124px', sortable: true,
     render: (r) => r.equipmentType ?? '-' },
   { key: 'docType', label: '자료유형', width: '176px', sortable: true,
     render: (r) => r.docType ?? '-' },
   { key: 'year', label: '연도', width: '64px', align: 'center', sortable: true,
     render: (r) => String(r.year ?? '-') },
-  { key: 'isShared', label: '공용/전용', width: '84px', align: 'center',
+  { key: 'isShared', label: '공용/전용', width: '84px', align: 'center', sortable: false,
     render: (r) => (r.isShared ? '공용' : '전용') },
-  { key: 'tagCount', label: 'Tag', width: '56px', align: 'center', filterable: false,
+  { key: 'tagCount', label: 'Tag', width: '56px', align: 'center', sortable: false, filterable: false,
     render: (r) => String(r.tagCount) },
-  { key: 'byteSize', label: '크기', width: '84px', align: 'right', filterable: false,
+  { key: 'byteSize', label: '크기', width: '84px', align: 'right', sortable: false, filterable: false,
     render: (r) => size(r.byteSize) },
   { key: 'updatedAt', label: '최종수정', width: '104px', align: 'center', sortable: true,
     render: (r) => r.updatedAt.slice(0, 10) },

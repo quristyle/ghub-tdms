@@ -166,7 +166,7 @@ const COLUMNS: Column<UserRow>[] = [
   { key: 'hireDate', label: '입사일', width: '100px', align: 'center', render: (u) => u.hireDate ?? '' },
   { key: 'lastLoginAt', label: '접속일', width: '100px', align: 'center',
     render: (u) => u.lastLoginAt?.slice(0, 10) ?? '' },
-  { key: 'act', label: '조치', width: '152px', align: 'center', filterable: false, render: () => '' },
+  { key: 'act', label: '조치', width: '152px', align: 'center', sortable: false, filterable: false, render: () => '' },
 ]
 
 /** 빈 칸은 null 로 보낸다 — ''를 저장하면 "값이 있는데 비어 있는" 칸이 생긴다. */

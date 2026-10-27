@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import { downloadXlsx } from '@/lib/xlsx'
+import { compareRows, getCellValue, isSortable, type SortDir } from './gridSort'
 
 /**
  * 가상 스크롤 표.
@@ -47,7 +48,7 @@ export interface Column<T> {
   width?: string
   align?: 'left' | 'center' | 'right'
   render?: (row: T) => string
-  /** 이 칸으로 정렬할 수 있는가 (서버가 아는 키여야 한다) */
+  /** 이 칸으로 정렬할 수 있는가 (기본: 그렇다. 정렬을 막으려면 false 로 지정한다) */
   sortable?: boolean
   /** 이 칸을 거를 수 있는가 (기본: 그렇다) */
   filterable?: boolean
@@ -55,7 +56,7 @@ export interface Column<T> {
   exportable?: boolean
 }
 
-export type SortDir = 'asc' | 'desc'
+export type { SortDir }
 
 /**
  * Boolean prop 은 넘기지 않으면 Vue 가 **false 로 바꾼다**(undefined 가 아니다).
@@ -72,9 +73,12 @@ const props = withDefaults(defineProps<{
   emptyText?: string
   /** 서버가 아는 전체 건수 (불러온 것보다 많을 수 있다) */
   total?: number | null
-  /** 지금 정렬 상태 */
+  /** 지금 정렬 상태 (서버 정렬 시 상위에서 제어) */
   sortKey?: string
   sortDir?: SortDir
+  /** 기본 정렬 상태 (클라이언트 정렬 시 초기값) */
+  defaultSortKey?: string
+  defaultSortDir?: SortDir
   /** 너비·거르기를 기억할 이름. 화면마다 다르게 준다. */
   storageKey?: string
   /** 순번 열을 보일지 */
@@ -133,19 +137,41 @@ const scrollStyle = computed(() =>
 const showNo = computed(() => props.rowNumber)
 const showFilter = computed(() => props.filterRow)
 
-// ── 거르기 (불러온 것 안에서) ───────────────────────────────────────────
+// ── 거르기 및 정렬 ───────────────────────────────────────────────────────
 const filters = ref<Record<string, string>>({})
+
+const innerSortKey = ref<string | null>(props.defaultSortKey ?? null)
+const innerSortDir = ref<SortDir>(props.defaultSortDir ?? 'asc')
+
+const currentSortKey = computed(() => props.sortKey ?? innerSortKey.value)
+const currentSortDir = computed(() =>
+  props.sortKey !== undefined ? (props.sortDir ?? 'asc') : innerSortDir.value,
+)
 
 const visible = computed(() => {
   const active = Object.entries(filters.value).filter(([, v]) => v.trim() !== '')
-  if (!active.length) return props.rows
-  return props.rows.filter((row) =>
-    active.every(([key, needle]) => {
-      const col = props.columns.find((c) => c.key === key)
-      if (!col) return true
-      return cell(row, col).toLowerCase().includes(needle.trim().toLowerCase())
-    }),
-  )
+  let list = props.rows
+  if (active.length) {
+    list = list.filter((row) =>
+      active.every(([key, needle]) => {
+        const col = props.columns.find((c) => c.key === key)
+        if (!col) return true
+        return cell(row, col).toLowerCase().includes(needle.trim().toLowerCase())
+      }),
+    )
+  }
+
+  // 상위 제어(서버 정렬 등 props.sortKey 가 직접 넘어오는 경우)가 아니고,
+  // 클라이언트 정렬 대상 키가 설정되어 있으면 내부에서 정렬을 수행한다.
+  if (props.sortKey === undefined && innerSortKey.value) {
+    const sortCol = props.columns.find((c) => c.key === innerSortKey.value)
+    if (sortCol) {
+      const dir = innerSortDir.value
+      list = [...list].sort((a, b) => compareRows(a, b, sortCol, dir))
+    }
+  }
+
+  return list
 })
 
 const filtering = computed(() => Object.values(filters.value).some((v) => v.trim() !== ''))
@@ -248,8 +274,14 @@ onBeforeUnmount(() => {
 
 // ── 정렬 ────────────────────────────────────────────────────────────────
 function onHeaderClick(col: Column<T>) {
-  if (!col.sortable) return
-  const dir: SortDir = props.sortKey === col.key && props.sortDir === 'asc' ? 'desc' : 'asc'
+  if (!isSortable(col)) return
+  const dir: SortDir =
+    currentSortKey.value === col.key && currentSortDir.value === 'asc' ? 'desc' : 'asc'
+
+  if (props.sortKey === undefined) {
+    innerSortKey.value = col.key
+    innerSortDir.value = dir
+  }
   emit('sort', col.key, dir)
 }
 
@@ -353,9 +385,7 @@ function onRowEnter(row: T) {
 }
 
 function cell(row: T, col: Column<T>): string {
-  if (col.render) return col.render(row)
-  const v = (row as Record<string, unknown>)[col.key]
-  return v === null || v === undefined ? '' : String(v)
+  return getCellValue(row, col)
 }
 
 const n = (v: number) => v.toLocaleString('ko-KR')
@@ -407,15 +437,15 @@ async function exportExcel() {
 
         <div
           v-for="col in columns" :key="col.key"
-          class="dt-cell dt-th" :class="{ sortable: col.sortable, sorted: sortKey === col.key }"
+          class="dt-cell dt-th" :class="{ sortable: isSortable(col), sorted: currentSortKey === col.key }"
           :style="cellStyle(col)"
-          :title="col.sortable ? `${col.label} — 눌러서 정렬` : col.label"
-          :aria-sort="sortKey === col.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined"
+          :title="isSortable(col) ? `${col.label} — 눌러서 정렬` : col.label"
+          :aria-sort="currentSortKey === col.key ? (currentSortDir === 'asc' ? 'ascending' : 'descending') : undefined"
           @click="onHeaderClick(col)"
         >
           <span class="dt-th-label">{{ col.label }}</span>
-          <span v-if="col.sortable" class="dt-sort" :class="{ on: sortKey === col.key }">
-            {{ sortKey === col.key ? (sortDir === 'asc' ? '▲' : '▼') : '▲' }}
+          <span v-if="isSortable(col)" class="dt-sort" :class="{ on: currentSortKey === col.key }">
+            {{ currentSortKey === col.key ? (currentSortDir === 'asc' ? '▲' : '▼') : '▲' }}
           </span>
           <span
             class="dt-grip" title="끌어서 너비 조절 · 두 번 눌러 되돌리기"

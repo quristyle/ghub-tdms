@@ -227,15 +227,15 @@ async function submitDistribution() {
 const columns = computed<Column<DocumentListItem>[]>(() => [
   { key: 'drawingNo', label: '자료명', width: '168px', sortable: true },
   { key: 'title', label: '내용', sortable: true },
-  { key: 'folderName', label: '폴더', width: '160px' },
+  { key: 'folderName', label: '폴더', width: '160px', sortable: false },
   { key: 'currentRev', label: 'Rev', width: '62px', align: 'center', sortable: true,
     render: (r) => `Rev${r.currentRev}` },
   {
-    key: 'hold', label: '원본/사본', width: '96px', align: 'center',
+    key: 'hold', label: '원본/사본', width: '96px', align: 'center', sortable: false,
     render: (r) => [r.hasDwg ? 'DWG' : '', r.hasPdf ? 'PDF' : ''].filter(Boolean).join('/') || '-',
   },
   {
-    key: 'status', label: '상태', width: '158px',
+    key: 'status', label: '상태', width: '158px', sortable: false,
     render: (r) => (r.lentTo ? `${r.lentTo} 대여중` : STATUS_LABEL[r.status] ?? r.status),
   },
   {

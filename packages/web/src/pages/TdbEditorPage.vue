@@ -74,7 +74,7 @@ function toggleAll(on: boolean) {
 const columns = computed<Column<DocumentListItem>[]>(() => [
   { key: 'drawingNo', label: '자료명', width: '168px', sortable: true },
   { key: 'title', label: '내용', sortable: true },
-  { key: 'folderName', label: '폴더', width: '160px' },
+  { key: 'folderName', label: '폴더', width: '160px', sortable: false },
   { key: 'currentRev', label: 'Rev', width: '62px', align: 'center', sortable: true,
     render: (r) => `Rev${r.currentRev}` },
   { key: 'updatedAt', label: '최종수정', width: '104px', align: 'center', sortable: true,

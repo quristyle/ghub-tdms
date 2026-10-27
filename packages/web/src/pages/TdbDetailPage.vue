@@ -92,7 +92,7 @@ const FILE_COLUMNS: Column<FileRow>[] = [
     render: (f) => (f.reviewStatus === 'APPROVED' ? '승인' : f.reviewStatus) },
   { key: 'uploadedAt', label: '업로드일시', width: '110px', align: 'center',
     render: (f) => f.uploadedAt.slice(0, 10) },
-  { key: 'act', label: '조치', width: '80px', align: 'center', filterable: false, render: () => '' },
+  { key: 'act', label: '조치', width: '80px', align: 'center', sortable: false, filterable: false, render: () => '' },
 ]
 
 /**

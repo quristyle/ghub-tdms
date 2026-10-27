@@ -72,14 +72,14 @@ const { data: meta } = useQuery({
 
 const columns = computed<Column<MdbListItem>[]>(() => [
   { key: 'title', label: '자료명', width: '288px', sortable: true },
-  { key: 'folderName', label: '폴더' },   // 남는 자리를 받는 칸
+  { key: 'folderName', label: '폴더', sortable: false },   // 남는 자리를 받는 칸
   { key: 'equipmentType', label: '설비유형', width: '124px', sortable: true,
     render: (r) => r.equipmentType ?? '-' },
   { key: 'docType', label: '자료유형', width: '176px', sortable: true,
     render: (r) => r.docType ?? '-' },
   { key: 'year', label: '연도', width: '64px', align: 'center', sortable: true,
     render: (r) => String(r.year ?? '-') },
-  { key: 'tagCount', label: 'Tag', width: '56px', align: 'center', filterable: false,
+  { key: 'tagCount', label: 'Tag', width: '56px', align: 'center', sortable: false, filterable: false,
     render: (r) => String(r.tagCount) },
 ])
 
