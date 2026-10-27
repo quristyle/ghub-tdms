@@ -1,0 +1,103 @@
+<!doctype html>
+<!--
+  호스트 nginx 가 웹 컨테이너에 닿지 못할 때(배포 중 재시작, 컨테이너 다운) 보여주는 화면.
+  기본 "502 Bad Gateway" 대신 나간다. 외부 자원(폰트·이미지·스크립트)을 하나도 부르지 않는다 —
+  그것들도 같은 서버에 있어서 지금은 못 받기 때문이다.
+  /var/www/tdms-down/ 에 복사해 쓴다(deploy/nginx/tdms.jsini.co.kr.conf 참고).
+-->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>잠시 점검 중입니다 · TDMS</title>
+<style>
+  :root {
+    --primary: #c8102e;
+    --fg: #1f2328;
+    --muted: #656d76;
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --line: #e3e6ea;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+    background: var(--bg); color: var(--fg);
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+    font-size: 15px; line-height: 1.6;
+  }
+  .card {
+    width: 100%; max-width: 440px;
+    padding: 40px 36px 32px;
+    background: var(--card);
+    border: 1px solid var(--line); border-top: 4px solid var(--primary);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(31, 35, 40, .06);
+    text-align: center;
+  }
+  .brand { font-weight: 700; letter-spacing: .08em; color: var(--primary); font-size: 13px; }
+  h1 { margin: 12px 0 8px; font-size: 22px; }
+  p { margin: 0; color: var(--muted); }
+  .spinner {
+    width: 36px; height: 36px; margin: 28px auto 20px;
+    border: 3px solid var(--line); border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+  .status { font-size: 13px; color: var(--muted); min-height: 1.6em; }
+  button {
+    margin-top: 20px; padding: 8px 20px;
+    font: inherit; font-size: 14px; color: #fff;
+    background: var(--primary); border: 0; border-radius: 6px; cursor: pointer;
+  }
+  button:hover { filter: brightness(.92); }
+</style>
+</head>
+<body>
+  <main class="card">
+    <div class="brand">TDMS</div>
+    <h1>잠시 점검 중입니다</h1>
+    <p>서버가 재시작되고 있거나 일시적으로 응답하지 않습니다.<br>
+       보통 1~2분 안에 자동으로 다시 연결됩니다.</p>
+    <div class="spinner" aria-hidden="true"></div>
+    <div class="status" id="status" role="status" aria-live="polite">연결을 확인하고 있습니다…</div>
+    <button type="button" onclick="location.reload()">지금 다시 시도</button>
+  </main>
+<script>
+  // 서버가 돌아오면 원래 보던 화면으로 저절로 돌아간다.
+  // 이 화면은 503 으로 나가므로 res.ok 가 참이면 서버가 살아난 것이다.
+  (function () {
+    var statusEl = document.getElementById('status');
+    var wait = 5;
+    function check() {
+      fetch('/healthz', { cache: 'no-store', credentials: 'same-origin' })
+        .then(function (res) {
+          if (res.ok) {
+            statusEl.textContent = '연결되었습니다. 화면을 다시 불러옵니다…';
+            location.reload();
+          } else {
+            schedule();
+          }
+        })
+        .catch(schedule);
+    }
+    function schedule() {
+      var left = wait;
+      statusEl.textContent = left + '초 후 다시 확인합니다';
+      var t = setInterval(function () {
+        left -= 1;
+        if (left <= 0) { clearInterval(t); statusEl.textContent = '연결을 확인하고 있습니다…'; check(); }
+        else statusEl.textContent = left + '초 후 다시 확인합니다';
+      }, 1000);
+      wait = Math.min(wait + 5, 30);
+    }
+    schedule();
+  })();
+</script>
+</body>
+</html>

@@ -92,6 +92,8 @@ sudo ./svc.sh install lee && sudo ./svc.sh start                 # ← sudo 필�
 
 ```bash
 sudo certbot --nginx -d tdms.jsini.co.kr                          # ← sudo 필요
+sudo mkdir -p /var/www/tdms-down                                  # 점검 화면(502 대신)
+sudo cp deploy/nginx/tdms-down/* /var/www/tdms-down/
 sudo cp deploy/nginx/tdms.jsini.co.kr.conf /etc/nginx/sites-available/
 sudo ln -sfn /etc/nginx/sites-available/tdms.jsini.co.kr.conf \
              /etc/nginx/sites-enabled/
@@ -147,6 +149,12 @@ main 에 푸시하면 자동으로 돈다. 손으로 돌리려면 Actions → �
 - 이 서버의 nginx 는 **1.24** 다. `http2 on;` 독립 지시어(1.25.1+)를 쓰면
   `unknown directive` 로 막힌다. 1.24 식으로 listen 줄에 붙이는 것도 안 된다 —
   같은 443 소켓을 쓰는 다른 사이트들과 옵션이 어긋난다. 그래서 HTTP/2 는 끈 채로 둔다.
+- 웹 컨테이너가 내려가 있으면(배포 중 재시작 등) 호스트 nginx 가 기본 `502 Bad Gateway`
+  대신 `/var/www/tdms-down/` 의 점검 화면을 **503 + Retry-After** 로 낸다. 화면은
+  `/healthz` 를 몇 초마다 확인하다가 살아나면 스스로 새로 고친다. `/api/` 호출에는
+  `ErrorResponse` 모양 JSON 을 내서 화면이 사람 말로 된 메시지를 띄운다. 웹은 떠 있고
+  api 만 죽은 경우는 웹 컨테이너 nginx 가 같은 JSON 을 낸다(`web-nginx.conf` `@api_down`).
+  `/var/www/tdms-down/` 이 비어 있으면 그 자리에서 404 가 난다 — conf 보다 먼저 복사한다.
 - `deploy/systemd/`, `deploy/nginx/_참고-단독설치.conf` 는 컨테이너를 쓰지 않는
   단독 설치용 참고본이다. 지금 운영 경로는 컨테이너다.
 
@@ -157,6 +165,6 @@ han 의 `lee` 는 sudo 에 암호를 요구한다. 자동화가 닿지 않는 �
 1. `sudo mkdir -p /srv/tdms && sudo chown lee:lee /srv/tdms`
 2. `sudo ./svc.sh install lee && sudo ./svc.sh start` (러너를 서비스로 등록)
 3. `sudo certbot --nginx -d tdms.jsini.co.kr`
-4. `sudo cp … /etc/nginx/sites-available/` · `ln -s` · `nginx -t` · `systemctl reload nginx`
+4. `sudo cp deploy/nginx/tdms-down/* /var/www/tdms-down/` · `sudo cp … /etc/nginx/sites-available/` · `ln -s` · `nginx -t` · `systemctl reload nginx`
 
 이 넷이 끝나면 이후 배포는 sudo 없이 돈다(`lee` 가 docker 그룹에 있다).
