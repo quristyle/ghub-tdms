@@ -443,6 +443,8 @@ export function markBackupFileDeleted(c: pg.PoolClient, runId: number) {
 // ── 메뉴 관리 ───────────────────────────────────────────────────────────
 
 export interface MenuRow {
+  id: number
+  code: string
   path: string
   permissionKey: string
   label: string
@@ -456,7 +458,9 @@ export interface MenuRow {
 /** 메뉴관리 화면이 보는 전부 — 꺼 둔 것도 포함한다. */
 export function listMenus() {
   return many<MenuRow>(
-    `SELECT m.path,
+    `SELECT m.id,
+            m.code,
+            m.path,
             m.permission_key AS "permissionKey",
             m.label,
             m.sort_order     AS "sortOrder",
@@ -477,8 +481,8 @@ export function listMenus() {
  * /auth/me 가 여기에 다시 권한 필터를 건다.
  */
 export function listEnabledMenus() {
-  return many<{ path: string; label: string; permission: string }>(
-    `SELECT path, label, permission_key AS permission
+  return many<{ id: number; code: string; path: string; label: string; permission: string }>(
+    `SELECT id, code, path, label, permission_key AS permission
        FROM menus
       WHERE is_enabled
       ORDER BY sort_order`,
@@ -489,8 +493,8 @@ export function listEnabledMenus() {
 
 /** 지금 DB 에 있는 경로 집합 — 저장 요청이 그 집합과 같은지 검사하는 데 쓴다. */
 export function menuPaths() {
-  return many<{ path: string; isFixed: boolean }>(
-    'SELECT path, is_fixed AS "isFixed" FROM menus',
+  return many<{ id: number; code: string; path: string; isFixed: boolean }>(
+    'SELECT id, code, path, is_fixed AS "isFixed" FROM menus',
     [],
     'menu_paths',
   )
@@ -499,22 +503,23 @@ export function menuPaths() {
 /**
  * 통째로 저장. 받은 차례가 곧 표시 순서다.
  *
- * sort_order 에 유일 인덱스가 걸려 있어 한 줄씩 올리면 중간에서 충돌한다.
- * 한 트랜잭션 안에서 전부 음수로 밀어 둔 뒤 1..N 으로 다시 적는다.
+ * sort_order 와 path 에 유일 인덱스가 걸려 있어 한 줄씩 올리면 중간에서 충돌한다.
+ * 한 트랜잭션 안에서 sort_order 및 path 를 임시 값으로 밀어 둔 뒤 1..N 으로 다시 적는다.
  */
 export function saveMenus(
-  items: { path: string; label: string; isEnabled: boolean }[],
+  items: { id: number; path: string; label: string; isEnabled: boolean }[],
   userId: number,
 ) {
   return tx(async (c) => {
     await c.query('UPDATE menus SET sort_order = -sort_order')
+    await c.query("UPDATE menus SET path = concat('__tmp_', id, path)")
     for (const [i, m] of items.entries()) {
       await c.query(
         `UPDATE menus
-            SET label = $2, is_enabled = $3, sort_order = $4,
+            SET path = $1, label = $2, is_enabled = $3, sort_order = $4,
                 updated_at = now(), updated_by = $5
-          WHERE path = $1`,
-        [m.path, m.label.trim(), m.isEnabled, i + 1, userId],
+          WHERE id = $6`,
+        [m.path, m.label.trim(), m.isEnabled, i + 1, userId, m.id],
       )
     }
   })

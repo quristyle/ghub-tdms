@@ -23,10 +23,13 @@ export const PasswordChangeRequest = z.object({
 })
 
 export const MenuItem = z.object({
+  id: z.number().int().optional(),
+  code: z.string().optional(),
   path: z.string(),
   label: z.string(),
   permission: z.string(),
 })
+export type MenuItem = z.infer<typeof MenuItem>
 
 /** GET /auth/me — 화면이 메뉴를 그리고 버튼을 켜고 끄는 데 쓰는 전부 */
 export const MeResponse = z.object({

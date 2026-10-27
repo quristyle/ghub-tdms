@@ -224,19 +224,25 @@ export const PAGE_PERMISSIONS = {
  * 앞의 9개는 레거시에서 그대로 옮겨 온 것이라 순서와 권한 키를 바꾸지 않는다.
  * 로그인 후 보낼 첫 화면을 고를 때도 이 차례를 쓴다.
  */
-export const MENU: readonly { path: string; label: string; permission: PermissionKey }[] = [
-  { path: '/',              label: 'TDB 조회',      permission: 'screen.tdb_list.access' },
-  { path: '/import',        label: 'TDB 반입·검수', permission: 'screen.tdb_import.access' },
-  { path: '/editor',        label: 'TDB 관리',      permission: 'screen.tdb_editor.access' },
-  { path: '/distributions', label: 'TDB 반출이력',  permission: 'screen.tdb_distributions.access' },
-  { path: '/mdb',           label: 'MDB 조회',      permission: 'screen.mdb_list.access' },
-  { path: '/mdb-editor',    label: 'MDB 관리',      permission: 'screen.mdb_editor.access' },
-  { path: '/audit',         label: '시스템 로그',   permission: 'screen.audit.access' },
-  { path: '/users',         label: '사용자 관리',   permission: 'screen.users.access' },
-  { path: '/backup',        label: '백업 관리',     permission: 'screen.backup.access' },
+export const MENU: readonly {
+  id: number
+  code: string
+  path: string
+  label: string
+  permission: PermissionKey
+}[] = [
+  { id: 1,  code: 'tdb_list',          path: '/',              label: 'TDB 조회',      permission: 'screen.tdb_list.access' },
+  { id: 2,  code: 'tdb_import',        path: '/import',        label: 'TDB 반입·검수', permission: 'screen.tdb_import.access' },
+  { id: 3,  code: 'tdb_editor',        path: '/editor',        label: 'TDB 관리',      permission: 'screen.tdb_editor.access' },
+  { id: 4,  code: 'tdb_distributions', path: '/distributions', label: 'TDB 반출이력',  permission: 'screen.tdb_distributions.access' },
+  { id: 5,  code: 'mdb_list',          path: '/mdb',           label: 'MDB 조회',      permission: 'screen.mdb_list.access' },
+  { id: 6,  code: 'mdb_editor',        path: '/mdb-editor',    label: 'MDB 관리',      permission: 'screen.mdb_editor.access' },
+  { id: 7,  code: 'audit',             path: '/audit',         label: '시스템 로그',   permission: 'screen.audit.access' },
+  { id: 8,  code: 'users',             path: '/users',         label: '사용자 관리',   permission: 'screen.users.access' },
+  { id: 9,  code: 'backup',            path: '/backup',        label: '백업 관리',     permission: 'screen.backup.access' },
   // 10번째 — 레거시에 없던 화면. 새 권한 리프를 만들지 않고 사용자·권한 관리와 같은 것을
   // 쓴다(리프 36개 패리티를 지키기 위해서다 — groups.html 이 쓰던 방식과 같다).
-  { path: '/menus',         label: '메뉴 관리',     permission: 'screen.users.access' },
-  { path: '/permissions',   label: '접속권한 관리', permission: 'screen.users.access' },
-  { path: '/stamps',        label: '스탬프 관리',   permission: 'screen.users.access' },
+  { id: 10, code: 'menus',             path: '/menus',         label: '메뉴 관리',     permission: 'screen.users.access' },
+  { id: 11, code: 'permissions',       path: '/permissions',   label: '접속권한 관리', permission: 'screen.users.access' },
+  { id: 12, code: 'stamps',            path: '/stamps',        label: '스탬프 관리',   permission: 'screen.users.access' },
 ] as const

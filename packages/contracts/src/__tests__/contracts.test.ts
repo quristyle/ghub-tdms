@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BoolParam, DocumentListQuery } from '../index.js'
+import { BoolParam, DocumentListQuery, MenuSaveRequest } from '../index.js'
 import { LEAF_KEYS, LEAF_KEY_SET, PAGE_PERMISSIONS, MENU, leavesUnder } from '../permissions.js'
 
 describe('BoolParam — 쿼리스트링 불리언', () => {
@@ -87,6 +87,11 @@ describe('권한 트리', () => {
     expect(new Set(MENU.map((m) => m.path)).size).toBe(MENU.length)
   })
 
+  it('메뉴의 id와 code에 중복이 없다', () => {
+    expect(new Set(MENU.map((m) => m.id)).size).toBe(MENU.length)
+    expect(new Set(MENU.map((m) => m.code)).size).toBe(MENU.length)
+  })
+
   it('상위 노드를 켜면 하위 리프가 전부 켜진다 (cascade)', () => {
     expect(leavesUnder('screen.tdb_import.review').sort()).toEqual([
       'screen.tdb_import.review.approve',
@@ -97,5 +102,25 @@ describe('권한 트리', () => {
 
   it('리프 자신을 주면 그 리프만 돌려준다', () => {
     expect(leavesUnder('screen.backup.run')).toEqual(['screen.backup.run'])
+  })
+})
+
+describe('MenuSaveRequest', () => {
+  it('경로와 메뉴 이름이 유효하면 파싱에 성공한다', () => {
+    const res = MenuSaveRequest.safeParse({
+      items: [
+        { id: 1, code: 'tdb_list', path: '/custom-tdb', label: 'TDB 조회 변경', isEnabled: true },
+      ],
+    })
+    expect(res.success).toBe(true)
+  })
+
+  it('경로가 비어 있으면 거부한다', () => {
+    const res = MenuSaveRequest.safeParse({
+      items: [
+        { id: 1, path: '', label: 'TDB 조회', isEnabled: true },
+      ],
+    })
+    expect(res.success).toBe(false)
   })
 })

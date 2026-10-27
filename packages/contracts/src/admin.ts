@@ -255,10 +255,11 @@ export const BackupRunResult = z.object({
 export type BackupRunResult = z.infer<typeof BackupRunResult>
 
 // ── 메뉴 관리 ───────────────────────────────────────────────────────────
-// 줄을 늘리거나 지우지 않는다 — 경로는 SPA 라우터에, 권한 키는 권한 트리에 묶여 있다.
-// 바꿀 수 있는 것은 이름·표시 순서·사용여부 셋뿐이다(0015 마이그레이션 머리글 참조).
+// 각 메뉴는 화면 컴포넌트와 짝(code)을 이루며, 이름·경로·표시 순서·사용여부를 변경할 수 있다.
 
 export const MenuAdminRow = z.object({
+  id: z.number().int(),
+  code: z.string(),
   path: z.string(),
   permissionKey: z.string(),
   label: z.string(),
@@ -276,11 +277,13 @@ export type MenuListResponse = z.infer<typeof MenuListResponse>
 
 /**
  * 저장은 통째로 받는다 — 순서를 한 줄씩 보내면 중간 상태에서 sort_order 가 겹친다.
- * 보낸 경로가 DB 의 경로 집합과 정확히 같아야 한다(서버가 검사한다).
+ * 경로 변경이 가능하며 고유 식별자(id 또는 code)로 메뉴 행을 식별한다.
  */
 export const MenuSaveRequest = z.object({
   items: z.array(z.object({
-    path: z.string().min(1),
+    id: z.number().int().optional(),
+    code: z.string().optional(),
+    path: z.string().trim().min(1, '경로를 비울 수 없습니다'),
     label: z.string().trim().min(1, '메뉴 이름을 비울 수 없습니다').max(40),
     isEnabled: z.boolean(),
   })).min(1),

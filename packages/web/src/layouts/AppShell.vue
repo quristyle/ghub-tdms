@@ -20,20 +20,37 @@ const session = useSession()
 const route = useRoute()
 const router = useRouter()
 
-const GROUPS: { title: string; paths: string[] }[] = [
-  { title: '도면 (TDB)', paths: ['/', '/import', '/editor', '/distributions'] },
-  { title: '데이터북 (MDB)', paths: ['/mdb', '/mdb-editor'] },
-  { title: '운영', paths: ['/audit', '/users', '/permissions', '/menus', '/backup', '/stamps'] },
+const GROUPS: { title: string; codes: string[]; paths: string[] }[] = [
+  {
+    title: '도면 (TDB)',
+    codes: ['tdb_list', 'tdb_import', 'tdb_editor', 'tdb_distributions'],
+    paths: ['/', '/import', '/editor', '/distributions'],
+  },
+  {
+    title: '데이터북 (MDB)',
+    codes: ['mdb_list', 'mdb_editor'],
+    paths: ['/mdb', '/mdb-editor'],
+  },
+  {
+    title: '운영',
+    codes: ['audit', 'users', 'permissions', 'menus', 'backup', 'stamps'],
+    paths: ['/audit', '/users', '/permissions', '/menus', '/backup', '/stamps'],
+  },
 ]
+
+const isInGroup = (m: { code?: string; path: string }, g: typeof GROUPS[number]) => {
+  if (m.code && g.codes.includes(m.code)) return true
+  return g.paths.includes(m.path)
+}
 
 const groups = computed(() =>
   GROUPS
-    .map((g) => ({ title: g.title, items: session.menu.filter((m) => g.paths.includes(m.path)) }))
+    .map((g) => ({ title: g.title, items: session.menu.filter((m) => isInGroup(m, g)) }))
     .filter((g) => g.items.length > 0),
 )
 /** 어느 묶음에도 없는 메뉴가 생기면 사라지지 않게 맨 뒤에 둔다 */
 const ungrouped = computed(() =>
-  session.menu.filter((m) => !GROUPS.some((g) => g.paths.includes(m.path))),
+  session.menu.filter((m) => !GROUPS.some((g) => isInGroup(m, g))),
 )
 
 const title = computed(() => {
@@ -188,7 +205,7 @@ async function logout() {
             class="nav-item" :class="{ on: route.path === m.path }" :title="m.label"
             @click="closeMobileNav"
           >
-            <NavIcon :path="m.path" />
+            <NavIcon :path="m.path" :code="m.code" />
             <span class="nav-text">{{ m.label }}</span>
           </RouterLink>
         </template>
@@ -200,7 +217,7 @@ async function logout() {
             class="nav-item" :class="{ on: route.path === m.path }" :title="m.label"
             @click="closeMobileNav"
           >
-            <NavIcon :path="m.path" />
+            <NavIcon :path="m.path" :code="m.code" />
             <span class="nav-text">{{ m.label }}</span>
           </RouterLink>
         </template>

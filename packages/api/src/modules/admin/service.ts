@@ -236,33 +236,64 @@ export function menus() {
 /**
  * 메뉴 저장.
  *
- * 줄을 늘리거나 지우는 길은 없다 — 보낸 경로 집합이 DB 와 **정확히 같아야** 한다.
- * 경로는 SPA 라우터에 컴파일되어 있어 새 줄을 만들어도 갈 곳이 없고, 빠뜨린 줄은
- * 순서에서 사라져 되살릴 화면이 없어진다.
+ * 고유 식별자(id 또는 code)로 기존 메뉴와 매핑하며, 경로·이름·순서·사용여부를 저장한다.
+ * 자물쇠 걸린 메뉴(메뉴관리 자신)는 끌 수 없다.
  */
 export async function saveMenus(
-  items: { path: string; label: string; isEnabled: boolean }[],
+  items: { id?: number; code?: string; path: string; label: string; isEnabled: boolean }[],
   userId: number,
 ) {
-  const known = await q.menuPaths()
-  const knownSet = new Set(known.map((m) => m.path))
-  const sent = new Set(items.map((m) => m.path))
+  const known = await q.listMenus()
+  const knownById = new Map(known.map((m) => [m.id, m]))
+  const knownByCode = new Map(known.map((m) => [m.code, m]))
+  const knownByPath = new Map(known.map((m) => [m.path, m]))
 
-  if (sent.size !== items.length) {
+  // Match items with known menu records
+  const resolved = items.map((item) => {
+    let match = item.id !== undefined ? knownById.get(item.id) : undefined
+    if (!match && item.code) match = knownByCode.get(item.code)
+    if (!match && item.path) match = knownByPath.get(item.path)
+    return { item, match }
+  })
+
+  const unknown = resolved.filter((r) => !r.match)
+  if (unknown.length) {
+    throw Errors.invalid('UNKNOWN_MENU', `없는 메뉴입니다: ${unknown.map((u) => u.item.path).join(', ')}`)
+  }
+
+  const matchedIds = new Set(resolved.map((r) => r.match!.id))
+  if (matchedIds.size !== items.length) {
     throw Errors.invalid('DUPLICATE_MENU', '같은 메뉴가 두 번 들어 있습니다.')
   }
-  const unknown = items.map((m) => m.path).filter((p) => !knownSet.has(p))
-  if (unknown.length) {
-    throw Errors.invalid('UNKNOWN_MENU', `없는 메뉴입니다: ${unknown.join(', ')}`)
-  }
-  const missing = [...knownSet].filter((p) => !sent.has(p))
+
+  const missing = known.filter((m) => !matchedIds.has(m.id))
   if (missing.length) {
-    throw Errors.invalid('MENU_MISSING', `빠진 메뉴가 있습니다: ${missing.join(', ')}`)
+    throw Errors.invalid('MENU_MISSING', `빠진 메뉴가 있습니다: ${missing.map((m) => m.label).join(', ')}`)
+  }
+
+  // 경로 정규화 및 유효성 검사
+  const normalized = resolved.map(({ item, match }) => {
+    let p = item.path.trim()
+    if (!p.startsWith('/')) p = `/${p}`
+    if (p.length > 1 && p.endsWith('/')) p = p.replace(/\/+$/, '')
+    return {
+      id: match!.id,
+      code: match!.code,
+      path: p,
+      label: item.label.trim(),
+      isEnabled: item.isEnabled,
+    }
+  })
+
+  // 중복 경로 검사
+  const paths = normalized.map((m) => m.path)
+  if (new Set(paths).size !== paths.length) {
+    throw Errors.invalid('DUPLICATE_PATH', '중복된 경로가 있습니다.')
   }
 
   // 자물쇠 걸린 메뉴(메뉴관리 자신)를 끄면 되돌릴 화면이 없어진다.
-  const fixed = new Set(known.filter((m) => m.isFixed).map((m) => m.path))
-  const lockedOff = items.filter((m) => fixed.has(m.path) && !m.isEnabled)
+  const fixedIds = new Set(known.filter((m) => m.isFixed).map((m) => m.id))
+  const lockedOff = normalized.filter((m) => fixedIds.has(m.id) && !m.isEnabled)
   if (lockedOff.length) {
     throw Errors.conflict(
       'MENU_LOCKED',
@@ -270,7 +301,7 @@ export async function saveMenus(
     )
   }
 
-  await q.saveMenus(items, userId)
+  await q.saveMenus(normalized, userId)
   await invalidate('cache_menu')
   return menus()
 }

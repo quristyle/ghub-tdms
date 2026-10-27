@@ -58,6 +58,7 @@ const { data: menus } = useQuery({
   queryFn: () => api.get<MenuListResponse>('/menus'),
   staleTime: 30_000,
 })
+const menusPath = computed(() => (menus.value?.items ?? []).find((m) => m.code === 'menus')?.path || '/menus')
 const { data: counts } = useQuery({
   queryKey: ['user-permission-counts'],
   queryFn: () => api.get<{ items: { userId: number; count: number }[] }>('/users/permission-counts'),
@@ -309,7 +310,7 @@ function reset() {
           </div>
           <div class="pad muted sub">
             메뉴가 꺼져 있으면 권한이 있어도 열리지 않습니다 —
-            <RouterLink to="/menus">메뉴 관리</RouterLink> 에서 켭니다.
+            <RouterLink :to="menusPath">메뉴 관리</RouterLink> 에서 켭니다.
           </div>
         </template>
       </div>
