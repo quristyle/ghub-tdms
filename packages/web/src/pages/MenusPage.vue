@@ -82,7 +82,10 @@ const COLUMNS: Column<Draft>[] = [
     key: 'order', label: '순서', width: '56px', align: 'center', filterable: false,
     render: (m) => String(draft.value.findIndex((item) => item.path === m.path) + 1),
   },
-  { key: 'move', label: '올리기·내리기', width: '120px', align: 'center', filterable: false, render: () => '' },
+  {
+    key: 'move', label: '올리기·내리기', width: '120px', align: 'center',
+    filterable: false, exportable: false, render: () => '',
+  },
   { key: 'label', label: '메뉴 이름', render: (m) => m.label },
   { key: 'path', label: '경로', width: '150px', render: (m) => m.path },
   { key: 'isEnabled', label: '사용', width: '80px', align: 'center', filterable: false,
@@ -150,7 +153,8 @@ async function save() {
       <div v-else class="tablewrap">
         <DataTable
           :columns="COLUMNS" :rows="draft" :row-class="(m) => m.isEnabled ? '' : 'off'"
-          :row-number="false" :filter-row="false" :excel="false" auto-height
+          :total="draft.length" :row-number="false" :filter-row="false"
+          storage-key="menus-list" excel-name="메뉴_목록" auto-height
           empty-text="메뉴가 없습니다."
         >
           <template #cell:order="{ index }">{{ index + 1 }}</template>

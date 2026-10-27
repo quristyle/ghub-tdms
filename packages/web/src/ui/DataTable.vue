@@ -51,6 +51,8 @@ export interface Column<T> {
   sortable?: boolean
   /** 이 칸을 거를 수 있는가 (기본: 그렇다) */
   filterable?: boolean
+  /** 엑셀에 내보낼지 (기본: 그렇다) */
+  exportable?: boolean
 }
 
 export type SortDir = 'asc' | 'desc'
@@ -370,12 +372,13 @@ async function exportExcel() {
   exporting.value = true
   try {
     const name = props.excelName ?? props.storageKey ?? '목록'
+    const exportColumns = props.columns.filter((column) => column.exportable !== false)
     await downloadXlsx(name, {
       sheetName: name,
-      headers: [...(showNo.value ? ['No'] : []), ...props.columns.map((c) => c.label)],
+      headers: [...(showNo.value ? ['No'] : []), ...exportColumns.map((c) => c.label)],
       rows: visible.value.map((row, i) => [
         ...(showNo.value ? [String(i + 1)] : []),
-        ...props.columns.map((c) => cell(row, c)),
+        ...exportColumns.map((c) => cell(row, c)),
       ]),
     })
   } finally {
