@@ -3,15 +3,38 @@ import { computed, ref } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import type { AuditEntry, AuditListResponse, AuditMeta, AuditSort } from '@tdms/contracts'
 import DataTable, { type Column, type SortDir } from '@/ui/DataTable.vue'
-import JobProgress from '@/ui/JobProgress.vue'
 import Modal from '@/ui/Modal.vue'
-import { api, ApiError, qs } from '@/lib/api'
+import { api, qs } from '@/lib/api'
 import { staleTime } from '@/lib/queryKeys'
 
 /** 시스템 로그 — 기존 audit.html 구성을 재현한다. 기록은 수정·삭제할 수 없다. */
 
-const f = ref({ dateFrom: '', dateTo: '', screen: '', action: '', userId: '', q: '' })
-const message = ref<string | null>(null)
+function formatYmd(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function defaultDates() {
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(today.getDate() - 1)
+  return {
+    dateFrom: formatYmd(yesterday),
+    dateTo: formatYmd(today),
+  }
+}
+
+const { dateFrom: initDateFrom, dateTo: initDateTo } = defaultDates()
+const f = ref({
+  dateFrom: initDateFrom,
+  dateTo: initDateTo,
+  screen: '',
+  action: '',
+  userId: '',
+  q: '',
+})
 
 // 정렬은 서버가 한다 — 300건만 정렬하면 "가장 오래된 기록"이 실제로는 아닐 수 있다.
 const sort = ref<AuditSort>('occurredAt')
@@ -65,18 +88,14 @@ const COLUMNS: Column<AuditEntry>[] = [
 ]
 
 function reset() {
-  f.value = { dateFrom: '', dateTo: '', screen: '', action: '', userId: '', q: '' }
-}
-
-const exportJobId = ref<number | null>(null)
-async function exportExcel() {
-  try {
-    const r = await api.post<{ jobId: number }>('/jobs/excel-export',
-      { target: 'audit_log', filters: params.value })
-    exportJobId.value = r.jobId
-    message.value = '조건에 맞는 전체를 엑셀로 만드는 중입니다. 다 되면 내려받기가 나타납니다.'
-  } catch (e) {
-    message.value = e instanceof ApiError ? e.message : '내보내지 못했습니다.'
+  const d = defaultDates()
+  f.value = {
+    dateFrom: d.dateFrom,
+    dateTo: d.dateTo,
+    screen: '',
+    action: '',
+    userId: '',
+    q: '',
   }
 }
 </script>
@@ -108,21 +127,7 @@ async function exportExcel() {
         </select>
         <input v-model="f.q" type="text" placeholder="자료명·사용자" style="width:160px" />
         <button class="btn btn-sm" @click="reset">조건 초기화</button>
-        <span style="flex:1" />
-        <button class="btn btn-sm" title="조건에 맞는 전체를 워커가 만든다 — 수만 건도 받을 수 있다"
-                @click="exportExcel">전체 엑셀 내보내기</button>
       </div>
-      <div class="muted meta">
-        <span v-if="isFetching">조회 중…</span>
-        <span v-else>상세가 <strong>있음</strong>인 줄을 누르면 내용을 볼 수 있습니다.</span>
-        <span v-if="!meta?.canSelectOtherUser"> · 내 기록만 보입니다</span>
-      </div>
-      <JobProgress v-if="exportJobId !== null" :job-id="exportJobId" />
-    </div>
-
-    <div v-if="message" class="panel msg">
-      {{ message }}<span style="flex:1" />
-      <button class="btn btn-sm" @click="message = null">닫기</button>
     </div>
 
     <div class="panel table-panel">
@@ -138,7 +143,37 @@ async function exportExcel() {
         empty-text="기록이 없습니다."
         @sort="onSort"
         @row-click="(a) => { if (a.detail) detail = a }"
-      />
+      >
+        <template #cell:detail="{ row }">
+          <span
+            v-if="row.detail"
+            class="detail-icon-wrap"
+            title="상세 보기"
+            role="button"
+            tabindex="0"
+            aria-label="상세 보기"
+            @click.stop="detail = row"
+            @keydown.enter.space.prevent="detail = row"
+          >
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M9.5 1.5H3.5a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-8.5L9.5 1.5z" />
+              <path d="M9.5 1.5v3.5h3.5" />
+              <path d="M5.5 7.5h5" />
+              <path d="M5.5 10.5h5" />
+            </svg>
+          </span>
+        </template>
+      </DataTable>
     </div>
 
     <Modal v-if="detail" title="상세 내용" @close="detail = null">
@@ -164,12 +199,25 @@ async function exportExcel() {
 .sub { font-size: var(--fs-sm); }
 .search { padding: 10px 12px; flex: 0 0 auto; }
 .bar { display: flex; gap: var(--gap-sm); align-items: center; flex-wrap: wrap; }
-.meta { margin-top: 8px; font-size: var(--fs-sm); }
-.msg { display: flex; align-items: center; gap: 8px; padding: 9px 12px; background: var(--ok-soft); border-color: var(--ok); }
 /* 스크롤은 DataTable 이 자기 안에서 맡는다 — 바깥에서 또 스크롤하면
    머리글 고정이 깨진다. 여기서는 자리만 내준다. */
 .table-panel { flex: 1; min-height: 0; overflow: hidden; display: flex; }
 .table-panel > * { flex: 1; min-width: 0; }
+.detail-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  color: var(--primary);
+  cursor: pointer;
+  transition: background-color var(--dur-fast, 120ms), color var(--dur-fast, 120ms);
+}
+.detail-icon-wrap:hover {
+  background-color: var(--primary-soft);
+}
 .kv th, .kv td { padding: 4px 8px; text-align: left; border: 1px solid var(--border); }
 .kv th { background: var(--bg); width: 90px; white-space: nowrap; }
 .detail {
