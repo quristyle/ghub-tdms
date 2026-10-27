@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useQuery } from '@tanstack/vue-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/vue-query'
 import type { AuditEntry, AuditListResponse, AuditMeta, AuditSort } from '@tdms/contracts'
 import DataTable, { type Column, type SortDir } from '@/ui/DataTable.vue'
 import Modal from '@/ui/Modal.vue'
@@ -62,14 +62,23 @@ const { data: meta } = useQuery({
   staleTime: 60_000,
 })
 
-const { data, isFetching } = useQuery({
+const {
+  data,
+  isFetching,
+  isFetchingNextPage,
+  hasNextPage,
+  fetchNextPage,
+} = useInfiniteQuery({
   queryKey: computed(() => ['audit', params.value]),
-  queryFn: () => api.get<AuditListResponse>(`/audit-log${qs(params.value)}`),
-  staleTime: staleTime.worklist,
-  placeholderData: (p) => p,
+  queryFn: ({ pageParam }) =>
+    api.get<AuditListResponse>(`/audit-log${qs({ ...params.value, cursor: pageParam ?? undefined })}`),
+  initialPageParam: null as string | null,
+  getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+  staleTime: staleTime.list,
 })
 
-const rows = computed(() => data.value?.items ?? [])
+const rows = computed(() => data.value?.pages.flatMap((p) => p.items) ?? [])
+const total = computed(() => data.value?.pages[0]?.total ?? null)
 const detail = ref<AuditEntry | null>(null)
 
 const ts = (v: string) => v.slice(0, 19).replace('T', ' ')
@@ -134,14 +143,17 @@ function reset() {
       <DataTable
         :columns="COLUMNS"
         :rows="rows"
-        :total="data?.total ?? null"
-        :loading="isFetching && !rows.length"
+        :total="total"
+        :loading="isFetching && !isFetchingNextPage && !rows.length"
+        :has-more="hasNextPage"
+        :loading-more="isFetchingNextPage"
         :sort-key="sort"
         :sort-dir="dir"
         storage-key="audit"
         excel-name="시스템 로그"
         empty-text="기록이 없습니다."
         @sort="onSort"
+        @load-more="() => { if (hasNextPage && !isFetchingNextPage) fetchNextPage() }"
         @row-click="(a) => { if (a.detail) detail = a }"
       >
         <template #cell:detail="{ row }">
