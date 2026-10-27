@@ -199,6 +199,59 @@ export function listPartnerCompanies() {
   )
 }
 
+export function findPartnerCompanyById(id: number) {
+  return one<{ id: number; name: string; companyCode: string | null; representative: string | null; businessType: string | null }>(
+    `SELECT id, name, company_code AS "companyCode", representative, business_type AS "businessType"
+       FROM partner_companies WHERE id = $1`,
+    [id], 'partner_company_by_id',
+  )
+}
+
+export function findPartnerCompanyByName(name: string) {
+  return one<{ id: number }>(
+    `SELECT id FROM partner_companies WHERE lower(name) = lower($1)`,
+    [name], 'partner_company_by_name',
+  )
+}
+
+export async function insertPartnerCompany(
+  c: pg.PoolClient,
+  v: { name: string; companyCode?: string | null; representative?: string | null; businessType?: string | null },
+) {
+  const r = await c.query<{ id: number }>(
+    `INSERT INTO partner_companies (name, company_code, representative, business_type, is_active)
+     VALUES ($1, $2, $3, $4, true) RETURNING id`,
+    [v.name, v.companyCode ?? null, v.representative ?? null, v.businessType ?? null],
+  )
+  return r.rows[0]!.id
+}
+
+export function updatePartnerCompany(
+  c: pg.PoolClient, id: number,
+  v: { name?: string; companyCode?: string | null; representative?: string | null; businessType?: string | null },
+) {
+  const sent = (x: unknown) => x !== undefined
+  return c.query(
+    `UPDATE partner_companies
+        SET name           = coalesce($2, name),
+            company_code   = CASE WHEN $3::boolean THEN $4::text ELSE company_code END,
+            representative = CASE WHEN $5::boolean THEN $6::text ELSE representative END,
+            business_type  = CASE WHEN $7::boolean THEN $8::text ELSE business_type END,
+            updated_at     = now()
+      WHERE id = $1`,
+    [
+      id, v.name ?? null,
+      sent(v.companyCode), v.companyCode ?? null,
+      sent(v.representative), v.representative ?? null,
+      sent(v.businessType), v.businessType ?? null,
+    ],
+  )
+}
+
+export function deletePartnerCompany(c: pg.PoolClient, id: number) {
+  return c.query('DELETE FROM partner_companies WHERE id = $1', [id])
+}
+
 export function findByLoginId(c: pg.PoolClient, loginId: string) {
   return c.query<{ id: number }>('SELECT id FROM users WHERE login_id = $1', [loginId])
 }

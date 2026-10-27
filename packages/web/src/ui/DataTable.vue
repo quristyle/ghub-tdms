@@ -111,6 +111,8 @@ const props = withDefaults(defineProps<{
   serverExcelLabel?: string
   /** 서버 엑셀 생성 중 여부 */
   serverExporting?: boolean
+  /** 행 드래그 가능 여부 */
+  draggableRows?: boolean
 }>(), {
   rowNumber: true,
   filterRow: true,
@@ -121,6 +123,8 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   rowClick: [row: T]
   rowHover: [row: T]
+  rowDragstart: [event: DragEvent, row: T]
+  rowDragend: [event: DragEvent, row: T]
   toggle: [id: number]
   toggleAll: [checked: boolean]
   sort: [key: string, dir: SortDir]
@@ -351,7 +355,26 @@ const activeIndex = computed(() => {
   return i < 0 ? null : i + 1
 })
 
+let isDragging = false
+
+function onRowDragStart(event: DragEvent, row: T) {
+  isDragging = true
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', String(row.id))
+  }
+  emit('rowDragstart', event, row)
+}
+
+function onRowDragEnd(event: DragEvent, row: T) {
+  setTimeout(() => {
+    isDragging = false
+  }, 100)
+  emit('rowDragend', event, row)
+}
+
 function onRowClick(row: T) {
+  if (isDragging) return
   activeId.value = row.id
   emit('rowClick', row)
 }
@@ -490,10 +513,19 @@ async function exportExcel() {
           <div
             v-for="v in items" :key="visible[v.index]!.id"
             class="dt-row"
-            :class="[rowClass?.(visible[v.index]!), { active: visible[v.index]!.id === activeId }]"
+            :class="[
+              rowClass?.(visible[v.index]!),
+              {
+                active: visible[v.index]!.id === activeId,
+                'is-draggable': draggableRows,
+              },
+            ]"
             :style="{ height: `${v.size}px`, transform: `translateY(${v.start}px)` }"
+            :draggable="draggableRows ? true : undefined"
             @click="onRowClick(visible[v.index]!)"
             @mouseenter="onRowEnter(visible[v.index]!)"
+            @dragstart="draggableRows ? onRowDragStart($event, visible[v.index]!) : undefined"
+            @dragend="draggableRows ? onRowDragEnd($event, visible[v.index]!) : undefined"
           >
             <div v-if="showNo" class="dt-cell dt-no">{{ v.index + 1 }}</div>
 
@@ -788,4 +820,24 @@ async function exportExcel() {
 }
 .dt-spin { animation: dt-spin 1s linear infinite; }
 @keyframes dt-spin { to { transform: rotate(360deg); } }
+
+/* ── 드래그 가능 행 ────────────────────────────────────────────── */
+.dt-row.is-draggable {
+  user-select: none;
+}
+.dt-row.is-draggable .dt-cell {
+  cursor: grab;
+}
+.dt-row.is-draggable:active .dt-cell {
+  cursor: grabbing;
+}
+.dt-row.is-draggable button,
+.dt-row.is-draggable a,
+.dt-row.is-draggable input {
+  cursor: pointer;
+}
+.dt-row.dragging {
+  opacity: 0.45;
+  background: var(--surface-2);
+}
 </style>

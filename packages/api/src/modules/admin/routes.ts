@@ -6,7 +6,7 @@ import {
   GroupPermissionsRequest, GroupPermissionsResponse, GroupSaveRequest,
   MenuListResponse, MenuSaveRequest, NoteRequest, NoteResult, OwnPermissionCounts,
   UserPermissionsRequest, UserPermissionsResponse,
-  PERMISSION_TREE, PartnerCompanyListResponse, PasswordResetResult,
+  PERMISSION_TREE, PartnerCompanyListResponse, PartnerCompanySaveRequest, PasswordResetResult,
   UserCreateRequest, UserListResponse, UserUpdateRequest,
 } from '@tdms/contracts'
 import { AUTHENTICATED, defineRoute, permission } from '../../core/route.js'
@@ -68,6 +68,59 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     access: permission('screen.users.access'),
     schema: { response: { 200: PartnerCompanyListResponse, 403: ErrorResponse } },
     handler: async () => svc.partnerCompanies(),
+  })
+
+  defineRoute(app, {
+    method: 'POST',
+    url: '/partner-companies',
+    access: permission('screen.users.access'),
+    audit: { screen: '사용자 관리', action: '소속사 추가' },
+    schema: {
+      body: PartnerCompanySaveRequest,
+      response: { 200: z.object({ id: z.number().int() }), 403: ErrorResponse, 409: ErrorResponse },
+    },
+    handler: async (req) => {
+      const b = PartnerCompanySaveRequest.parse(req.body)
+      const out = await svc.createPartnerCompany(b)
+      req.setAuditTarget(b.name)
+      return out
+    },
+  })
+
+  defineRoute(app, {
+    method: 'PATCH',
+    url: '/partner-companies/:id',
+    access: permission('screen.users.access'),
+    audit: { screen: '사용자 관리', action: '소속사 수정' },
+    schema: {
+      params: IdParam,
+      body: PartnerCompanySaveRequest,
+      response: { 200: NoteResult, 403: ErrorResponse, 404: ErrorResponse, 409: ErrorResponse },
+    },
+    handler: async (req) => {
+      const { id } = IdParam.parse(req.params)
+      const b = PartnerCompanySaveRequest.parse(req.body)
+      await svc.updatePartnerCompany(id, b)
+      req.setAuditTarget(b.name, { partnerCompanyId: id })
+      return { ok: true as const }
+    },
+  })
+
+  defineRoute(app, {
+    method: 'DELETE',
+    url: '/partner-companies/:id',
+    access: permission('screen.users.access'),
+    audit: { screen: '사용자 관리', action: '소속사 삭제' },
+    schema: {
+      params: IdParam,
+      response: { 200: NoteResult, 403: ErrorResponse, 404: ErrorResponse },
+    },
+    handler: async (req) => {
+      const { id } = IdParam.parse(req.params)
+      await svc.deletePartnerCompany(id)
+      req.setAuditTarget(`소속사 ${id}`, { partnerCompanyId: id })
+      return { ok: true as const }
+    },
   })
 
   defineRoute(app, {

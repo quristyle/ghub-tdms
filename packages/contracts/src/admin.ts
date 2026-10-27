@@ -77,6 +77,14 @@ export type PartnerCompanyRow = z.infer<typeof PartnerCompanyRow>
 export const PartnerCompanyListResponse = z.object({ items: z.array(PartnerCompanyRow) })
 export type PartnerCompanyListResponse = z.infer<typeof PartnerCompanyListResponse>
 
+export const PartnerCompanySaveRequest = z.object({
+  name: z.string().trim().min(1, '업체명을 입력하세요').max(100),
+  companyCode: z.string().trim().max(40).nullable().default(null),
+  representative: z.string().trim().max(100).nullable().default(null),
+  businessType: z.string().trim().max(100).nullable().default(null),
+})
+export type PartnerCompanySaveRequest = z.infer<typeof PartnerCompanySaveRequest>
+
 export const UserRow = z.object({
   id: z.number().int(),
   loginId: z.string(),

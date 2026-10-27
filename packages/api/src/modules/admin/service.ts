@@ -1,4 +1,4 @@
-import type { AuditQuery, GroupSaveRequest, UserCreateRequest, UserUpdateRequest } from '@tdms/contracts'
+import type { AuditQuery, GroupSaveRequest, PartnerCompanySaveRequest, UserCreateRequest, UserUpdateRequest } from '@tdms/contracts'
 import { LEAF_KEY_SET } from '@tdms/contracts'
 import { tx } from '../../core/db.js'
 import { invalidate } from '../../core/cache.js'
@@ -80,6 +80,39 @@ export async function users() {
 
 export async function partnerCompanies() {
   return { items: await q.listPartnerCompanies() }
+}
+
+export async function createPartnerCompany(v: PartnerCompanySaveRequest) {
+  return tx(async (c) => {
+    const existing = await q.findPartnerCompanyByName(v.name)
+    if (existing) {
+      throw Errors.conflict('PARTNER_COMPANY_EXISTS', `이미 "${v.name}" 소속사가 있습니다.`)
+    }
+    const id = await q.insertPartnerCompany(c, v)
+    return { id }
+  })
+}
+
+export async function updatePartnerCompany(id: number, v: PartnerCompanySaveRequest) {
+  return tx(async (c) => {
+    const found = await q.findPartnerCompanyById(id)
+    if (!found) throw Errors.notFound('소속사')
+    if (v.name && v.name.toLowerCase() !== found.name.toLowerCase()) {
+      const dup = await q.findPartnerCompanyByName(v.name)
+      if (dup && dup.id !== id) {
+        throw Errors.conflict('PARTNER_COMPANY_EXISTS', `이미 "${v.name}" 소속사가 있습니다.`)
+      }
+    }
+    await q.updatePartnerCompany(c, id, v)
+  })
+}
+
+export async function deletePartnerCompany(id: number) {
+  return tx(async (c) => {
+    const found = await q.findPartnerCompanyById(id)
+    if (!found) throw Errors.notFound('소속사')
+    await q.deletePartnerCompany(c, id)
+  })
 }
 
 export async function createUser(v: UserCreateRequest) {
