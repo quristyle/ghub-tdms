@@ -430,10 +430,17 @@ const columns = computed<Column<DocumentListItem>[]>(() => [
    다른 화면(MDB 조회·TDB/MDB 관리)은 app-side 를 그대로 쓰므로 공통 CSS 는 건드리지 않았다. */
 .split { flex: 1; display: flex; gap: var(--gap); min-height: 0; }
 .tree-panel {
-  width: 268px; min-width: 268px;
+  width: 268px; min-width: 268px; flex: 0 0 268px;
   overflow: auto;
 }
-.table-panel { flex: 1; display: flex; min-height: 0; overflow: hidden; }
+.table-panel {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column;
+  min-height: 0; overflow: hidden;
+}
+.table-panel > * {
+  flex: 1; min-width: 0;
+}
 
 /* 좁은 화면에서는 세로로 쌓는다 — 268px 를 빼면 그리드가 읽히지 않는다 */
 @media (max-width: 900px) {

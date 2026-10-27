@@ -607,7 +607,8 @@ async function exportExcel() {
 <style scoped>
 .dt {
   --dt-head-h: 29px;   /* 거르기 줄이 머리글 바로 아래에 붙는 높이 */
-  display: flex; flex-direction: column; height: 100%;
+  display: flex; flex-direction: column; height: 100%; width: 100%;
+  flex: 1;
   /* 둘 다 0 이어야 한다. min-*: auto 면 안쪽 내용(max-content) 만큼 부풀어
      부모 밖으로 삐져나가고, 부모가 overflow:hidden 이면 그대로 잘린다 —
      표 안에서 스크롤되지 않고 글자가 사라진다. */
@@ -618,7 +619,7 @@ async function exportExcel() {
 /* ── 머리글 ─────────────────────────────────────────────────────── */
 /* 한 스크롤이 가로·세로를 모두 맡는다. 머리글은 그 안에 붙어(sticky) 있으므로
    가로로 밀면 줄과 같이 움직이고, 세로로 내려도 자리를 지킨다. */
-.dt-scroll { flex: 1; overflow: auto; min-height: 0; }
+.dt-scroll { flex: 1; overflow: auto; min-height: 0; width: 100%; }
 
 /* 내용만큼만 — 줄이 서너 개뿐인 표가 빈 상자가 되지 않게.
    테두리를 둘러 주변 글과 구분한다(목록 화면에서는 패널이 그 일을 한다). */
@@ -630,10 +631,11 @@ async function exportExcel() {
 }
 .dt.auto .dt-scroll { flex: 0 1 auto; }
 .dt.auto .dt-empty { padding: 20px; }
-.dt-inner { min-width: max-content; }
+.dt-inner { width: 100%; min-width: max-content; }
 
 .dt-head {
   display: flex; position: sticky; top: 0; z-index: 3;
+  width: 100%; min-width: max-content;
   background: var(--surface-2);
   border-bottom: 1px solid var(--border);
   font-weight: 600; font-size: var(--fs-sm); color: var(--fg-muted);
@@ -662,6 +664,7 @@ async function exportExcel() {
 /* ── 거르기 줄 ──────────────────────────────────────────────────── */
 .dt-filter {
   display: flex; position: sticky; top: var(--dt-head-h); z-index: 2;
+  width: 100%; min-width: max-content;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
@@ -688,7 +691,7 @@ async function exportExcel() {
 .dt-clear:hover { background: var(--surface-3); color: var(--danger); }
 
 /* ── 본문 ───────────────────────────────────────────────────────── */
-.dt-rows { position: relative; }
+.dt-rows { position: relative; width: 100%; min-width: max-content; }
 .dt-row {
   position: absolute; top: 0; left: 0; right: 0;
   display: flex; align-items: center; cursor: pointer;

@@ -470,7 +470,14 @@ async function uploadZip(ev: Event) {
   background: var(--accent); color: var(--primary-fg); border-radius: 9px; font-size: 10px; text-align: center;
 }
 .btn.disabled { opacity: .45; cursor: not-allowed; }
-.table-panel { flex: 1; display: flex; min-height: 0; overflow: hidden; }
+.table-panel {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column;
+  min-height: 0; overflow: hidden;
+}
+.table-panel > * {
+  flex: 1; min-width: 0;
+}
 .grid tr.applied { background: var(--accent-soft); }
 h3 { font-size: var(--fs-base); margin: 16px 0 6px; }
 </style>

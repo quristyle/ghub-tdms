@@ -420,5 +420,12 @@ async function uploadZip(ev: Event) {
 }
 .chk { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .btn.disabled { opacity: .45; cursor: not-allowed; }
-.table-panel { flex: 1; display: flex; min-height: 0; overflow: hidden; }
+.table-panel {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column;
+  min-height: 0; overflow: hidden;
+}
+.table-panel > * {
+  flex: 1; min-width: 0;
+}
 </style>
