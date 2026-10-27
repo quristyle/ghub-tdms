@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type {
   GroupListResponse, GroupPermissionsResponse, MenuListResponse, PermissionNode,
-  UserListResponse, UserPermissionsResponse,
+  UserListResponse, UserPermissionsResponse, UserRow,
 } from '@tdms/contracts'
 import PermissionTree from '@/ui/PermissionTree.vue'
 import Tabs from '@/ui/Tabs.vue'
@@ -28,9 +28,16 @@ const qc = useQueryClient()
 const kind = ref<'groups' | 'users'>('groups')
 const KINDS = [{ key: 'groups', label: '그룹' }, { key: 'users', label: '사용자' }]
 
+const rightTab = ref<'members' | 'menus'>('members')
+const RIGHT_TABS = [
+  { key: 'members', label: '그룹 사용자' },
+  { key: 'menus', label: '열리는 메뉴' },
+]
+
 const pickedGroup = ref<number | string | null>(null)
 const pickedUser = ref<number | null>(null)
 const userFilter = ref('')
+const memberFilter = ref('')
 
 const message = ref<{ kind: 'ok' | 'err'; text: string } | null>(null)
 const say = (k: 'ok' | 'err', text: string) => (message.value = { kind: k, text })
@@ -105,7 +112,102 @@ const userList = computed(() => {
     .filter((u) => !q || u.name.toLowerCase().includes(q) || u.loginId.toLowerCase().includes(q))
 })
 
+// 선택된 그룹에 속한 사용자 목록 (재직자 기준)
+const groupUsers = computed(() => {
+  if (kind.value !== 'groups' || pickedGroup.value === null) return []
+  const all = users.value?.items ?? []
+  const active = all.filter((u) => u.employmentStatus === 'ACTIVE')
+  if (pickedGroup.value === 'unassigned') {
+    return active.filter((u) => u.groupId === null || !u.groupId)
+  }
+  return active.filter((u) => u.groupId === pickedGroup.value)
+})
+
+const filteredGroupUsers = computed(() => {
+  const q = memberFilter.value.trim().toLowerCase()
+  if (!q) return groupUsers.value
+  return groupUsers.value.filter(
+    (u) => u.name.toLowerCase().includes(q) || u.loginId.toLowerCase().includes(q),
+  )
+})
+
 const isUnassignedGroup = computed(() => kind.value === 'groups' && pickedGroup.value === 'unassigned')
+
+// ── 드래그 앤 드롭으로 소속 그룹 이동 ──────────────────────────────────
+const draggedUser = ref<UserRow | null>(null)
+const dragOverGroupId = ref<number | string | null>(null)
+
+function onDragStart(event: DragEvent, user: UserRow) {
+  draggedUser.value = user
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', String(user.id))
+  }
+}
+
+function onDragEnd() {
+  draggedUser.value = null
+  dragOverGroupId.value = null
+}
+
+function isDropDisabled(g: DisplayGroup) {
+  if (!draggedUser.value) return false
+  if (g.isUnassigned) {
+    return draggedUser.value.groupId === null || !draggedUser.value.groupId
+  }
+  return draggedUser.value.groupId === g.id
+}
+
+function onGroupDragOver(event: DragEvent, g: DisplayGroup) {
+  if (!draggedUser.value) return
+  if (isDropDisabled(g)) {
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'none'
+    return
+  }
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+  dragOverGroupId.value = g.id
+}
+
+function onGroupDragLeave(event: DragEvent, g: DisplayGroup) {
+  const currentTarget = event.currentTarget as HTMLElement | null
+  const relatedTarget = event.relatedTarget as HTMLElement | null
+  if (currentTarget && relatedTarget && currentTarget.contains(relatedTarget)) {
+    return
+  }
+  if (dragOverGroupId.value === g.id) {
+    dragOverGroupId.value = null
+  }
+}
+
+async function onGroupDrop(event: DragEvent, targetGroup: DisplayGroup) {
+  dragOverGroupId.value = null
+  const user = draggedUser.value
+  draggedUser.value = null
+  if (!user) return
+
+  const targetGroupId = targetGroup.isUnassigned ? null : (targetGroup.id as number)
+  const isAlreadyInGroup = targetGroup.isUnassigned
+    ? (user.groupId === null || !user.groupId)
+    : user.groupId === targetGroup.id
+
+  if (isAlreadyInGroup) {
+    say('ok', `${user.name} 님은 이미 '${targetGroup.name}' 소속입니다.`)
+    return
+  }
+
+  try {
+    await api.patch(`/users/${user.id}`, { groupId: targetGroupId })
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ['users'] }),
+      qc.invalidateQueries({ queryKey: ['groups'] }),
+      qc.invalidateQueries({ queryKey: ['user-perms'] }),
+      qc.invalidateQueries({ queryKey: ['user-permission-counts'] }),
+    ])
+    say('ok', `${user.name} 님의 소속을 '${targetGroup.name}'(으)로 이동했습니다.`)
+  } catch (e) {
+    fail(e)
+  }
+}
 
 // ── 고른 대상의 권한 ───────────────────────────────────────────────────
 const { data: groupPerms } = useQuery({
@@ -224,8 +326,16 @@ function reset() {
         <template v-if="kind === 'groups'">
           <div
             v-for="g in displayGroups" :key="g.id"
-            class="pick" :class="{ on: pickedGroup === g.id }"
+            class="pick group-drop-zone"
+            :class="{
+              on: pickedGroup === g.id,
+              'drop-active': dragOverGroupId === g.id,
+              'drop-disabled': isDropDisabled(g),
+            }"
             @click="pickedGroup = g.id"
+            @dragover.prevent="onGroupDragOver($event, g)"
+            @dragleave="onGroupDragLeave($event, g)"
+            @drop.prevent="onGroupDrop($event, g)"
           >
             <strong>{{ g.name }}</strong>
             <div class="muted sub">구성원 {{ g.memberCount }} · 권한 {{ g.permissionCount }}</div>
@@ -291,27 +401,82 @@ function reset() {
         </template>
       </div>
 
-      <!-- 열리는 메뉴 -->
+      <!-- 열리는 메뉴 & 그룹 사용자 -->
       <div class="panel side">
-        <div class="panel-head">열리는 메뉴</div>
-        <div v-if="!hasTarget" class="pad muted">대상을 고르면 보입니다.</div>
+        <div class="panel-head">{{ rightTab === 'members' ? '그룹 사용자' : '열리는 메뉴' }}</div>
+        <div class="pad"><Tabs v-model="rightTab" :tabs="RIGHT_TABS" /></div>
+
+        <!-- 탭 1: 그룹 사용자 -->
+        <template v-if="rightTab === 'members'">
+          <div v-if="kind !== 'groups' || pickedGroup === null" class="pad muted">
+            왼쪽에서 그룹을 고르면 소속 사용자가 보입니다.
+          </div>
+          <template v-else>
+            <div class="pad muted sub drag-guide">
+              사용자를 드래그하여 왼쪽 그룹에 떨어뜨리면 소속 그룹이 이동됩니다.
+            </div>
+            <div v-if="groupUsers.length > 5" class="pad">
+              <input v-model="memberFilter" class="in" placeholder="이름·아이디로 검색" />
+            </div>
+            <div class="scroll">
+              <div
+                v-for="u in filteredGroupUsers" :key="u.id"
+                class="user-item"
+                :class="{ dragging: draggedUser?.id === u.id }"
+                draggable="true"
+                @dragstart="onDragStart($event, u)"
+                @dragend="onDragEnd"
+              >
+                <div class="drag-handle" title="드래그하여 그룹으로 이동">
+                  <svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor">
+                    <circle cx="3" cy="2" r="1.5" />
+                    <circle cx="9" cy="2" r="1.5" />
+                    <circle cx="3" cy="7" r="1.5" />
+                    <circle cx="9" cy="7" r="1.5" />
+                    <circle cx="3" cy="12" r="1.5" />
+                    <circle cx="9" cy="12" r="1.5" />
+                  </svg>
+                </div>
+                <div class="user-item-info">
+                  <div class="user-item-name">
+                    <strong>{{ u.name }}</strong>
+                    <span class="muted"> ({{ u.loginId }})</span>
+                    <span v-if="u.role === 'ADMIN'" class="tag">관리자</span>
+                  </div>
+                  <div class="muted sub">
+                    {{ [u.department, u.position].filter(Boolean).join(' · ') || '부서·직급 없음' }}
+                  </div>
+                </div>
+              </div>
+              <div v-if="!groupUsers.length" class="pad muted">소속된 사용자가 없습니다.</div>
+              <div v-else-if="!filteredGroupUsers.length" class="pad muted">일치하는 사용자가 없습니다.</div>
+            </div>
+          </template>
+        </template>
+
+        <!-- 탭 2: 열리는 메뉴 -->
         <template v-else>
-          <div class="pad muted sub">
-            지금 켜 둔 권한으로 왼쪽 메뉴에 뜰 것들입니다. 저장 전에도 바로 비칩니다.
-          </div>
-          <div
-            v-for="m in openMenus" :key="m.path"
-            class="menu-row" :class="{ no: !m.allowed || !m.enabled }"
-          >
-            <span class="dot">{{ m.allowed && m.enabled ? '●' : '○' }}</span>
-            <span>{{ m.label }}</span>
-            <span style="flex:1" />
-            <span v-if="!m.enabled" class="tag">메뉴 꺼짐</span>
-          </div>
-          <div class="pad muted sub">
-            메뉴가 꺼져 있으면 권한이 있어도 열리지 않습니다 —
-            <RouterLink :to="menusPath">메뉴 관리</RouterLink> 에서 켭니다.
-          </div>
+          <div v-if="!hasTarget" class="pad muted">대상을 고르면 보입니다.</div>
+          <template v-else>
+            <div class="pad muted sub">
+              지금 켜 둔 권한으로 왼쪽 메뉴에 뜰 것들입니다. 저장 전에도 바로 비칩니다.
+            </div>
+            <div class="scroll">
+              <div
+                v-for="m in openMenus" :key="m.path"
+                class="menu-row" :class="{ no: !m.allowed || !m.enabled }"
+              >
+                <span class="dot">{{ m.allowed && m.enabled ? '●' : '○' }}</span>
+                <span>{{ m.label }}</span>
+                <span style="flex:1" />
+                <span v-if="!m.enabled" class="tag">메뉴 꺼짐</span>
+              </div>
+              <div class="pad muted sub">
+                메뉴가 꺼져 있으면 권한이 있어도 열리지 않습니다 —
+                <RouterLink :to="menusPath">메뉴 관리</RouterLink> 에서 켭니다.
+              </div>
+            </div>
+          </template>
         </template>
       </div>
     </div>
@@ -331,6 +496,63 @@ function reset() {
 .pick { padding: 7px 12px; cursor: pointer; border-left: 3px solid transparent; }
 .pick:hover { background: var(--surface-2); }
 .pick.on { background: var(--primary-soft); border-left-color: var(--primary); }
+.group-drop-zone {
+  transition: background-color 0.15s ease, border-color 0.15s ease, outline 0.15s ease;
+}
+.group-drop-zone * {
+  pointer-events: none;
+}
+.group-drop-zone.drop-active {
+  background: var(--primary-soft) !important;
+  outline: 2px dashed var(--primary);
+  outline-offset: -2px;
+}
+.group-drop-zone.drop-disabled {
+  opacity: 0.6;
+}
+.drag-guide {
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+}
+.user-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+  cursor: grab;
+  user-select: none;
+  background: var(--surface);
+  transition: background-color 0.12s ease;
+}
+.user-item:hover {
+  background: var(--surface-2);
+}
+.user-item:active {
+  cursor: grabbing;
+}
+.user-item.dragging {
+  opacity: 0.4;
+  background: var(--surface-2);
+}
+.drag-handle {
+  display: flex;
+  align-items: center;
+  color: var(--fg-muted);
+  cursor: grab;
+  flex: 0 0 auto;
+}
+.user-item-info {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.user-item-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .sub { font-size: var(--fs-xs); }
 .tag {
   font-size: var(--fs-xs); color: var(--fg-muted); margin-left: 6px;
