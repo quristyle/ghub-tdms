@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type { CreateStampBody, StampCategory, StampItem, StampListResponse, UpdateStampBody } from '@tdms/contracts'
 import DataTable, { type Column } from '@/ui/DataTable.vue'
+import Switch from '@/ui/Switch.vue'
 import Modal from '@/ui/Modal.vue'
 import { api, ApiError } from '@/lib/api'
 import { useSession } from '@/lib/session'
@@ -73,7 +74,7 @@ const COLUMNS: Column<StampItem>[] = [
   {
     key: 'isEnabled',
     label: '상태',
-    width: '85px',
+    width: '90px',
     align: 'center',
     render: (r) => (r.isEnabled ? '사용' : '미사용'),
   },
@@ -87,7 +88,7 @@ const COLUMNS: Column<StampItem>[] = [
   {
     key: 'act',
     label: '관리',
-    width: '120px',
+    width: '96px',
     align: 'center',
     sortable: false,
     filterable: false,
@@ -379,6 +380,7 @@ async function toggleEnabled(s: StampItem) {
         :columns="COLUMNS"
         :rows="stamps"
         :total="stamps.length"
+        :row-height="64"
         default-sort-key="sortOrder"
         default-sort-dir="asc"
         storage-key="stamps-list"
@@ -396,20 +398,45 @@ async function toggleEnabled(s: StampItem) {
         </template>
 
         <template #cell:isEnabled="{ row }">
-          <button
-            class="badge-toggle"
-            :class="row.isEnabled ? 'badge-on' : 'badge-off'"
-            :title="row.isEnabled ? '클릭 시 미사용 전환' : '클릭 시 사용 전환'"
-            @click.stop="toggleEnabled(row)"
-          >
-            {{ row.isEnabled ? '사용' : '미사용' }}
-          </button>
+          <div class="switch-cell">
+            <Switch
+              :model-value="row.isEnabled"
+              :title="row.isEnabled ? '사용 중 (클릭 시 미사용 전환)' : '미사용 (클릭 시 사용 전환)'"
+              aria-label="사용 여부 토글"
+              @update:model-value="toggleEnabled(row)"
+            />
+          </div>
         </template>
 
         <template #cell:act="{ row }">
           <div class="actions-cell">
-            <button class="btn btn-sm" @click.stop="openEdit(row)">수정</button>
-            <button class="btn btn-sm btn-danger" @click.stop="deleteTarget = row">삭제</button>
+            <button
+              type="button"
+              class="grid-icon-btn edit-btn"
+              title="수정"
+              aria-label="수정"
+              @click.stop="openEdit(row)"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                <path d="m15 5 4 4"/>
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="grid-icon-btn delete-btn"
+              title="삭제"
+              aria-label="삭제"
+              @click.stop="deleteTarget = row"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 6h18"/>
+                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                <line x1="10" x2="10" y1="11" y2="17"/>
+                <line x1="14" x2="14" y1="11" y2="17"/>
+              </svg>
+            </button>
           </div>
         </template>
       </DataTable>
@@ -604,15 +631,24 @@ async function toggleEnabled(s: StampItem) {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
+  height: 100%;
   padding: 4px;
 }
 .table-thumb {
-  max-width: 100px;
-  max-height: 48px;
+  max-width: 104px;
+  max-height: 52px;
   object-fit: contain;
   border: 1px solid var(--border);
-  border-radius: 3px;
-  background: #fff;
+  border-radius: var(--r-sm, 4px);
+  background: #ffffff;
+  padding: 2px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.table-thumb:hover {
+  transform: scale(1.05);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
 .cat-tag {
@@ -626,18 +662,56 @@ async function toggleEnabled(s: StampItem) {
 .cat-tag.서명 { background: #e0f2fe; color: #075985; border-color: #7dd3fc; }
 .cat-tag.기타 { background: #f1f5f9; color: #475569; }
 
-.badge-toggle {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  cursor: pointer;
+.switch-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
 }
-.badge-on { background: #dcfce7; color: #166534; border-color: #86efac; }
-.badge-off { background: #f1f5f9; color: #64748b; border-color: #cbd5e1; }
 
-.actions-cell { display: flex; gap: 4px; justify-content: center; }
+.actions-cell {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.grid-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm, 4px);
+  background: var(--surface);
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.grid-icon-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+.grid-icon-btn:active {
+  transform: translateY(0);
+}
+
+.grid-icon-btn.edit-btn:hover {
+  color: var(--primary, #c8102e);
+  border-color: var(--primary-line, #f5c2ca);
+  background: var(--primary-soft, #fef2f3);
+}
+
+.grid-icon-btn.delete-btn:hover {
+  color: var(--danger, #be123c);
+  border-color: var(--danger-line, #fecdd3);
+  background: var(--danger-soft, #fff1f2);
+}
 
 /* 모달 폼 스타일 */
 .stamp-form { display: flex; flex-direction: column; gap: 12px; }

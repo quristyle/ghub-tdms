@@ -418,7 +418,7 @@ async function exportExcel() {
 </script>
 
 <template>
-  <div class="dt" :class="{ auto: autoHeight }">
+  <div class="dt" :class="{ auto: autoHeight }" :style="{ '--row-h': `${rowH}px` }">
     <!-- 머리글·거르기·본문이 한 스크롤 안에 있다 —
          가로로 밀면 머리글과 줄이 함께 움직이고, 세로로 내려도 머리글은 붙어 있다. -->
     <div ref="scrollEl" class="dt-scroll" :style="scrollStyle" @scroll.passive="onScroll">
@@ -707,11 +707,12 @@ async function exportExcel() {
 .dt-row.active, .dt-row.active:hover { background: var(--primary-soft); filter: none; }
 
 .dt-cell {
-  padding: 0 9px; line-height: calc(var(--row-h) - 1px);
+  padding: 0 9px; line-height: calc(var(--row-h, 30px) - 1px);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   display: flex; align-items: center;
 }
 .dt-head .dt-cell { line-height: 28px; height: 29px; }
+.dt-row .dt-cell { height: 100%; }
 .dt-cell:not(.dt-th):not(.dt-no):not(.dt-check) { display: block; }
 
 /* 슬롯 칸 — 안에 단추·배지가 들어가므로 가운데 맞춤을 되살린다.
