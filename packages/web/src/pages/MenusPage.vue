@@ -14,7 +14,7 @@ import { syncDynamicRoutes } from '@/router'
  * 각 줄은 고유 화면 컴포넌트(code)와 1:1로 매핑되어 있으며, 경로는 동적 라우팅을 통해
  * 실시간으로 반영된다. 화면 자체의 추가·삭제는 코드 베이스에 고정되어 있다.
  *
- * "어느 그룹에 이 메뉴를 보일지"는 여기가 아니라 [사용자 관리 > 권한 관리] 에서 정한다.
+ * "어느 그룹에 이 메뉴를 보일지"는 여기가 아니라 [접속권한 관리] 에서 정한다.
  * 여기서 켜 둔 메뉴라도 그룹에 권한이 없으면 그 사람에게는 보이지 않는다.
  */
 
@@ -48,7 +48,7 @@ watch(data, (d) => {
 const byId = computed(() => new Map((data.value?.items ?? []).map((m) => [m.id, m])))
 const meta = (id: number) => byId.value.get(id)
 
-const usersPath = computed(() => (data.value?.items ?? []).find((m) => m.code === 'users')?.path || '/users')
+const permissionsPath = computed(() => (data.value?.items ?? []).find((m) => m.code === 'permissions')?.path || '/permissions')
 
 const dirty = computed(() => {
   const saved = data.value?.items ?? []
@@ -171,7 +171,7 @@ async function save() {
         이름과 경로, 표시 순서, 사용여부를 정합니다. 메뉴를 새로 만들거나 지울 수는 없습니다 —
         각 줄은 화면 하나와 짝이기 때문입니다.
         <strong>어느 그룹에 보일지</strong>는
-        <RouterLink :to="usersPath">사용자 관리 &gt; 권한 관리</RouterLink> 에서 정합니다.
+        <RouterLink :to="permissionsPath">접속권한 관리</RouterLink> 에서 정합니다.
         여기서 켜 두어도 그룹에 권한이 없으면 그 사람에게는 보이지 않습니다.
       </div>
 

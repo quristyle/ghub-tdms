@@ -1,27 +1,22 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type {
-  EmploymentStatus, GroupListResponse, GroupMembersResponse, GroupPermissionsResponse,
-  PartnerCompanyListResponse, PermissionNode, UserListResponse, UserRow,
+  EmploymentStatus, GroupListResponse, PartnerCompanyListResponse, UserListResponse, UserRow,
 } from '@tdms/contracts'
 import DataTable, { type Column } from '@/ui/DataTable.vue'
 import Modal from '@/ui/Modal.vue'
-import Tabs from '@/ui/Tabs.vue'
-import PermissionTree from '@/ui/PermissionTree.vue'
 import { api, ApiError } from '@/lib/api'
 
-/** 사용자 관리 + 권한 관리 — 기존 users.html · groups.html 을 한 화면 두 탭으로 합쳤다. */
+/** 사용자 관리 — 왼쪽 그룹 목록과 오른쪽 사용자 목록으로 그룹별 사용자를 확인하고 관리한다. */
 
 const qc = useQueryClient()
-const tab = ref<'users' | 'groups'>('users')
-const TABS = [{ key: 'users', label: '사용자' }, { key: 'groups', label: '권한 관리' }]
 
 const message = ref<{ kind: 'ok' | 'err'; text: string } | null>(null)
 const say = (kind: 'ok' | 'err', text: string) => (message.value = { kind, text })
 const fail = (e: unknown) => say('err', e instanceof ApiError ? e.message : '처리하지 못했습니다.')
 
-// ── 사용자 ────────────────────────────────────────────────────────────
+// ── 데이터 조회 ────────────────────────────────────────────────────────
 const keyword = ref('')
 const { data: users } = useQuery({
   queryKey: ['users'],
@@ -40,6 +35,38 @@ const { data: partners } = useQuery({
   staleTime: 60_000,
 })
 
+// ── 그룹 선택 및 필터 ──────────────────────────────────────────────────
+const selectedGroup = ref<number | 'ALL' | 'UNASSIGNED'>('ALL')
+const groupSearch = ref('')
+
+const filteredGroups = computed(() => {
+  const list = groups.value?.items ?? []
+  const q = groupSearch.value.trim().toLowerCase()
+  if (!q) return list
+  return list.filter((g) => g.name.toLowerCase().includes(q) || g.description?.toLowerCase().includes(q))
+})
+
+const currentGroupName = computed(() => {
+  if (selectedGroup.value === 'ALL') return '전체'
+  if (selectedGroup.value === 'UNASSIGNED') return '미소속'
+  return groups.value?.items.find((g) => g.id === selectedGroup.value)?.name ?? '선택 그룹'
+})
+
+const unassignedCount = computed(() =>
+  (users.value?.items ?? []).filter((u) => u.groupId === null || !u.groupId).length,
+)
+
+const memberCountMap = computed(() => {
+  const map = new Map<number, number>()
+  for (const u of users.value?.items ?? []) {
+    if (u.groupId) {
+      map.set(u.groupId, (map.get(u.groupId) ?? 0) + 1)
+    }
+  }
+  return map
+})
+
+// ── 상태 및 부서 필터 ──────────────────────────────────────────────────
 interface StatusOption { key: EmploymentStatus; label: string; cls: string }
 const STATUS: StatusOption[] = [
   { key: 'ACTIVE',  label: '재직', cls: '' },
@@ -61,8 +88,16 @@ const departments = computed(() =>
   [...new Set((users.value?.items ?? []).map((u) => u.department).filter(Boolean))].sort() as string[],
 )
 
+// ── 사용자 목록 필터링 ──────────────────────────────────────────────────
 const rows = computed(() =>
   (users.value?.items ?? []).filter((u) => {
+    if (selectedGroup.value !== 'ALL') {
+      if (selectedGroup.value === 'UNASSIGNED') {
+        if (u.groupId !== null && u.groupId !== undefined && u.groupId !== 0) return false
+      } else {
+        if (u.groupId !== selectedGroup.value) return false
+      }
+    }
     if (shown.value.size && !shown.value.has(u.employmentStatus)) return false
     if (dept.value && u.department !== dept.value) return false
     const k = keyword.value.trim().toLowerCase()
@@ -90,7 +125,10 @@ const EMPTY: Form = {
 const form = ref<Form>({ ...EMPTY })
 
 function openCreate() {
-  form.value = { ...EMPTY }
+  form.value = {
+    ...EMPTY,
+    groupId: typeof selectedGroup.value === 'number' ? selectedGroup.value : '',
+  }
   userDialog.value = 'create'
 }
 function openEdit(u: UserRow) {
@@ -157,6 +195,7 @@ async function submitUser() {
       say('ok', '계정을 수정했습니다.')
     }
     void qc.invalidateQueries({ queryKey: ['users'] })
+    void qc.invalidateQueries({ queryKey: ['groups'] })
     void qc.invalidateQueries({ queryKey: ['partner-companies'] })
   } catch (e) { fail(e) }
 }
@@ -172,60 +211,12 @@ async function confirmReset() {
     void qc.invalidateQueries({ queryKey: ['users'] })
   } catch (e) { fail(e) }
 }
-
-// ── 권한 관리 ─────────────────────────────────────────────────────────
-const selectedGroup = ref<number | null>(null)
-const granted = ref(new Set<string>())
-const dirty = ref(false)
-
-const { data: tree } = useQuery({
-  queryKey: ['permission-tree'],
-  queryFn: () => api.get<{ tree: PermissionNode[] }>('/groups/permission-tree'),
-  staleTime: Infinity,
-})
-
-const { data: perms } = useQuery({
-  queryKey: computed(() => ['group-permissions', selectedGroup.value]),
-  queryFn: () => api.get<GroupPermissionsResponse>(`/groups/${selectedGroup.value}/permissions`),
-  enabled: computed(() => selectedGroup.value !== null),
-})
-
-const { data: members } = useQuery({
-  queryKey: computed(() => ['group-members', selectedGroup.value]),
-  queryFn: () => api.get<GroupMembersResponse>(`/groups/${selectedGroup.value}/members`),
-  enabled: computed(() => selectedGroup.value !== null),
-})
-
-watch(perms, (p) => {
-  if (p) { granted.value = new Set(p.granted); dirty.value = false }
-})
-
-/** 상위 노드를 켜면 하위 리프가 전부 켜진다. 저장은 언제나 leaf 키로 한다. */
-function toggle(keys: string[], on: boolean) {
-  const next = new Set(granted.value)
-  for (const k of keys) on ? next.add(k) : next.delete(k)
-  granted.value = next
-  dirty.value = true
-}
-
-async function savePermissions() {
-  if (selectedGroup.value === null) return
-  try {
-    const r = await api.put<GroupPermissionsResponse>(
-      `/groups/${selectedGroup.value}/permissions`, { granted: [...granted.value] },
-    )
-    dirty.value = false
-    say('ok', `권한 ${r.granted.length}개를 저장했습니다. 바로 적용됩니다.`)
-    void qc.invalidateQueries({ queryKey: ['groups'] })
-    void qc.invalidateQueries({ queryKey: ['group-permissions'] })
-  } catch (e) { fail(e) }
-}
 </script>
 
 <template>
   <main class="app-main users">
     <div class="panel head">
-      <h1>사용자 및 권한 관리</h1>
+      <h1>사용자 관리</h1>
     </div>
 
     <div v-if="message" class="panel msg" :class="message.kind">
@@ -233,102 +224,118 @@ async function savePermissions() {
       <button class="btn btn-sm" @click="message = null">닫기</button>
     </div>
 
-    <div class="panel body">
-      <Tabs v-model="tab" :tabs="TABS" />
-
-      <!-- 사용자 -->
-      <section v-if="tab === 'users'" class="pad users-tab">
-        <div class="bar">
-          <input v-model="keyword" type="text" placeholder="아이디·이름·사번·부서·연락처" style="width:240px" />
-          <select v-model="dept" style="width:140px">
-            <option value="">부서 전체</option>
-            <option v-for="d in departments" :key="d" :value="d">{{ d }}</option>
-          </select>
-          <span class="seg">
-            <button
-              v-for="st in STATUS" :key="st.key" type="button"
-              class="btn btn-sm" :class="{ on: shown.has(st.key) }"
-              @click="toggleStatus(st.key)"
-            >{{ st.label }}</button>
-          </span>
-          <!-- 건수는 그리드 아래쪽이 적는다. 두 군데 적으면 서로 어긋난다. -->
-          <span style="flex:1" />
-          <button class="btn btn-sm btn-primary" @click="openCreate">사용자 추가</button>
+    <div class="split">
+      <!-- 왼쪽 그룹 목록 -->
+      <aside class="panel glist-panel">
+        <div class="panel-head">
+          <span>그룹</span>
+          <span class="muted sub-count">({{ (groups?.items.length ?? 0) }})</span>
         </div>
-        <div class="tablewrap">
-          <DataTable
-            :columns="COLUMNS" :rows="rows" :total="rows.length"
-            :row-class="(u) => (u.isActive ? '' : 'off')"
-            storage-key="users" excel-name="사용자 목록"
-            empty-text="조건에 맞는 사용자가 없습니다."
-            @row-click="openEdit"
-          >
-            <template #cell:company="{ row }">
-              <span v-if="row.partnerCompanyName" class="tag tag-info">{{ row.partnerCompanyName }}</span>
-              <span v-else class="muted">{{ row.companyCode }}</span>
-            </template>
-
-            <template #cell:role="{ row }">
-              <span :class="{ tag: row.role === 'ADMIN' }">{{ row.role === 'ADMIN' ? '관리자' : '일반' }}</span>
-            </template>
-
-            <template #cell:employmentStatus="{ row }">
-              <span class="tag" :class="STATUS.find(x => x.key === row.employmentStatus)?.cls">
-                {{ statusLabel(row.employmentStatus) }}
-              </span>
-              <span v-if="row.mustChangePassword" class="tag warn-tag"
-                    title="첫 로그인 때 변경 화면이 열립니다">초기비번</span>
-            </template>
-
-            <template #cell:lastLoginAt="{ row }">
-              <span :title="row.previousLoginAt ? `직전 ${row.previousLoginAt.slice(0, 10)}` : ''">
-                {{ row.lastLoginAt?.slice(0, 10) ?? '-' }}
-              </span>
-            </template>
-
-            <template #cell:act="{ row }">
-              <button class="btn btn-sm" @click.stop="openEdit(row)">수정</button>
-              <button class="btn btn-sm" @click.stop="resetTarget = row">비번 초기화</button>
-            </template>
-          </DataTable>
+        <div v-if="(groups?.items.length ?? 0) > 6" class="glist-search">
+          <input v-model="groupSearch" type="text" placeholder="그룹 검색" />
         </div>
-      </section>
-
-      <!-- 권한 관리 -->
-      <section v-else class="perm">
         <div class="glist">
+          <!-- 전체 -->
           <div
-            v-for="g in groups?.items ?? []" :key="g.id"
+            class="grow" :class="{ sel: selectedGroup === 'ALL' }"
+            @click="selectedGroup = 'ALL'"
+          >
+            <div class="g-info">
+              <span class="g-name">전체</span>
+              <span class="badge">{{ users?.items.length ?? 0 }}</span>
+            </div>
+            <div class="muted sub">전체 사용자</div>
+          </div>
+
+          <!-- 각 그룹 -->
+          <div
+            v-for="g in filteredGroups" :key="g.id"
             class="grow" :class="{ sel: selectedGroup === g.id }"
             @click="selectedGroup = g.id"
           >
-            <strong>{{ g.name }}</strong>
-            <div class="muted sub">구성원 {{ g.memberCount }} · 권한 {{ g.permissionCount }}</div>
+            <div class="g-info">
+              <span class="g-name" :title="g.name">{{ g.name }}</span>
+              <span class="badge">{{ memberCountMap.get(g.id) ?? g.memberCount ?? 0 }}</span>
+            </div>
+            <div v-if="g.description" class="muted sub" :title="g.description">{{ g.description }}</div>
           </div>
-          <div v-if="!groups?.items.length" class="muted pad">그룹이 없습니다.</div>
-        </div>
 
-        <div class="pbody">
-          <template v-if="selectedGroup !== null">
-            <div class="bar">
-              <strong>{{ groups?.items.find(g => g.id === selectedGroup)?.name }}</strong>
-              <span class="muted">구성원 {{ members?.items.length ?? 0 }}명 · 권한 {{ granted.size }}개</span>
-              <span v-if="dirty" class="tag warn-tag">저장하지 않은 변경사항이 있습니다</span>
-              <span style="flex:1" />
-              <button class="btn btn-sm btn-primary" :disabled="!dirty" @click="savePermissions">저장</button>
+          <!-- 미소속 사용자 -->
+          <div
+            v-if="!groupSearch"
+            class="grow" :class="{ sel: selectedGroup === 'UNASSIGNED' }"
+            @click="selectedGroup = 'UNASSIGNED'"
+          >
+            <div class="g-info">
+              <span class="g-name">미소속</span>
+              <span class="badge">{{ unassignedCount }}</span>
             </div>
-            <p class="muted note">
-              상위 항목을 켜면 하위가 전부 켜집니다. 저장은 언제나 가장 아래 항목(리프) 기준입니다.
-              <strong>트리에 없는 기능은 로그인한 사람 누구나 씁니다.</strong>
-              관리자(ADMIN)는 권한과 무관하게 전부 통과합니다.
-            </p>
-            <PermissionTree v-if="tree" :tree="tree.tree" :granted="granted" @toggle="toggle" />
-            <div v-if="members?.items.length" class="members">
-              <h3>구성원</h3>
-              <span v-for="m in members.items" :key="m.id" class="chip">{{ m.name }} ({{ m.loginId }})</span>
-            </div>
-          </template>
-          <div v-else class="muted pad">왼쪽에서 그룹을 고르세요.</div>
+            <div class="muted sub">그룹 없는 사용자</div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- 오른쪽 사용자 목록 그리드 -->
+      <section class="panel users-panel">
+        <div class="pad users-inner">
+          <div class="bar">
+            <span v-if="selectedGroup !== 'ALL'" class="group-filter-badge">
+              그룹: <strong>{{ currentGroupName }}</strong>
+              <button type="button" class="btn-clear-group" title="전체 보기" @click="selectedGroup = 'ALL'">×</button>
+            </span>
+            <input v-model="keyword" type="text" placeholder="아이디·이름·사번·부서·연락처" style="width:240px" />
+            <select v-model="dept" style="width:140px">
+              <option value="">부서 전체</option>
+              <option v-for="d in departments" :key="d" :value="d">{{ d }}</option>
+            </select>
+            <span class="seg">
+              <button
+                v-for="st in STATUS" :key="st.key" type="button"
+                class="btn btn-sm" :class="{ on: shown.has(st.key) }"
+                @click="toggleStatus(st.key)"
+              >{{ st.label }}</button>
+            </span>
+            <span style="flex:1" />
+            <button class="btn btn-sm btn-primary" @click="openCreate">사용자 추가</button>
+          </div>
+
+          <div class="tablewrap">
+            <DataTable
+              :columns="COLUMNS" :rows="rows" :total="rows.length"
+              :row-class="(u) => (u.isActive ? '' : 'off')"
+              storage-key="users" excel-name="사용자 목록"
+              empty-text="조건에 맞는 사용자가 없습니다."
+              @row-click="openEdit"
+            >
+              <template #cell:company="{ row }">
+                <span v-if="row.partnerCompanyName" class="tag tag-info">{{ row.partnerCompanyName }}</span>
+                <span v-else class="muted">{{ row.companyCode }}</span>
+              </template>
+
+              <template #cell:role="{ row }">
+                <span :class="{ tag: row.role === 'ADMIN' }">{{ row.role === 'ADMIN' ? '관리자' : '일반' }}</span>
+              </template>
+
+              <template #cell:employmentStatus="{ row }">
+                <span class="tag" :class="STATUS.find(x => x.key === row.employmentStatus)?.cls">
+                  {{ statusLabel(row.employmentStatus) }}
+                </span>
+                <span v-if="row.mustChangePassword" class="tag warn-tag"
+                      title="첫 로그인 때 변경 화면이 열립니다">초기비번</span>
+              </template>
+
+              <template #cell:lastLoginAt="{ row }">
+                <span :title="row.previousLoginAt ? `직전 ${row.previousLoginAt.slice(0, 10)}` : ''">
+                  {{ row.lastLoginAt?.slice(0, 10) ?? '-' }}
+                </span>
+              </template>
+
+              <template #cell:act="{ row }">
+                <button class="btn btn-sm" @click.stop="openEdit(row)">수정</button>
+                <button class="btn btn-sm" @click.stop="resetTarget = row">비번 초기화</button>
+              </template>
+            </DataTable>
+          </div>
         </div>
       </section>
     </div>
@@ -441,25 +448,158 @@ async function savePermissions() {
 
 <style scoped>
 .users { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
-/* `.body > section` 이 overflow:auto 라 그대로 두면 바깥이 한 번 더 스크롤되어
-   그리드의 머리글 고정이 깨진다. 사용자 절만 끈다(권한 절은 그대로 스크롤). */
-.body > section.users-tab {
-  display: flex; flex-direction: column; gap: var(--sp-2);
-  min-height: 0; flex: 1; overflow: hidden;
+.head { padding: 10px 12px; flex: 0 0 auto; }
+.head h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; }
+.msg { display: flex; align-items: flex-start; gap: 8px; padding: 9px 12px; flex: 0 0 auto; }
+
+.split { flex: 1; display: flex; gap: var(--gap); min-height: 0; }
+
+/* 왼쪽 그룹 목록 패널 */
+.glist-panel {
+  width: 250px;
+  min-width: 250px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sub-count {
+  font-size: var(--fs-sm);
+  font-weight: normal;
+}
+.glist-search {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.glist-search input {
+  width: 100%;
+}
+.glist {
+  flex: 1;
+  overflow-y: auto;
+}
+.grow {
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  transition: background-color 0.1s ease, border-color 0.1s ease;
+}
+.grow:hover {
+  background: var(--surface-2);
+}
+.grow.sel {
+  background: var(--primary-soft);
+  border-left-color: var(--primary);
+}
+.g-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.g-name {
+  font-weight: 600;
+  font-size: var(--fs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.grow.sel .g-name {
+  color: var(--primary);
+}
+.badge {
+  font-size: var(--fs-xs);
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--border);
+}
+.grow.sel .badge {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.sub {
+  font-size: var(--fs-xs);
+  color: var(--fg-muted);
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* 가로·세로 스크롤은 DataTable 이 자기 안에서 맡는다. 여기서는 자리만 내준다. */
+/* 오른쪽 사용자 목록 패널 */
+.users-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.users-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+.pad { padding: 14px; }
+.bar { display: flex; gap: var(--gap-sm); align-items: center; margin-bottom: 2px; flex-wrap: wrap; }
+.group-filter-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--control-h);
+  padding: 0 10px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  border: 1px solid var(--primary-line);
+  border-radius: var(--r);
+  font-size: var(--fs-sm);
+}
+.btn-clear-group {
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+.btn-clear-group:hover {
+  opacity: 0.7;
+}
+
 .tablewrap { flex: 1; min-height: 420px; display: flex; }
 .tablewrap > * { flex: 1; min-width: 0; }
 
-/* 재직/퇴직/삭제 — 붙은 세 칸으로 묶어 "거르개"임을 보이게 한다 */
+@media (max-width: 900px) {
+  .split { flex-direction: column; }
+  .glist-panel { width: auto; min-width: 0; max-height: 220px; flex: 0 0 auto; }
+  .users-panel { min-height: 400px; }
+}
+
+/* 재직/퇴직/삭제 세 칸 */
 .seg { display: inline-flex; }
 .seg .btn { border-radius: 0; margin-left: -1px; }
 .seg .btn:first-child { border-radius: var(--r) 0 0 var(--r); margin-left: 0; }
 .seg .btn:last-child  { border-radius: 0 var(--r) var(--r) 0; }
 .seg .btn.on { background: var(--primary-soft); border-color: var(--primary-line); color: var(--primary); font-weight: 600; }
 
-/* 폼 구역 머리 */
+.tag {
+  display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 8px;
+  background: var(--accent); color: var(--primary-fg);
+}
+.tag.warn-tag { background: var(--warn); margin-left: 4px; }
+
+/* 폼 모달 */
+.form th, .form td { padding: 6px 8px; text-align: left; vertical-align: top; }
+.form th { width: 70px; font-weight: 600; white-space: nowrap; }
 .form .sect {
   text-align: left; padding-top: var(--sp-4);
   color: var(--fg-muted); font-size: var(--fs-sm); font-weight: 600;
@@ -467,33 +607,5 @@ async function savePermissions() {
 .form td.two { display: flex; gap: var(--sp-2); }
 .form td.two > * { flex: 1; min-width: 0; }
 .form td.two label { display: flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--fg-muted); }
-.head { padding: 10px 12px; flex: 0 0 auto; }
-.head h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; }
-.body { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-.body > section { flex: 1; overflow: auto; min-height: 0; }
-.pad { padding: 14px; }
-.bar { display: flex; gap: var(--gap-sm); align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
-.grid tr.off { color: var(--text-muted); background: var(--bg); }
-.tag {
-  display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 8px;
-  background: var(--accent); color: var(--primary-fg);
-}
-.tag.warn-tag { background: var(--warn); margin-left: 4px; }
-.perm { display: flex; min-height: 0; }
-.glist { width: 220px; min-width: 220px; border-right: 1px solid var(--border); overflow: auto; }
-.grow { padding: 9px 12px; cursor: pointer; border-bottom: 1px solid var(--border); }
-.grow:hover { background: var(--bg); }
-.grow.sel { background: var(--accent-soft); }
-.pbody { flex: 1; overflow: auto; padding: 14px; }
-.note { font-size: var(--fs-sm); margin: 0 0 10px; }
-.sub { font-size: 11px; margin-top: 2px; }
-.members { margin-top: 18px; }
-.members h3 { font-size: var(--fs-base); margin: 0 0 6px; }
-.chip {
-  display: inline-block; font-size: 11px; padding: 2px 8px; margin: 0 4px 4px 0;
-  border: 1px solid var(--border-strong); border-radius: 10px;
-}
-.form th, .form td { padding: 6px 8px; text-align: left; vertical-align: top; }
-.form th { width: 70px; font-weight: 600; white-space: nowrap; }
 .r { margin-right: 12px; }
 </style>
