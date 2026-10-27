@@ -276,13 +276,27 @@ const columns = computed<Column<DocumentListItem>[]>(() => [
           <option :value="1000">1000건씩</option>
         </select>
         <label class="chk"><input v-model="includeIsometric" type="checkbox" /> Isometric 보기</label>
-        <button class="btn btn-sm" @click="reset">조건 초기화</button>
         <button
-          class="btn btn-sm" :disabled="exportingServer"
-          title="현재 검색 조건에 맞는 전체 자료를 서버에서 엑셀로 생성합니다"
-          @click="startServerExport"
+          class="btn btn-sm btn-icon"
+          type="button"
+          title="조건 초기화"
+          aria-label="조건 초기화"
+          @click="reset"
         >
-          {{ exportingServer ? '생성 요청 중…' : '전체 엑셀 (서버)' }}
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+          </svg>
         </button>
       </div>
       <div class="search-meta muted">
