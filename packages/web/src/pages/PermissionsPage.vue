@@ -28,7 +28,7 @@ const qc = useQueryClient()
 const kind = ref<'groups' | 'users'>('groups')
 const KINDS = [{ key: 'groups', label: '그룹' }, { key: 'users', label: '사용자' }]
 
-const pickedGroup = ref<number | null>(null)
+const pickedGroup = ref<number | string | null>(null)
 const pickedUser = ref<number | null>(null)
 const userFilter = ref('')
 
@@ -66,6 +66,36 @@ const { data: counts } = useQuery({
 
 const ownCount = computed(() => new Map((counts.value?.items ?? []).map((c) => [c.userId, c.count])))
 
+// 미소속 사용자 수 (그룹이 없는 사용자)
+const unassignedMemberCount = computed(() =>
+  (users.value?.items ?? []).filter((u) => u.groupId === null || !u.groupId).length,
+)
+
+interface DisplayGroup {
+  id: number | string
+  name: string
+  memberCount: number
+  permissionCount: number
+  isUnassigned?: boolean
+}
+
+const displayGroups = computed<DisplayGroup[]>(() => {
+  const list: DisplayGroup[] = (groups.value?.items ?? []).map((g) => ({
+    id: g.id,
+    name: g.name,
+    memberCount: g.memberCount,
+    permissionCount: g.permissionCount,
+  }))
+  list.push({
+    id: 'unassigned',
+    name: '미소속사용자그룹',
+    memberCount: unassignedMemberCount.value,
+    permissionCount: 0,
+    isUnassigned: true,
+  })
+  return list
+})
+
 // 재직자만 — 퇴직·삭제 계정에 권한을 매길 일이 없다
 const userList = computed(() => {
   const q = userFilter.value.trim().toLowerCase()
@@ -74,11 +104,13 @@ const userList = computed(() => {
     .filter((u) => !q || u.name.toLowerCase().includes(q) || u.loginId.toLowerCase().includes(q))
 })
 
+const isUnassignedGroup = computed(() => kind.value === 'groups' && pickedGroup.value === 'unassigned')
+
 // ── 고른 대상의 권한 ───────────────────────────────────────────────────
 const { data: groupPerms } = useQuery({
   queryKey: computed(() => ['group-perms', pickedGroup.value]),
   queryFn: () => api.get<GroupPermissionsResponse>(`/groups/${pickedGroup.value}/permissions`),
-  enabled: computed(() => kind.value === 'groups' && pickedGroup.value !== null),
+  enabled: computed(() => kind.value === 'groups' && pickedGroup.value !== null && pickedGroup.value !== 'unassigned'),
 })
 const { data: userPerms } = useQuery({
   queryKey: computed(() => ['user-perms', pickedUser.value]),
@@ -88,7 +120,12 @@ const { data: userPerms } = useQuery({
 
 /** 편집용 사본 — 저장을 누를 때까지 서버에 보내지 않는다 */
 const draft = ref<Set<string>>(new Set())
-watch([groupPerms, userPerms, kind], () => {
+watch([groupPerms, userPerms, kind, pickedGroup], () => {
+  if (isUnassignedGroup.value) {
+    draft.value = new Set()
+    message.value = null
+    return
+  }
   const src = kind.value === 'groups' ? groupPerms.value?.granted : userPerms.value?.granted
   draft.value = new Set(src ?? [])
   message.value = null
@@ -103,11 +140,13 @@ const isAdmin = computed(() => kind.value === 'users' && userPerms.value?.isAdmi
 const hasTarget = computed(() =>
   kind.value === 'groups' ? pickedGroup.value !== null : pickedUser.value !== null)
 
-const saved = computed(() =>
-  new Set(kind.value === 'groups' ? groupPerms.value?.granted ?? [] : userPerms.value?.granted ?? []))
+const saved = computed(() => {
+  if (isUnassignedGroup.value) return new Set<string>()
+  return new Set(kind.value === 'groups' ? groupPerms.value?.granted ?? [] : userPerms.value?.granted ?? [])
+})
 
 const dirty = computed(() => {
-  if (!hasTarget.value) return false
+  if (!hasTarget.value || isUnassignedGroup.value) return false
   if (draft.value.size !== saved.value.size) return true
   for (const k of draft.value) if (!saved.value.has(k)) return true
   return false
@@ -134,7 +173,7 @@ const openMenus = computed(() => {
 })
 
 async function save() {
-  if (!dirty.value || !hasTarget.value) return
+  if (!dirty.value || !hasTarget.value || isUnassignedGroup.value) return
   saving.value = true
   try {
     const granted = [...draft.value]
@@ -183,14 +222,14 @@ function reset() {
 
         <template v-if="kind === 'groups'">
           <div
-            v-for="g in groups?.items ?? []" :key="g.id"
+            v-for="g in displayGroups" :key="g.id"
             class="pick" :class="{ on: pickedGroup === g.id }"
             @click="pickedGroup = g.id"
           >
             <strong>{{ g.name }}</strong>
             <div class="muted sub">구성원 {{ g.memberCount }} · 권한 {{ g.permissionCount }}</div>
           </div>
-          <div v-if="!groups?.items.length" class="pad muted">그룹이 없습니다.</div>
+          <div v-if="!displayGroups.length" class="pad muted">그룹이 없습니다.</div>
         </template>
 
         <template v-else>
@@ -221,7 +260,7 @@ function reset() {
           <span style="flex:1" />
           <button class="btn btn-sm" :disabled="!dirty || saving" @click="reset">되돌리기</button>
           <button
-            class="btn btn-sm btn-primary" :disabled="!dirty || saving || isAdmin"
+            class="btn btn-sm btn-primary" :disabled="!dirty || saving || isAdmin || isUnassignedGroup"
             @click="save"
           >{{ saving ? '저장 중…' : '저장' }}</button>
         </div>
@@ -232,6 +271,10 @@ function reset() {
           <div v-if="isAdmin" class="pad msg warn">
             관리자(ADMIN)는 권한 트리와 무관하게 전부 통과합니다. 이 사람에게는 매길 것이 없습니다.
           </div>
+          <div v-else-if="isUnassignedGroup" class="pad muted sub">
+            미소속사용자그룹은 소속 그룹이 없는 사용자들의 기본 상태(권한 0개)입니다.
+            권한을 부여하려면 [사용자 관리]에서 특정 그룹에 배정하거나, 왼쪽 '사용자' 탭에서 개인 권한을 부여하세요.
+          </div>
           <div v-else-if="kind === 'users'" class="pad muted sub">
             <strong>{{ userPerms?.groupName ?? '그룹 없음' }}</strong> 에서 오는 권한은
             <em>그룹에서 상속</em> 으로 잠겨 있습니다. 여기서 켜는 것은 이 사람에게만 더해집니다.
@@ -240,7 +283,7 @@ function reset() {
           <div class="pad tree">
             <PermissionTree
               v-if="tree"
-              :tree="tree.tree" :granted="draft" :inherited="inherited" :readonly="isAdmin"
+              :tree="tree.tree" :granted="draft" :inherited="inherited" :readonly="isAdmin || isUnassignedGroup"
               @toggle="onToggle"
             />
           </div>
