@@ -164,12 +164,26 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     url: '/groups/:id',
     access: permission('screen.users.access'),
     audit: { screen: '권한 관리', action: '그룹 수정' },
-    schema: { params: IdParam, body: GroupSaveRequest, response: { 200: NoteResult, 403: ErrorResponse } },
+    schema: { params: IdParam, body: GroupSaveRequest, response: { 200: NoteResult, 403: ErrorResponse, 404: ErrorResponse } },
     handler: async (req) => {
       const { id } = IdParam.parse(req.params)
       const b = GroupSaveRequest.parse(req.body)
       await svc.updateGroup(id, b)
       req.setAuditTarget(b.name, { groupId: id })
+      return { ok: true as const }
+    },
+  })
+
+  defineRoute(app, {
+    method: 'DELETE',
+    url: '/groups/:id',
+    access: permission('screen.users.access'),
+    audit: { screen: '사용자 관리', action: '그룹 삭제' },
+    schema: { params: IdParam, response: { 200: NoteResult, 403: ErrorResponse, 404: ErrorResponse } },
+    handler: async (req) => {
+      const { id } = IdParam.parse(req.params)
+      await svc.deleteGroup(id)
+      req.setAuditTarget(`그룹 ${id}`, { groupId: id })
       return { ok: true as const }
     },
   })

@@ -146,7 +146,16 @@ export async function createGroup(v: GroupSaveRequest) {
 }
 
 export async function updateGroup(id: number, v: GroupSaveRequest) {
+  const g = await q.findGroupById(id)
+  if (!g) throw Errors.notFound('그룹')
   await tx((c) => q.updateGroup(c, id, v.name, v.description))
+}
+
+export async function deleteGroup(id: number) {
+  const g = await q.findGroupById(id)
+  if (!g) throw Errors.notFound('그룹')
+  await tx((c) => q.deleteGroup(c, id))
+  await invalidate('cache_perm')
 }
 
 export async function members(groupId: number) {

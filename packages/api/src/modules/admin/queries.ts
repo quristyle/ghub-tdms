@@ -322,6 +322,17 @@ export function updateGroup(c: pg.PoolClient, id: number, name: string, descript
   )
 }
 
+export function findGroupById(id: number) {
+  return one<{ id: number; name: string; description: string | null }>(
+    'SELECT id, name, description FROM groups WHERE id = $1',
+    [id], 'group_by_id',
+  )
+}
+
+export function deleteGroup(c: pg.PoolClient, id: number) {
+  return c.query('DELETE FROM groups WHERE id = $1', [id])
+}
+
 export function groupMembers(groupId: number) {
   return many<{ id: number; loginId: string; name: string }>(
     `SELECT id, login_id AS "loginId", name FROM users WHERE group_id = $1 ORDER BY login_id`,

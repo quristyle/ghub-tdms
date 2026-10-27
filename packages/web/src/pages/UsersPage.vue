@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type {
-  EmploymentStatus, GroupListResponse, PartnerCompanyListResponse, UserListResponse, UserRow,
+  EmploymentStatus, GroupListResponse, GroupRow, PartnerCompanyListResponse, UserListResponse, UserRow,
 } from '@tdms/contracts'
 import DataTable, { type Column } from '@/ui/DataTable.vue'
 import Modal from '@/ui/Modal.vue'
@@ -211,6 +211,82 @@ async function confirmReset() {
     void qc.invalidateQueries({ queryKey: ['users'] })
   } catch (e) { fail(e) }
 }
+
+// ── 그룹 관리 (추가 / 편집 / 삭제) ──────────────────────────────────
+const groupDialog = ref<'create' | 'edit' | null>(null)
+interface GroupFormState {
+  id: number
+  name: string
+  description: string
+}
+const groupForm = ref<GroupFormState>({ id: 0, name: '', description: '' })
+const isGroupSubmitting = ref(false)
+
+function openGroupCreate() {
+  groupForm.value = { id: 0, name: '', description: '' }
+  groupDialog.value = 'create'
+}
+
+function openGroupEdit(g: GroupRow) {
+  groupForm.value = { id: g.id, name: g.name, description: g.description ?? '' }
+  groupDialog.value = 'edit'
+}
+
+async function submitGroup() {
+  const name = groupForm.value.name.trim()
+  if (!name) return
+  const description = groupForm.value.description.trim() || null
+  const mode = groupDialog.value
+  isGroupSubmitting.value = true
+  try {
+    if (mode === 'create') {
+      const res = await api.post<{ id: number }>('/groups', { name, description })
+      say('ok', `"${name}" 그룹을 추가했습니다.`)
+      selectedGroup.value = res.id
+    } else if (mode === 'edit') {
+      await api.patch(`/groups/${groupForm.value.id}`, { name, description })
+      say('ok', `"${name}" 그룹을 수정했습니다.`)
+    }
+    groupDialog.value = null
+    void qc.invalidateQueries({ queryKey: ['groups'] })
+    void qc.invalidateQueries({ queryKey: ['users'] })
+  } catch (e) {
+    fail(e)
+  } finally {
+    isGroupSubmitting.value = false
+  }
+}
+
+const deleteGroupTarget = ref<GroupRow | null>(null)
+const isDeletingGroup = ref(false)
+const deleteGroupMemberCount = computed(() => {
+  if (!deleteGroupTarget.value) return 0
+  return memberCountMap.value.get(deleteGroupTarget.value.id) ?? deleteGroupTarget.value.memberCount ?? 0
+})
+
+function openGroupDelete(g: GroupRow) {
+  deleteGroupTarget.value = g
+}
+
+async function confirmDeleteGroup() {
+  const g = deleteGroupTarget.value
+  if (!g) return
+  isDeletingGroup.value = true
+  try {
+    await api.delete(`/groups/${g.id}`)
+    say('ok', `"${g.name}" 그룹을 삭제했습니다.`)
+    if (selectedGroup.value === g.id) {
+      selectedGroup.value = 'ALL'
+    }
+    deleteGroupTarget.value = null
+    void qc.invalidateQueries({ queryKey: ['groups'] })
+    void qc.invalidateQueries({ queryKey: ['users'] })
+  } catch (e) {
+    fail(e)
+  } finally {
+    isDeletingGroup.value = false
+  }
+}
 </script>
 
 <template>
@@ -227,9 +303,23 @@ async function confirmReset() {
     <div class="split">
       <!-- 왼쪽 그룹 목록 -->
       <aside class="panel glist-panel">
-        <div class="panel-head">
-          <span>그룹</span>
-          <span class="muted sub-count">({{ (groups?.items.length ?? 0) }})</span>
+        <div class="panel-head glist-head">
+          <div class="glist-title">
+            <span>그룹</span>
+            <span class="muted sub-count">({{ (groups?.items.length ?? 0) }})</span>
+          </div>
+          <button
+            type="button"
+            class="btn btn-xs btn-add-group"
+            title="새 그룹 추가"
+            @click="openGroupCreate"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            <span>그룹 추가</span>
+          </button>
         </div>
         <div v-if="(groups?.items.length ?? 0) > 6" class="glist-search">
           <input v-model="groupSearch" type="text" placeholder="그룹 검색" />
@@ -255,7 +345,38 @@ async function confirmReset() {
           >
             <div class="g-info">
               <span class="g-name" :title="g.name">{{ g.name }}</span>
-              <span class="badge">{{ memberCountMap.get(g.id) ?? g.memberCount ?? 0 }}</span>
+              <div class="g-right">
+                <span class="badge">{{ memberCountMap.get(g.id) ?? g.memberCount ?? 0 }}</span>
+                <div class="g-actions" @click.stop>
+                  <button
+                    type="button"
+                    class="g-btn-icon edit-btn"
+                    title="그룹 수정"
+                    aria-label="그룹 수정"
+                    @click="openGroupEdit(g)"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                      <path d="m15 5 4 4"/>
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    class="g-btn-icon delete-btn"
+                    title="그룹 삭제"
+                    aria-label="그룹 삭제"
+                    @click="openGroupDelete(g)"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M3 6h18"/>
+                      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                      <line x1="10" x2="10" y1="11" y2="17"/>
+                      <line x1="14" x2="14" y1="11" y2="17"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
             </div>
             <div v-if="g.description" class="muted sub" :title="g.description">{{ g.description }}</div>
           </div>
@@ -443,6 +564,84 @@ async function confirmReset() {
         <button class="btn btn-primary" @click="confirmReset">초기화</button>
       </template>
     </Modal>
+
+    <!-- 그룹 추가 / 수정 모달 -->
+    <Modal
+      v-if="groupDialog"
+      :title="groupDialog === 'create' ? '그룹 추가' : '그룹 수정'"
+      @close="groupDialog = null"
+    >
+      <table class="form">
+        <tbody>
+          <tr>
+            <th>그룹명 <span class="req">*</span></th>
+            <td>
+              <input
+                v-model="groupForm.name"
+                type="text"
+                placeholder="예: 설계기술팀, 안전환경팀"
+                style="width: 100%"
+                maxlength="100"
+                autofocus
+                @keyup.enter="submitGroup"
+              />
+            </td>
+          </tr>
+          <tr>
+            <th>설명</th>
+            <td>
+              <textarea
+                v-model="groupForm.description"
+                rows="3"
+                placeholder="그룹에 대한 설명 (선택)"
+                style="width: 100%; resize: vertical;"
+                maxlength="500"
+              />
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <template #footer>
+        <button class="btn" @click="groupDialog = null">취소</button>
+        <button
+          class="btn btn-primary"
+          :disabled="!groupForm.name.trim() || isGroupSubmitting"
+          @click="submitGroup"
+        >
+          {{ isGroupSubmitting ? '저장 중...' : (groupDialog === 'create' ? '추가' : '수정') }}
+        </button>
+      </template>
+    </Modal>
+
+    <!-- 그룹 삭제 확인 모달 -->
+    <Modal
+      v-if="deleteGroupTarget"
+      title="그룹 삭제 확인"
+      @close="deleteGroupTarget = null"
+    >
+      <div class="delete-confirm-box">
+        <p>
+          <strong>"{{ deleteGroupTarget.name }}"</strong> 그룹을 삭제하시겠습니까?
+        </p>
+        <div v-if="deleteGroupMemberCount > 0" class="warn-notice">
+          ⚠️ 현재 이 그룹에 소속된 사용자가 <strong>{{ deleteGroupMemberCount }}명</strong> 있습니다.<br />
+          그룹을 삭제하면 해당 사용자들의 그룹 소속이 <strong>[그룹 없음]</strong>(미소속)으로 자동 변경됩니다.
+        </div>
+        <p class="muted sub-hint">
+          그룹에 부여된 권한 정보도 함께 삭제되며, 삭제 후에는 복구할 수 없습니다.
+        </p>
+      </div>
+      <template #footer>
+        <button class="btn" @click="deleteGroupTarget = null">취소</button>
+        <button
+          class="btn btn-danger"
+          :disabled="isDeletingGroup"
+          @click="confirmDeleteGroup"
+        >
+          {{ isDeletingGroup ? '삭제 중...' : '그룹 삭제' }}
+        </button>
+      </template>
+    </Modal>
   </main>
 </template>
 
@@ -456,15 +655,46 @@ async function confirmReset() {
 
 /* 왼쪽 그룹 목록 패널 */
 .glist-panel {
-  width: 250px;
-  min-width: 250px;
+  width: 260px;
+  min-width: 260px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
+.glist-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+}
+.glist-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
 .sub-count {
   font-size: var(--fs-sm);
   font-weight: normal;
+}
+.btn-add-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border: 1px solid var(--primary-line);
+  border-radius: var(--r-sm, 4px);
+  cursor: pointer;
+  line-height: 1.4;
+  transition: all 0.15s ease;
+}
+.btn-add-group:hover {
+  background: var(--primary);
+  color: #fff;
 }
 .glist-search {
   padding: 8px 10px;
@@ -478,7 +708,7 @@ async function confirmReset() {
   overflow-y: auto;
 }
 .grow {
-  padding: 10px 14px;
+  padding: 10px 12px;
   cursor: pointer;
   border-bottom: 1px solid var(--border);
   border-left: 3px solid transparent;
@@ -495,7 +725,7 @@ async function confirmReset() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
 }
 .g-name {
   font-weight: 600;
@@ -503,9 +733,56 @@ async function confirmReset() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
 .grow.sel .g-name {
   color: var(--primary);
+}
+.g-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.g-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.grow:hover .g-actions,
+.grow.sel .g-actions {
+  opacity: 1;
+}
+.g-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm, 4px);
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.g-btn-icon:hover {
+  background: var(--surface);
+  border-color: var(--border);
+}
+.g-btn-icon.edit-btn:hover {
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-color: var(--primary-line);
+}
+.g-btn-icon.delete-btn:hover {
+  color: var(--danger, #be123c);
+  background: #fee2e2;
+  border-color: #fca5a5;
 }
 .badge {
   font-size: var(--fs-xs);
@@ -608,4 +885,37 @@ async function confirmReset() {
 .form td.two > * { flex: 1; min-width: 0; }
 .form td.two label { display: flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--fg-muted); }
 .r { margin-right: 12px; }
+
+/* 그룹 삭제 및 경고 */
+.delete-confirm-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.warn-notice {
+  padding: 10px 12px;
+  border-radius: var(--r-sm, 4px);
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+.sub-hint {
+  font-size: var(--fs-xs);
+  margin-top: 4px;
+}
+.req {
+  color: var(--danger, #ef4444);
+  font-size: 12px;
+}
+.btn-danger {
+  background: var(--danger, #ef4444);
+  color: #fff;
+  border-color: var(--danger, #ef4444);
+}
+.btn-danger:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+}
 </style>
