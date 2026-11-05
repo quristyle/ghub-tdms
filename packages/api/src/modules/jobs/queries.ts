@@ -58,6 +58,48 @@ export function cancelJob(id: number, userId: number) {
   )
 }
 
+// ── API 가 직접 처리하는 작업 ──────────────────────────────────────────
+// 워커가 아니라 API 프로세스 안에서 도는 작업(예: MDB Zip 폴더 업로드)도 같은 jobs 표에
+// 올려 JobProgress 로 진행률을 보여준다. 처음부터 state='running', locked_by='api' 로 넣어
+// 워커가 집어 가지 않게 하고(워커는 queued 만 집는다), max_attempts=0 이라 API 가 죽어
+// heartbeat 가 끊기면 좀비 회수가 큐로 되돌리지 않고 실패로 끝낸다.
+
+export async function insertRunning(kind: string, payload: unknown, requestedBy: number): Promise<number> {
+  const row = await one<{ id: number }>(
+    `INSERT INTO jobs (kind, payload, requested_by, state, locked_by, max_attempts,
+                      started_at, heartbeat_at, progress_note)
+     VALUES ($1, $2, $3, 'running', 'api', 0, now(), now(), '시작하는 중')
+     RETURNING id`,
+    [kind, JSON.stringify(payload), requestedBy],
+  )
+  return row!.id
+}
+
+export function setProgress(id: number, pct: number, note: string | null) {
+  return query(
+    `UPDATE jobs SET progress = $2, progress_note = $3, heartbeat_at = now()
+      WHERE id = $1 AND state = 'running'`,
+    [id, Math.max(0, Math.min(100, Math.round(pct))), note],
+  )
+}
+
+export function setDone(id: number, result: unknown) {
+  return query(
+    `UPDATE jobs SET state = 'done', progress = 100, result = $2, finished_at = now(),
+                     heartbeat_at = now(), locked_by = NULL
+      WHERE id = $1 AND state = 'running'`,
+    [id, JSON.stringify(result ?? {})],
+  )
+}
+
+export function setFailed(id: number, message: string) {
+  return query(
+    `UPDATE jobs SET state = 'failed', error = $2, finished_at = now(), locked_by = NULL
+      WHERE id = $1 AND state = 'running'`,
+    [id, message.slice(0, 2000)],
+  )
+}
+
 /** heartbeat 가 2분 이상 끊긴 running 작업을 큐로 되돌린다 (좀비 회수) */
 export function reviveZombies() {
   return query(

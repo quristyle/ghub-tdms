@@ -1,5 +1,6 @@
 import type pg from 'pg'
-import type { MdbListQuery, MdbUpdateRequest } from '@tdms/contracts'
+import type { MdbListQuery, MdbUnclassifiedQuery, MdbUpdateRequest } from '@tdms/contracts'
+import { docName, fileExtOf, normalizeTypes } from './grouping.js'
 import { tx } from '../../core/db.js'
 import { invalidate } from '../../core/cache.js'
 import { encodeCursor } from '../../core/cursor.js'
@@ -80,13 +81,105 @@ export async function suggestTags(prefix: string) {
 
 // ── 관리 ────────────────────────────────────────────────────────────────
 
+/**
+ * 자료 정보 수정 (기존 update-info).
+ *
+ * 자료에 원본과 PDF 사본이 함께 있으면 **양쪽 파일에 똑같이 적용한다** — 자료명을 바꾸면
+ * 파일마다 자기 확장자는 그대로 두고 이름 부분만 바뀌고(A.xls·A.pdf → B.xls·B.pdf),
+ * Tag No·설비유형·자료유형·Note 도 두 파일에 같은 값이 들어간다.
+ *
+ *   · 설비유형·자료유형은 "Pump/Strainer" 처럼 이어 붙인 값 — 중복을 정리하고 자료유형은 정렬
+ *   · Tag No 는 적은 그대로 두되 대소문자만 다른 것은 하나만 남긴다
+ *   · 공용/확인필요 표시를 따로 주지 않으면 Tag No·설비유형으로 다시 정한다
+ */
 export async function update(id: number, v: MdbUpdateRequest) {
   await tx(async (c) => {
     const found = await q.mdbBrief(c, [id])
-    if (!found.rows.length) throw Errors.notFound('자료')
-    await q.updateMdb(c, id, v)
-    if (v.tags !== undefined) await q.replaceTags(c, id, v.tags)
+    const me = found.rows[0]
+    if (!me) throw Errors.notFound('자료')
+
+    // 같은 폴더 + 같은 자료명 = 자료 1건. 보관함 안의 행이면 그 행만 고친다.
+    const group = me.is_archived
+      ? [id]
+      : (await c.query<{ id: number }>(
+          `SELECT id FROM mdb_files WHERE folder_id = $1 AND title = $2 AND NOT is_archived`,
+          [me.folder_id, me.title],
+        )).rows.map((r) => r.id)
+
+    let title = v.title?.trim()
+    if (title) {
+      title = docName(title, fileExtOf(title)) // 확장자가 딸려 왔으면 뗀다
+      if (title !== me.title) {
+        const clash = await c.query(
+          `SELECT 1 FROM mdb_files
+            WHERE folder_id = $1 AND upper(title) = upper($2) AND NOT is_archived
+              AND NOT (id = ANY($3::bigint[])) LIMIT 1`,
+          [me.folder_id, title, group],
+        )
+        if (clash.rowCount) {
+          throw Errors.conflict('NAME_TAKEN', `같은 폴더에 "${title}" 자료가 이미 있습니다.`)
+        }
+        await c.query(
+          `UPDATE mdb_files
+              SET title = $2,
+                  display_name = CASE WHEN file_ext = '' THEN $2 ELSE $2 || '.' || file_ext END,
+                  original_filename = CASE WHEN file_ext = '' THEN $2 ELSE $2 || '.' || file_ext END,
+                  updated_at = now()
+            WHERE id = ANY($1::bigint[])`,
+          [group, title],
+        )
+      }
+    }
+
+    const tags = v.tags === undefined ? undefined : dedupeTags(v.tags)
+    const fields = {
+      ...v,
+      title: undefined,
+      equipmentType: v.equipmentType === undefined ? undefined : normalizeTypes(v.equipmentType),
+      docType: v.docType === undefined ? undefined : normalizeTypes(v.docType, true),
+      note: v.note === undefined ? undefined : (v.note ?? '').trim() || null,
+    }
+    for (const fid of group) {
+      await q.updateMdb(c, fid, fields)
+      if (tags !== undefined) await q.replaceTags(c, fid, tags)
+    }
+
+    // 분류(전용/공용/확인필요)는 Tag No·설비유형으로 정해진다 — 직접 주지 않았으면 다시 맞춘다
+    if ((v.tags !== undefined || v.equipmentType !== undefined)
+        && v.isShared === undefined && v.needsCheck === undefined) {
+      await c.query(
+        `UPDATE mdb_files m
+            SET is_shared   = (t.n = 0 AND coalesce(m.equipment_type, '') <> ''),
+                needs_check = (t.n = 0 AND coalesce(m.equipment_type, '') = '')
+           FROM (SELECT f.id, (SELECT count(*) FROM mdb_file_tags x WHERE x.mdb_file_id = f.id) AS n
+                   FROM mdb_files f WHERE f.id = ANY($1::bigint[])) t
+          WHERE m.id = t.id`,
+        [group],
+      )
+    }
   })
+}
+
+function dedupeTags(raw: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const r of raw) {
+    const t = r.trim()
+    if (!t || seen.has(t.toUpperCase())) continue
+    seen.add(t.toUpperCase())
+    out.push(t)
+  }
+  return out.sort((a, b) => a.toUpperCase().localeCompare(b.toUpperCase()))
+}
+
+// ── 미분류 자료 정리 ────────────────────────────────────────────────────
+
+export async function unclassified(v: MdbUnclassifiedQuery) {
+  const rows = await q.unclassified(v)
+  return {
+    items: rows.map(({ total: _t, ...r }) => r),
+    total: rows[0]?.total ?? 0,
+  }
 }
 
 export async function move(fileIds: number[], targetFolderId: number) {

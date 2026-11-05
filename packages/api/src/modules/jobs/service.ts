@@ -59,3 +59,22 @@ export async function mine(userId: number) {
 export async function cancel(id: number, userId: number) {
   await q.cancelJob(id, userId)
 }
+
+// ── API 안에서 도는 작업 (워커가 집지 않는다 — queries.insertRunning 설명 참고) ──
+
+export function createRunning(kind: string, payload: unknown, userId: number): Promise<number> {
+  return q.insertRunning(kind, payload, userId)
+}
+
+/** 진행률 갱신. heartbeat 도 함께 갱신되어 좀비로 오인되지 않는다. */
+export async function progress(jobId: number, pct: number, note: string | null): Promise<void> {
+  await q.setProgress(jobId, pct, note)
+}
+
+export async function finish(jobId: number, result: unknown): Promise<void> {
+  await q.setDone(jobId, result)
+}
+
+export async function fail(jobId: number, message: string): Promise<void> {
+  await q.setFailed(jobId, message)
+}
