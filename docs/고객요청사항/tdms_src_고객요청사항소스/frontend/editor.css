@@ -1,0 +1,653 @@
+/* 폴더·자료 편집 화면 — 기존 디자인 토큰(색·radius 등)만 그대로 쓴다. 새 색은 만들지 않는다. */
+
+.editor-note {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.7;
+  margin: 0 0 18px;
+  max-width: 900px;
+}
+.editor-note b { color: var(--text); font-weight: 600; }
+
+/* 왼쪽 트리(1열, 위·아래 두 줄에 걸쳐 길게) + 오른쪽 위: 편집패널 / 오른쪽 아래: Zip
+   이 파일은 TDB 관리(editor.html)와 MDB 관리(mdb-editor.html)가 함께 쓴다.
+   아래 기본 규칙은 두 화면 모두의 예전 디자인 그대로이고, TDB 관리에만 적용하는 새 디자인
+   (트리 리사이즈, TDB 조회 폴더 트리 스타일, 반입·검수 섹션 스타일)은 뒤쪽에 .tree-editor-v2로
+   스코프를 나눠 별도로 얹는다 — MDB 관리 쪽 마크업·디자인은 그대로 둔다. */
+.editor-layout {
+  display: grid;
+  grid-template-columns: 453px 1fr;   /* 340px → 453px (약 9:12) */
+  grid-template-rows: auto 1fr;        /* 아래 줄(Zip)이 남는 높이를 채운다 */
+  gap: 18px;
+  align-items: start;
+  min-height: calc(100vh - 330px);     /* 화면 하단 근처까지 내려온다 */
+}
+.editor-layout .tree-card {
+  grid-column: 1; grid-row: 1 / span 2;
+  align-self: stretch;                 /* Zip 섹션 하단까지 늘어난다 */
+  overflow-y: auto;
+}
+.editor-layout .edit-cols { grid-column: 2; grid-row: 1; }
+.editor-layout .zip-card  {
+  grid-column: 2; grid-row: 2; margin-top: 0;
+  align-self: stretch;                 /* 트리와 같은 하단까지 늘어난다 */
+}
+
+.tree-card { padding: 14px; }
+.tree-card-title {
+  font-size: 14px; font-weight: 700; margin-bottom: 4px;
+}
+.tree-card-sub { font-size: 11.5px; color: var(--text-faint); margin-bottom: 10px; }
+
+.tree { font-size: 12.5px; }
+.tree-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 6px; border-radius: var(--radius);
+  cursor: pointer; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.tree-row:hover { background: var(--surface-alt); }
+.tree-row.selected { background: var(--accent-soft); font-weight: 600; }
+.tree-row.is-doc { color: var(--text-muted); }
+.tree-row.is-doc.selected { color: var(--text); }
+
+.tree-icon { flex-shrink: 0; opacity: 0.85; }
+
+.tree-caret {
+  width: 12px; flex-shrink: 0; color: var(--text-faint);
+  transition: transform 0.12s; display: inline-block; text-align: center;
+}
+.tree-caret.open { transform: rotate(90deg); }
+.tree-caret.leaf { visibility: hidden; }
+
+.tree-label { overflow: hidden; text-overflow: ellipsis; }
+.tree-count { color: var(--text-faint); font-size: 11px; margin-left: 2px; }
+.tree-children { margin-left: 14px; }
+
+/* 오른쪽 편집 패널 두 칸 (폴더 편집 | 자료 편집) */
+.edit-cols {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+}
+.edit-block {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface-alt); padding: 16px;
+  height: 360px;                 /* 선택 여부와 무관하게 높이 고정 — 선택해도 안 늘어난다 */
+  display: flex; flex-direction: column;
+  position: relative;            /* 미리보기 버튼(우측 상단) 기준 */
+}
+
+/* 자료 편집 박스 상단: 제목 + 버튼(신규추가)을 한 줄에 배치 — 예전엔 버튼이
+   position:absolute로 제목 위에 그대로 겹쳐서 "자료 편집" 글자가 안 보이는 문제가 있었다. */
+.edit-block-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.edit-block-header-btns { display: flex; gap: 6px; flex-shrink: 0; }
+
+.register-btn {
+  height: 26px; padding: 0 11px; font-size: 11.5px;
+}
+.edit-block-title { font-size: 14px; font-weight: 700; }
+.edit-block-sub { font-size: 11.5px; color: var(--text-faint); margin-top: 2px; }
+
+.edit-target {
+  margin-top: 12px; padding: 10px 12px; border-radius: var(--radius);
+  background: var(--surface); border: 1px solid var(--border);
+  font-size: 12.5px; line-height: 1.5; word-break: break-all;
+}
+.edit-target .muted { color: var(--text-faint); }
+.edit-target .path { color: var(--text-muted); font-size: 11.5px; }
+
+.edit-actions { margin-top: 14px; display: flex; flex-direction: column; gap: 7px; }
+.edit-actions button { justify-content: flex-start; text-align: left; width: 100%; }
+.edit-actions button.danger-line {
+  color: var(--danger); border-color: #eccecb;
+}
+.edit-actions button.danger-line:hover:not(:disabled) {
+  background: var(--danger-soft); border-color: #e0b4b0;
+}
+
+.empty-hint {
+  margin-top: auto; margin-bottom: auto; text-align: center;
+  color: var(--text-faint); font-size: 12.5px; line-height: 1.7;
+}
+
+/* Zip 넣기 카드 */
+.zip-card { padding: 16px; }
+.zip-card-title { font-size: 14px; font-weight: 700; }
+.zip-card-sub { font-size: 12px; color: var(--text-muted); margin: 4px 0 12px; }
+
+/* 넣을 위치(폴더 카드) | Zip 파일 — 폴더 편집·자료 편집 두 칸과 같은 크기·모양 */
+.zip-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+
+.zip-upload-body { display: flex; flex-direction: column; flex: 1; margin-top: auto; margin-bottom: auto; }
+.zip-upload-body input[type=file] { width: 100%; }
+.zip-upload-body #zip-submit { margin-top: 10px; align-self: flex-start; }
+
+/* ===========================================================================
+   TDB 관리(editor.html) 전용 새 디자인 — #tdb-editor-page로 스코프를 분리해서 위 기본
+   규칙(MDB 관리와 공유)은 그대로 두고 이 화면에만 얹는다. 화면 구성은 위: 검색 ·
+   좌: 폴더 트리(폴더만) · 우: 편집 3단 → 폴더명·자료명 확인 박스 → 결과 표 → [이전/다음].
+   tree.css의 폴더 트리, style.css의 filter-bar/table-scroll/pagination 규칙을 재사용한다.
+   =========================================================================== */
+
+/* 폴더 트리(좌)와 오른쪽 칸(편집 3단 + 확인 카드 + 결과 표 + [이전/다음])의 높이를 맞추는
+   규칙은 이제 TDB 조회·MDB 조회와 공용(tree.css의 .main-layout/.tree-panel/#folder-tree/
+   .main-content)이라 여기서 따로 걸지 않는다(2026-08-17 정리 — 예전엔 이 화면만 트리가
+   오른쪽 칸에 맞춰 늘어나고 TDB 조회는 트리가 고정 높이로 따로 놀아 화면마다 규칙이 달랐다). */
+
+/* 결과 표 위, 편집 3단 아래에 얹는 폴더명·자료명 확인 박스: 위·아래로 나란히 얇은 카드 두 장 */
+#tdb-editor-page .info-cards, #mdb-editor-page .info-cards {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-top: 18px;
+  margin-bottom: 12px;
+}
+#tdb-editor-page .info-card, #mdb-editor-page .info-card {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--surface);
+  font-size: 12.5px;
+}
+#tdb-editor-page .info-card-label, #mdb-editor-page .info-card-label {
+  flex: 0 0 auto;
+  font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.02em;
+}
+#tdb-editor-page .info-card-value, #mdb-editor-page .info-card-value {
+  display: flex; align-items: center; gap: 6px;
+  font-weight: 600; color: var(--text);
+}
+#tdb-editor-page .info-card-count, #mdb-editor-page .info-card-count,
+#tdb-editor-page .info-card-meta, #mdb-editor-page .info-card-meta {
+  color: var(--text-muted); font-size: 11.5px;
+}
+/* 폴더명 뒤 전체건수는 TDB·MDB 조회와 같은 표기법(세로선 구분)을 쓴다.
+   (.info-card는 이미 flex gap:8px 16px로 항목 사이를 벌려두므로 padding만 더한다) */
+#tdb-editor-page .info-card-value + .info-card-count,
+#mdb-editor-page .info-card-value + .info-card-count {
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+#tdb-editor-page .info-card-empty, #mdb-editor-page .info-card-empty { color: var(--text-faint); }
+
+/* 폴더 편집 / 자료 편집 / Zip 폴더 업로드 — 맨 위, 같은 폭의 3단. TDB 반입·검수 반입등록
+   섹션과 같은 head(제목줄)/body(본문) 구성. import.css의 .bulk-block-head/.bulk-block-body를
+   그대로 쓴다(제목 줄 높이·배경·여백까지 그 화면과 동일).
+   폴더 편집·자료 편집은 이제 선택 여부와 무관하게 버튼 4개가 항상 펼쳐져 있어(비활성화만
+   될 뿐) 세 칸 다 항상 내용이 있으므로, 반입·검수 2단처럼 align-items:stretch로 셋의 아래
+   끝을 맞춘다. 가장 짧은 Zip 칸은 아래 file-row 쪽에서 점선 드롭존이 flex로 늘어나
+   채워지도록 만들어뒀다(빈 여백이 아니라 실제 드롭 영역이 커지는 것). */
+#tdb-editor-page .edit-cols, #mdb-editor-page .edit-cols {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  align-items: stretch;
+}
+#tdb-editor-page .edit-block, #mdb-editor-page .edit-block {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  height: auto;   /* 기본(.edit-block) 규칙의 고정 360px를 이 화면에서만 풀어 내용만큼만 차지하게 한다 */
+  padding: 0;     /* 기본(.edit-block) 규칙의 padding:16px도 이 화면에서만 없앤다 — 그 패딩 때문에
+                     제목줄(.bulk-block-head)의 회색 배경이 카드 테두리에 바로 안 붙고 안쪽으로
+                     16px 밀려 들어가, 반입·검수 화면과 달리 제목칸 둘레에 불필요한 흰 여백이
+                     생겼었다. head/body가 각자 자기 padding을 가지므로 바깥은 0이어야 맞다. */
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+#tdb-editor-page .edit-block .bulk-block-body, #mdb-editor-page .edit-block .bulk-block-body { padding: 14px 16px; }
+
+/* 편집 버튼들 — 세로 목록형(왼쪽 정렬), 삭제는 위험 표시로 살짝 다른 색 */
+#tdb-editor-page .edit-actions, #mdb-editor-page .edit-actions {
+  margin: 0; display: flex; flex-direction: column; gap: 7px;
+}
+#tdb-editor-page .edit-actions button, #mdb-editor-page .edit-actions button {
+  justify-content: flex-start; text-align: left; width: 100%;
+}
+#tdb-editor-page .edit-actions button.danger-line, #mdb-editor-page .edit-actions button.danger-line {
+  color: var(--danger); border-color: #eccecb;
+}
+#tdb-editor-page .edit-actions button.danger-line:hover:not(:disabled), #mdb-editor-page .edit-actions button.danger-line:hover:not(:disabled) {
+  background: var(--danger-soft); border-color: #e0b4b0;
+}
+#tdb-editor-page .empty-hint, #mdb-editor-page .empty-hint {
+  margin: 0; text-align: left;
+  color: var(--text-faint); font-size: 12.5px; line-height: 1.7;
+}
+
+/* 자료 교체 + 신규 추가 — 한 줄에 반씩. 나머지 버튼과 같은 목록 안에 있으므로
+   .edit-actions button 규칙(왼쪽 정렬 등)을 그대로 물려받고, 폭만 반으로 나눈다. */
+#tdb-editor-page .edit-actions-row, #mdb-editor-page .edit-actions-row {
+  display: flex;
+  gap: 7px;
+}
+#tdb-editor-page .edit-actions-row button, #mdb-editor-page .edit-actions-row button {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+}
+
+/* Zip 폴더 업로드 본문 — TDB 반입·검수 반입등록 섹션의 파일 첨부 줄(.file-row/.file-label,
+   import.css)을 그대로 쓴다. 파일 선택 줄 + 점선 드롭존이 왼쪽(flex:1)을 채우고, [업로드]
+   버튼은 오른쪽 고정폭으로 붙어 점선영역 오른쪽을 넘지 않는다.
+   반입·검수 화면은 옆 칸(반입등록 개별 자료)의 내용이 넉넉해 file-row가 딱 맞는 높이로
+   끝나지만, 여기는 옆(폴더 편집·자료 편집) 칸이 버튼 4개만큼 더 길어서 Zip 칸도 같이
+   늘어난다(위 align-items:stretch). 그 늘어난 높이를 점선 드롭존이 그대로 채우도록
+   file-row → file-label → drop-zone까지 flex:1을 이어 붙이고, 버튼만 자기 높이 그대로
+   맨 아래에 붙는다(align-self:flex-end 유지) — 그래서 점선 영역 아래끝이 계속 버튼
+   아래끝과 맞는다. */
+#tdb-editor-page .zip-block .file-row, #mdb-editor-page .zip-block .file-row {
+  flex: 1;
+  margin-top: 0;
+}
+#tdb-editor-page .zip-block .file-label, #mdb-editor-page .zip-block .file-label {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+}
+#tdb-editor-page .zip-block .drop-zone, #mdb-editor-page .zip-block .drop-zone {
+  flex: 1;
+}
+#tdb-editor-page .zip-block button.primary, #mdb-editor-page .zip-block button.primary {
+  align-self: flex-end;
+}
+
+/* Rev 번호 줄(.zip-rev-row, editor.js)은 .modal-field-row로 라벨을 입력칸 세로 중앙에
+   맞추는데, `.bulk-block-body label { margin-top: 12px }`(import.css, 위아래로 쌓인
+   필드용 규칙)이 라벨을 아래로 밀어 중앙이 아니라 아래 맞춤으로 보이게 만든다.
+   이 줄에서만 그 margin을 지운다. */
+#tdb-editor-page .zip-block .zip-rev-row > label, #mdb-editor-page .zip-block .zip-rev-row > label {
+  margin-top: 0;
+}
+
+/* "숨김 폴더 보기"를 켰을 때만 나오는 DWG·PDF 폴더 — 평소엔 안 보이는 자리라는 걸 알 수
+   있게 구분한다. 처음엔 행 배경(var(--surface-sunken))을 썼는데, 마우스 오버(.tree-node:hover)
+   배경과 색이 같아서 "폴더를 골랐나?" 헷갈린다는 CM 지적으로(2026-08-16), 행 배경 대신
+   폴더 아이콘만 옅은 회색으로 흐리게 바꿔 구분한다. 이모지는 color로 못 바꿔서 filter로 탈색한다. */
+#tdb-editor-page .tree-node.pair-folder .tree-icon,
+#mdb-editor-page .tree-node.pair-folder .tree-icon {
+  filter: grayscale(1) opacity(0.75);
+}
+
+/* "폴더" 헤더(#tree-collapse-all)는 TDB 조회 화면과 똑같이 tree.css의 .tree-head 규칙
+   (회색 var(--text-muted) + <b> 기본 굵기)만 그대로 물려받는다. 예전엔 여기서 색을
+   var(--text)(검정)로 덮어써서 TDB 조회 화면과 색이 달라 보였다. */
+
+/* 결과 표 높이는 4개 화면 모두 공용 규칙(style.css의 .table-scroll max-height:68vh +
+   tree.css의 flex 늘림)만 쓴다 — 결과 건수만큼만 차지하고, 폴더트리가 더 길면 그 높이까지
+   늘어난다.
+   예전에는 이 화면(TDB 관리)만 height:68vh로 **고정**해뒀었다. 트리 높이가 오른쪽 칸을
+   그대로 따라가던 시절이라, 자료 1건짜리 폴더를 고르면 표가 짧아지면서 트리까지 같이 확
+   줄어 스크롤이 맨 위로 튕겼기 때문이다(2026-08-16 CM 지적). 2026-08-17에 트리가 자기
+   내용만큼 높이를 먼저 차지하도록 바뀌면서(tree.css) 트리 높이가 표 높이에 눌리는 일 자체가
+   없어졌으므로, 이 고정도 같이 걷어내고 4개 화면을 한 규칙으로 통일했다(CM 요청). */
+
+/* 위치 선택기(기존 폴더 / 새 폴더) — 이동·Zip 넣기 공용 */
+.tp-modes { display: flex; gap: 16px; margin-bottom: 8px; font-size: 12.5px; }
+.tp-modes label { display: flex; align-items: center; gap: 5px; color: var(--text-muted); cursor: pointer; }
+.tp-pane { display: flex; flex-direction: column; gap: 8px; min-width: 300px; }
+.tp-pane input[type=text] { width: 100%; }
+
+/* 위치 선택 결과 한 줄 — 드롭다운 대신 트리 팝업(폴더 선택 버튼)으로 고른 값을 보여준다 */
+.tp-picked {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); font-size: 12.5px;
+}
+.tp-picked-label { color: var(--text-muted); flex-shrink: 0; }
+.tp-picked-value {
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-weight: 700;
+}
+.tp-picked-value.is-empty { font-weight: 400; color: var(--text-faint); }
+.tp-picked button { flex-shrink: 0; }
+
+/* 폴더 선택 트리 팝업 — 이름이 길어도 잘리지 않도록(요청사항) 줄바꿈 없이 가로 스크롤로 전부 보여준다 */
+.folder-picker-box { width: 700px; max-width: 92vw; }
+.folder-picker-current {
+  font-size: 12.5px; color: var(--text-muted); margin: 4px 0 10px;
+  padding: 8px 10px; background: var(--surface-alt); border-radius: var(--radius);
+}
+.folder-picker-current b { color: var(--text); font-weight: 600; }
+.folder-picker-scroll {
+  max-height: 52vh; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 6px 0;
+}
+.tp-tree-row {
+  display: flex; align-items: center; gap: 6px; white-space: nowrap;
+  padding: 5px 12px 5px 8px; cursor: pointer; width: max-content; min-width: 100%;
+}
+.tp-tree-row:hover { background: var(--surface-alt); }
+.tp-tree-row.selected { background: var(--accent-soft); font-weight: 600; }
+/* 최상위 폴더는 하위 폴더와 구분되도록 이름을 굵게 표시한다 (tree.css의 같은 규칙과 동일 — D-35 위치이동 팝업) */
+.tp-tree-row[data-depth="0"] { font-weight: 700; }
+.tp-tree-caret {
+  width: 12px; flex-shrink: 0; color: var(--text-faint);
+  transition: transform 0.12s; display: inline-block; text-align: center;
+}
+.tp-tree-caret.open { transform: rotate(90deg); }
+.tp-tree-caret.leaf { visibility: hidden; }
+.tp-tree-icon { flex-shrink: 0; opacity: 0.85; }
+.tp-tree-label { flex-shrink: 0; }
+
+/* ---- 삭제 보관함 모달 ----
+   가로 스크롤이 생기지 않도록 폭을 넓게 잡고, 표는 시스템 다른 표(TDB 조회 결과 표 등)와
+   같은 규칙(table-scroll)을 그대로 쓴다. 엑셀 내보내기 버튼도 화면 상단 [삭제 보관함]과
+   같은 톤(기본 버튼)으로 통일한다. */
+.modal-box.trash-modal {
+  width: 92vw;
+  max-width: 1200px;
+  max-height: 90vh;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.trash-modal-title { margin: 0 0 10px; font-size: 15px; font-weight: 700; flex: 0 0 auto; }
+.trash-table-scroll {
+  flex: 1; min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;   /* table-layout:fixed로 열 폭 합이 항상 표 폭과 같아 가로 스크롤이 필요 없다 */
+  /* 아래 여백은 안 둔다 — TDB 조회 반출대기함(.cart-list)처럼 .modal-actions 자신의
+     margin-top(20px, style.css)만으로 표와 버튼 사이 간격을 준다. 여기서 더 더하면
+     반출대기함보다 표-버튼 간격이 눈에 띄게 벌어져 보인다. */
+}
+/* ---- Tag No·유형 미분류 관리 팝업 ----
+   스크롤 되는 칸은 반드시 "표 하나"뿐이어야 한다. 모달 박스에도 스크롤(overflow-y:auto)을
+   주고 표(.table-scroll, max-height:68vh)에도 스크롤을 주면 스크롤 칸이 두 개가 되는데,
+   표 머리글은 position:sticky라 안쪽(표) 기준으로만 고정된다. 그래서 바깥(모달)을 스크롤하면
+   머리글은 표 안에 붙어 있는 채로 행들만 표 밖으로 흘러나가 보인다(실제로 그 증상이 있었다).
+   → 모달은 overflow:hidden으로 스크롤을 없애고, 남는 높이를 표가 전부 차지해 표만 스크롤한다.
+   제목·필터·상태줄·버튼은 flex:0 0 auto로 높이를 고정해 줄어들지 않게 한다. */
+.modal-box.mdb-popup-box {
+  width: 92vw;
+  max-width: 1200px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* Tag No 이력관리 팝업 — 조치 칸에 버튼이 넷([수정]·[복사]·[다시 적용]·[되돌리기])이라
+   그만큼 더 넓게 연다. Note 문구 칸이 좁아지지 않게 하기 위함이다 (2026-08-30 CM 승인).
+   2026-08-31에 [복사]가 늘었을 때는 팝업을 더 넓히지 않고 조치 칸을 넓힌 만큼 Note 문구 칸이
+   줄어들게 했다(CM 지시) — Note 문구 칸은 남는 폭을 쓰는 칸이라 자동으로 그렇게 된다. */
+.modal-box.mdb-popup-box.mdb-popup-wide-box {
+  max-width: 1360px;
+}
+.modal-box.mdb-popup-box > .trash-modal-title,
+.modal-box.mdb-popup-box > .filter-bar,
+.modal-box.mdb-popup-box > .status-bar,
+.modal-box.mdb-popup-box > .modal-actions {
+  flex: 0 0 auto;
+}
+/* 본문 결과 표(.table-scroll)의 기본값(max-height:68vh)은 팝업 안 표에는 맞지 않으므로
+   (팝업은 표 하나가 남는 높이를 전부 차지해야 함) 팝업 전용으로 다시 풀어준다. */
+#mdb-editor-page .modal-box.mdb-popup-box > .table-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;   /* 전역 68vh 대신 팝업에서 남는 높이를 전부 쓴다 */
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.modal-box.mdb-popup-box .filter-bar {
+  margin-bottom: 10px;
+}
+
+/* 열 너비 조절·잘림(ellipsis)은 시스템 다른 표와 같은 공용 규칙(table.resizable, ui.js
+   makeColumnsResizable)을 그대로 쓴다 — 여기서 줄바꿈으로 되돌리는 예외를 두지 않는다. */
+#trash-table th, #trash-table td { padding: 9px 12px; }
+#uc-table th, #uc-table td { padding: 9px 12px; }
+
+/* Tag No·유형 미분류 관리 팝업의 분류·공사 드롭박스 — 서로 같은 너비로 맞춘다.
+   .field > select(기본 128px) 규칙보다 우선하도록 id로 직접 건다. */
+#uc-category,
+#uc-project {
+  width: 120px;
+}
+
+/* Tag No 이력관리 팝업의 연도·공사명 드롭박스 (2026-08-31 CM 지시) — 위와 같은 이유다.
+   팝업 안 <select>는 폭이 100%(.modal-box select)라 그냥 두면 들어 있는 값 길이에 따라
+   칸마다 폭이 달라진다("연도"는 좁고 "공사명"은 아주 넓어진다). 필터 바의 입력 칸은 폭이
+   같아야 한다는 공통 규칙(style.css 필터 바)대로 미분류 관리 팝업과 같은 120px로 맞춘다. */
+#th-year,
+#th-project-name {
+  width: 120px;
+}
+.trash-actions {
+  display: flex; gap: 6px; justify-content: center;
+}
+/* 완전 삭제(되돌릴 수 없음)는 폴더 삭제 버튼과 같은 붉은 테두리 톤으로 구분한다.
+   폴더·자료 편집 칸의 .danger-line과 같은 규칙을 삭제 보관함 팝업에도 그대로 적용. */
+.trash-actions button.danger-line,
+.status-bar .cart-btn.danger-line {
+  color: var(--danger); border-color: #eccecb;
+}
+.trash-actions button.danger-line:hover:not(:disabled),
+.status-bar .cart-btn.danger-line:hover:not(:disabled) {
+  background: var(--danger-soft); border-color: #e0b4b0;
+}
+#trash-table td.empty {
+  text-align: center; padding: 32px; color: var(--text-faint);
+  white-space: normal;
+}
+
+.modal-box.wide { width: 640px; }
+/* 자료 삭제 팝업의 [폐기 보관함으로 이동]·[삭제 보관함으로 이동] — 나란히 놓이는 같은 성격의
+   버튼이라 글자 수와 상관없이 크기를 똑같이 맞춘다 (2026-08-30 CM 확정). 세 버튼이 한 줄에
+   들어가야 해서 이 팝업만 폭을 넓게(wide) 쓴다. */
+.modal-actions .archive-choice-btn { min-width: 168px; justify-content: center; }
+.modal-title { font-size: 15px; font-weight: 700; margin: 0 0 10px; }
+.field-label { display: block; font-size: 12px; color: var(--text-muted); margin: 12px 0 4px; }
+.modal-box input[type=text], .modal-box select { width: 100%; }
+.warn-text { color: var(--danger); font-weight: 600; }
+.edit-target {
+  margin-top: 6px; padding: 10px 12px; border-radius: var(--radius);
+  background: var(--surface-alt); border: 1px solid var(--border);
+  font-size: 12.5px; line-height: 1.5; word-break: break-all;
+}
+
+/* 교체 대상 / 추가 위치처럼 "항목: 값"을 줄글이 아니라 정리된 한 줄로 보여줄 때 쓴다
+   (.edit-target 박스 안에서 여러 줄을 늘어놓을 때). */
+.kv-line { display: flex; gap: 8px; }
+.kv-line + .kv-line { margin-top: 4px; }
+.kv-label { flex: 0 0 auto; color: var(--text-muted); }
+
+/* 팝업 안에서 "라벨 + 입력칸"이 한 줄에 오는 필드(신규추가의 Rev 번호 등).
+   처음엔 이걸 위의 .kv-line으로 만들었었는데, .kv-line은 회색 대상 표시 박스(.edit-target)
+   안에서 "항목: 값"을 보여주는 용도라 입력칸이 있는 줄에 쓰면 ㉠ 라벨이 입력칸 위쪽으로
+   붙어 세로로 어긋나 보이고 ㉡ 입력칸 폭을 따로 지정해야 해서 위아래 칸들과 오른쪽 끝이
+   안 맞았다(2026-08-18 CM 지적). 여기서는 라벨을 입력칸 높이(32px) 한가운데에 맞추고,
+   입력칸이 남는 폭을 전부 차지하게 해서 오른쪽 끝이 바로 윗칸(파일 끌어다 놓기 칸 등)과
+   나란히 떨어지게 한다. */
+.modal-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* 바로 위 칸과는 다른 내용이므로 붙어 보이지 않게 띄운다
+     (위 .edit-target + .tp-modes 규칙과 같은 간격으로 맞춤) */
+  margin-top: 14px;
+}
+.modal-field-row > label { flex: 0 0 auto; color: var(--text-muted); }
+.modal-field-row > input { flex: 1; min-width: 0; }
+
+/* 값이 자동으로 정해져 직접 고칠 수 없는 입력칸(신규추가에서 같은 이름 자료의 Rev를 그대로
+   따라가는 경우) — 막혀 있다는 것이 보이게 한다. MDB 조회의 참고용 입력칸
+   (input.mdb-readonly-field, mdb.css)과 같은 모양. */
+.modal-field-row > input[readonly] {
+  background: var(--surface-sunken);
+  color: var(--text-faint);
+  cursor: default;
+}
+
+/* 대상 표시(.edit-target) 바로 다음에 입력칸이 올 때의 간격 — 예전엔 그 사이에 있던
+   field-label(예: "새 이름")이 이 여백을 대신 만들어줬는데, 그 라벨을 없애면서
+   (placeholder로 대체) 대신 여기서 여백을 준다. */
+.edit-target + input[type=text],
+.edit-target + input[type=file],
+.edit-target + .tp-picked {
+  margin-top: 10px;
+}
+
+/* 위치 이동 팝업: 라디오("최상위로 이동"/"위치 선택")는 그 아래 폴더 선택 칸과 한 묶음이라
+   서로 붙어 있어야 하지만, 위의 "이동 대상" 표시 칸과는 다른 내용이므로 그 사이는 조금 더
+   띄워서 둘이 분리된 그룹임을 보여준다. */
+#tdb-editor-page .edit-target + .tp-modes, #mdb-editor-page .edit-target + .tp-modes {
+  margin-top: 14px;
+}
+
+/* TDB 관리 팝업 전용: "변경 대상" 등 대상 표시 칸과 그 아래 입력칸의 높이를 맞춘다(한 줄일 때).
+   .edit-target은 MDB 관리 팝업과도 공유하는 클래스라 여기서만(#tdb-editor-page 스코프) 패딩을
+   줄여 입력칸(32px, style.css)과 같은 높이가 되게 한다 — 내용이 길어 줄바꿈되면 자연히 더 늘어난다. */
+#tdb-editor-page .edit-target, #mdb-editor-page .edit-target {
+  padding: 6px 12px;
+}
+
+/* 위치 이동/폴더 추가 팝업의 "최상위로 이동"/"위치 선택" 같은 라디오 선택지 — 고른 쪽이 아니면
+   그 아래 폴더 선택 칸을 흐리게(비활성)만든다. */
+#tdb-editor-page .tp-picked.is-disabled, #mdb-editor-page .tp-picked.is-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* 자료 미리보기 전용 CSS(.preview-modal 등)는 다른 화면(도면목록)에서도 쓰므로
+   style.css로 옮겨졌다. */
+
+/* 팝업 안 보조 설명 한 줄(자료 교체 등 — "내용만 바뀌고 …" 같은 안내). edit-target/입력칸과
+   달리 "대상" 개념이 아니라서 kv-line이 아닌 일반 문단으로 둔다. */
+.modal-hint-text {
+  font-size: 12.5px; color: var(--text-muted); line-height: 1.6; margin: 10px 0;
+}
+
+/* MDB 관리 "자료명·정보 변경" 팝업의 설비유형 줄 — 드롭다운이 남는 폭을 다 채우고,
+   편집 버튼(✎)은 오른쪽 끝에 붙어 다른 칸(변경 대상·이름·태그 입력 등)의 오른쪽 끝과 맞는다.
+   grid(1fr auto)로 두 칸을 나누면 칸 너비가 select 내용과 무관하게 정해져서, 버튼이
+   항상 오른쪽 끝에 붙는다(select가 자기 폭만큼만 차지해도 버튼 위치는 안 밀린다).
+   select엔 전역 규칙(select { max-width: 260px })이 걸려 있어 그대로 두면 칸을 다 못 채우고
+   버튼 앞에 빈틈이 생기므로, 여기서만 그 상한을 풀어 칸 폭을 그대로 채우게 한다. */
+.di-equip-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+.di-equip-row select { min-width: 0; width: 100%; max-width: none; }
+.di-equip-row .type-dropdown { min-width: 0; }
+
+/* MDB 관리 "자료명·정보 변경" 팝업 — 기본 팝업 폭(400px)의 1.5배 (2026-08-28 CM 지시).
+   Tag No 칸·설비유형·자료유형·Note가 한 화면에 들어가야 해서 넓혔다. 화면이 좁으면
+   창을 넘지 않게 줄인다(다른 팝업들과 같은 방식). */
+.modal-box.doc-info-box { width: 600px; max-width: 94vw; }
+
+/* 설비유형·자료유형은 체크박스로 여러 개를 고를 수 있다(2026-08-28 CM 확정). 고른 것은
+   버튼에 슬래시로 이어 붙여 보여주는데, 여러 개를 고르면 길어져 칸을 넘치므로 …로 줄이고
+   마우스를 올리면 전체가 보이게 한다(title, 결과 표의 경로 칸과 같은 방식). */
+.type-dropdown .dropdown-toggle {
+  overflow: hidden;
+  white-space: nowrap;
+}
+.type-dropdown .dropdown-toggle::after { flex: 0 0 auto; }
+
+/* 이미 지정돼 있지만 목록에서 숨겼거나 지운 유형 — 값은 그대로 두되 목록에 없다는 걸 알린다
+   (설비유형 목록에서 지워도 이미 지정된 자료의 값은 남는다는 규칙 그대로). */
+.type-missing-tag { color: var(--text-faint); font-size: 11.5px; }
+
+.dropdown-empty {
+  margin: 0;
+  padding: 10px;
+  font-size: 12px;
+  color: var(--text-faint);
+  line-height: 1.5;
+}
+
+/* Note — 자유롭게 적는 칸. 길어지면 팝업이 끝없이 늘어나지 않도록 이 칸 안에서만 스크롤한다
+   (Tag No 칸의 높이 제한과 같은 이유 — 아래 [저장] 버튼이 밀려나면 안 된다).
+   자료 상세보기에서는 반대로 스크롤 없이 전부 펼쳐 보여준다(2026-08-28 CM 확정). */
+.di-note {
+  width: 100%;
+  min-height: 84px;
+  max-height: 160px;
+  padding: 7px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.6;
+  outline: none;
+  overflow-y: auto;
+  resize: vertical;
+}
+.di-note:disabled { background: var(--surface-sunken); color: var(--text-faint); }
+
+/* 설비유형 목록 편집 팝업(picker-modal-root) — 공사·업체 드롭다운의 항목별 편집과 같은 성격이라
+   비슷한 줄 구성(이름 + 버튼들)을 쓴다. 한 줄에 버튼이 3개(이름 변경·숨기기 또는 복구·삭제)
+   들어가 기본 모달 폭(400px)으로는 좁아서, 이 팝업만 조금 넓힌다. */
+.modal-box.eq-manage-box { width: 480px; }
+.eq-manage-list { max-height: 40vh; overflow-y: auto; margin-bottom: 10px; }
+.eq-manage-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 2px; border-bottom: 1px solid var(--border);
+  font-size: 12.5px;
+}
+.eq-manage-row:last-child { border-bottom: none; }
+.eq-manage-name { flex: 1; }
+/* 숨긴 항목은 흐리게 — 목록에서 사라지진 않되 "안 쓰는 값"이라는 걸 한눈에 알 수 있게 */
+.eq-manage-row.is-hidden { opacity: 0.5; }
+.eq-manage-hidden-tag { color: var(--text-faint); font-weight: 400; }
+/* "숨기기"/"복구"는 같은 자리에서 문구만 바뀌는 버튼이라 너비도 같아야 자리가 안 흔들린다.
+   min-width가 아니라 width로 고정해야 "숨기기"(3자)보다 짧은 "복구"(2자)도 정확히 같은
+   너비가 된다(min-width는 내용이 더 넓은 쪽엔 적용되지 않아 미세하게 어긋난다). */
+.eq-manage-row .eq-toggle-btn { width: 58px; text-align: center; }
+/* "새 설비유형명" 입력칸 + [추가] 버튼을 한 줄에 — 입력칸이 남는 폭을 쓰고 버튼은 오른쪽에
+   붙는다(예전엔 입력칸이 한 줄을 다 차지하고 추가 버튼이 아래 닫기 옆에 있어 짝이 안 맞았다). */
+.eq-add-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.eq-add-row input[type="text"] {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.eq-add-row button {
+  flex: 0 0 auto;
+  width: 72px;
+}
+
+/* 원본/PDF 한쪽만 있는 자료 확인 팝업 (신규추가·Zip 등록 공용) — picker-box(import.css)를
+   그대로 쓰되, 표가 한 화면 목록만큼 크지 않으므로 폭·높이를 줄인다. */
+.partial-box {
+  width: 720px;
+  max-width: 92vw;
+  height: auto;
+  max-height: 80vh;
+}
+.partial-box .picker-scroll {
+  max-height: 50vh;
+}
+/* [엑셀 내보내기] 버튼 — .picker-tabs button의 탭 스타일(회색 배경·굵은 글씨)을 걷어내고
+   TDB 조회 화면 필터줄의 [엑셀 내보내기] 버튼(.cart-btn)과 같은 모양으로 되돌린다. */
+.partial-box .picker-tabs button.cart-btn,
+.pair-merge-box .picker-tabs button.cart-btn {
+  padding: 0 14px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  font-weight: 400;
+  color: var(--text);
+}
+.partial-box .picker-tabs button.cart-btn:hover:not(:disabled),
+.pair-merge-box .picker-tabs button.cart-btn:hover:not(:disabled) {
+  background: var(--surface-alt);
+  border-color: var(--text-faint);
+}
+
+/* [DWG·PDF 폴더 병합] 팝업 — DWG·PDF 폴더가 나란히 있지만 아직 안 합쳐진 폴더를 골라
+   병합한다. partial-box와 같은 picker-box 파생. 경로가 길어 가로 스크롤이 생기지 않도록
+   table-layout:fixed로 열 폭 합을 표 폭에 고정하고(trash-modal과 같은 방식), 경로가 웬만하면
+   안 잘리도록 폭을 TDB 조회 결과 표 수준으로 넉넉히 잡는다(2026-08-16 CM 지적). */
+.pair-merge-box {
+  width: 1360px;
+  max-width: 96vw;
+  height: auto;
+  max-height: 80vh;
+}
+.pair-merge-box .picker-scroll {
+  max-height: 55vh;
+  overflow-x: hidden;
+}
+#pm-table {
+  table-layout: fixed;
+}

@@ -1,0 +1,137 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>TDMS 기술자료 관리 시스템</title>
+  <link rel="icon" href="assets/favicon.ico?v=1" />
+  <link rel="stylesheet" href="style.css?v=36" />
+  <link rel="stylesheet" href="detail.css?v=20" />
+  <!-- editor.css: 설비유형·자료유형을 고르는 칸(.type-dropdown 등)의 모양은 MDB 관리 화면과
+       똑같아야 해서 그 화면이 쓰는 스타일을 그대로 함께 읽는다 (2026-08-29). -->
+  <link rel="stylesheet" href="editor.css?v=27" />
+  <link rel="stylesheet" href="mdb.css?v=21" />
+  <script src="auth-guard.js?v=13"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="app-header-inner">
+      <a class="app-brand" href="index.html">
+        <img class="app-brand-logo" src="assets/skgas-logo.png" alt="SK gas" />
+        <span class="app-brand-text"><strong>TDMS</strong> 기술자료 관리 시스템</span>
+      </a>
+      <nav class="app-nav">
+        <a href="index.html">TDB 조회</a>
+        <a href="import.html">TDB 반입·검수</a>
+        <a href="editor.html">TDB 관리</a>
+        <a href="distributions.html">TDB 반출이력</a>
+        <a href="mdb.html">MDB 조회</a>
+        <a href="mdb-editor.html">MDB 관리</a>
+        <a href="audit.html">시스템 로그</a>
+        <a href="users.html">사용자 관리</a>
+        <a href="backup.html">백업 관리</a>
+      </nav>
+      <div id="user-slot" class="app-user"></div>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">MDB 자료 상세 보기</h1>
+      </div>
+    </div>
+
+    <div class="detail-toolbar">
+      <div class="detail-toolbar-left">
+        <a href="mdb.html" id="detail-back" class="back-btn detail-back-btn">목록으로</a>
+        <span class="detail-nav">
+          <span class="nav-btn-pair">
+            <button type="button" class="nav-step-btn" id="detail-first-btn" title="맨 처음 자료"><span class="nav-arrow dbl-arrow">◀◀</span> 처음</button>
+            <button type="button" class="nav-step-btn" id="detail-prev-btn" title="이전 자료"><span class="nav-arrow">◀</span> 이전</button>
+          </span>
+          <span class="detail-nav-count">
+            <input type="text" inputmode="numeric" id="detail-nav-pos-input" class="nav-pos-input" title="번호를 입력하고 Enter" />
+            <span>/ <span id="detail-nav-total"></span></span>
+          </span>
+          <span class="nav-btn-pair">
+            <button type="button" class="nav-step-btn" id="detail-next-btn" title="다음 자료">다음 <span class="nav-arrow">▶</span></button>
+            <button type="button" class="nav-step-btn" id="detail-last-btn" title="맨 끝 자료">끝 <span class="nav-arrow dbl-arrow">▶▶</span></button>
+          </span>
+        </span>
+      </div>
+      <div class="page-actions" id="detail-actions"></div>
+    </div>
+
+    <!-- detail-info-card: 아래 편집칸에서 설비유형·자료유형 목록을 펼치면 카드 밑변을 넘어간다.
+         카드가 넘치는 내용을 잘라내게 돼 있어 목록이 잘려 보였으므로, 이 카드만 자르지 않는다
+         (mdb.css의 section.card.detail-info-card). -->
+    <section class="card detail-info-card">
+      <div class="section-head">
+        <h2>자료내용</h2>
+      </div>
+      <div class="card-pad detail-card">
+        <!-- 분류·설비유형·자료유형·연도를 한 줄에 (2026-08-29 CM 지시로 자료유형이 이 줄로 올라옴).
+             ✎가 붙은 칸은 이 화면에서 바로 고칠 수 있다 — MDB 관리의 "자료 편집" 권한이 있어야
+             누를 수 있고, 없으면 흐리게만 보인다(내용은 누구나 그대로 본다). -->
+        <div class="detail-row">
+          <div><span class="dt">자료명</span><span class="dd" id="f-name"></span></div>
+          <div class="detail-spacer" aria-hidden="true"></div>
+          <!-- 분류(전용·공용·확인필요)는 직접 고르는 값이 아니라 Tag No·설비유형이 있는지에 따라
+               시스템이 정하는 값이라 ✎가 없다. 아래 Tag No·설비유형을 고치면 여기도 같이 바뀐다. -->
+          <div><span class="dt">분류</span><span class="dd" id="f-category"></span></div>
+          <div class="detail-field" id="fld-equipment_type">
+            <span class="dt">설비유형</span>
+            <span class="dd" id="f-equipment_type"></span>
+            <button type="button" class="note-edit-btn detail-edit-btn" data-edit="equipment_type" title="설비유형 고치기">✎</button>
+          </div>
+          <div class="detail-field" id="fld-doc_type">
+            <span class="dt">자료유형</span>
+            <span class="dd" id="f-doc_type"></span>
+            <button type="button" class="note-edit-btn detail-edit-btn" data-edit="doc_type" title="자료유형 고치기">✎</button>
+          </div>
+          <div><span class="dt">연도</span><span class="dd" id="f-year"></span></div>
+        </div>
+        <div class="detail-row">
+          <div><span class="dt">공사</span><span class="dd" id="f-project"></span></div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-path"><span class="dt">경로</span><span class="dd" id="f-source_path"></span></div>
+        </div>
+        <!-- Tag No·Note는 적어둔 게 없어도 줄을 감추지 않는다 — 이 화면에서 바로 적을 수 있게
+             되면서(2026-08-29), 비어 있는 줄이 곧 "여기에 적으면 된다"는 자리가 되기 때문. -->
+        <div class="detail-row" id="f-tags-row">
+          <div class="detail-path detail-field" id="fld-tags">
+            <span class="dt">Tag No</span>
+            <span class="dd" id="f-tags"></span>
+            <button type="button" class="note-edit-btn detail-edit-btn" data-edit="tags" title="Tag No 고치기">✎</button>
+          </div>
+        </div>
+        <div class="detail-row" id="f-note-row">
+          <div class="detail-path detail-field" id="fld-note">
+            <span class="dt">Note</span>
+            <span class="dd detail-note" id="f-note"></span>
+            <button type="button" class="note-edit-btn detail-edit-btn" data-edit="note" title="Note 고치기">✎</button>
+          </div>
+        </div>
+        <!-- 어느 항목의 ✎를 누르든 편집칸은 항상 여기(Note 아래)에 열린다 (2026-08-29 CM 지시).
+             위에 보이던 기존 내용은 그대로 두고 가로줄로 경계를 그어 구분하며, 제목에 "편집"을
+             붙여 지금 어느 항목을 고치는 중인지 알린다(예: "Tag No 편집"). -->
+        <div class="detail-edit-area hidden" id="detail-edit-area"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>미리보기</h2>
+      </div>
+      <div id="pdf-area"></div>
+    </section>
+  </main>
+
+  <script src="ui.js?v=40"></script>
+  <script src="favorites.js?v=9"></script>
+  <script src="mdb-types.js?v=6"></script>
+  <script src="mdb-tag-history.js?v=6"></script>
+  <script src="mdb-detail.js?v=22"></script>
+</body>
+</html>

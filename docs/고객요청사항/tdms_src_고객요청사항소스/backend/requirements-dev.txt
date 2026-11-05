@@ -1,0 +1,9 @@
+# 개발하는 PC에만 설치하는 부품 — 운영 서버(Azure)에는 설치하지 않는다 (D-111).
+# 시스템이 돌아가는 데는 필요 없고, 코드를 고칠 때 보안 검사(security_check.py)에만 쓴다.
+# 단 이 파일 자체는 서버에도 올려 둔다 — 서버 백업에 실려야 로컬 PC 없이도 개발 환경을 다시 세울 수 있다.
+#     backend> venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+#
+# bandit은 버전을 고정한다 — 버전이 바뀌면 검사 항목이 늘거나 바뀌어, 지금까지 "문제 아님"으로
+# 정리해 둔 기준표(bandit_baseline.json)와 어긋날 수 있다. 올릴 때는 전체 검사를 한 번 돌려
+# 새로 뜨는 경고를 확인한 뒤 올린다.
+bandit==1.9.4

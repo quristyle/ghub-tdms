@@ -1,0 +1,221 @@
+/* 목록 화면 좌측 폴더 트리 + 본문 레이아웃 */
+
+.main-layout {
+  display: flex;
+  /* gap 대신 사이의 리사이즈 핸들(.tree-resize-handle)이 그 여백을 차지한다 */
+  gap: 0;
+  /* 폴더트리(좌)와 결과영역(우) 중 **더 긴 쪽이 이 줄의 높이를 정하고, 짧은 쪽이 거기까지
+     늘어나** 두 칸의 아래쪽 끝이 항상 맞는다. 폴더 트리가 있는 4개 화면(TDB 조회·TDB 관리·
+     MDB 조회·MDB 관리) 공통 규칙 (2026-08-17 CM 확정).
+       · 폴더트리가 길고 결과가 적으면  → 결과 표가 트리 아래끝까지 늘어나고 [이전/다음]이 맨 아래
+       · 결과가 많고 폴더트리가 짧으면  → 폴더트리 칸이 표 아래끝까지 늘어난다(폴더는 위쪽에)
+     중요(2026-08-17 CM 재지적): 폴더트리는 **자기 내용만큼 자리를 먼저 차지한다.** 결과가
+     1건뿐이라 표가 짧아졌다고 해서 트리를 그 높이로 눌러 폴더를 스크롤 뒤에 감추면 안 된다.
+     그래서 .tree-panel에는 min-height:0을 걸지 않는다(걸면 트리가 자기 높이를 주장하지 못하고
+     오른쪽 칸 높이에 눌린다). 대신 트리가 한없이 길어지는 것만 #folder-tree의 max-height로
+     막는다 — 아래 각 규칙의 주석 참고. */
+  align-items: stretch;
+}
+
+.tree-panel {
+  flex: 0 0 360px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  font-size: 12.5px;
+  /* 세로로 머리글(.tree-head) + 폴더 목록(#folder-tree) 두 칸.
+     overflow:hidden은 둥근 모서리 밖으로 내용이 삐져나오지 않게 하는 것이고, 실제 스크롤은
+     안쪽 #folder-tree가 담당한다. min-height는 일부러 주지 않는다(위 .main-layout 주석). */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 폴더 트리 폭 조정 핸들 — 드래그로 넓히거나 좁힐 수 있다. 오른쪽 칸(검색결과)은
+   flex:1이라 자동으로 나머지 폭을 채운다. */
+.tree-resize-handle {
+  flex: 0 0 14px;
+  align-self: stretch;
+  position: relative;
+  cursor: col-resize;
+}
+
+.tree-resize-handle::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 10%;
+  bottom: 10%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: var(--border-strong);
+}
+
+.tree-resize-handle:hover::after,
+.tree-resize-handle.resizing::after {
+  background: var(--text-faint);
+  width: 2px;
+}
+
+.tree-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 12px;
+  background: var(--surface-alt);
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  /* .tree-panel 안 flex 세로줄의 머리글 — 아래 폴더 목록만 스크롤되므로 sticky는 더 필요 없다 */
+  flex: 0 0 auto;
+}
+
+#folder-tree {
+  padding: 6px 0 10px;
+  /* flex-basis:auto(= 폴더 목록 실제 길이)라서 이 칸이 트리 패널 높이를 정한다 — 폴더를 모두
+     접었을 때 그 폴더들이 전부 보이는 높이가 이 줄의 최소 높이가 된다(스크롤 안 생김).
+     오른쪽 결과 칸이 더 길면 flex-grow:1로 그 높이까지 늘어난다(폴더는 위쪽에 그대로).
+     max-height는 폴더를 전부 펼쳤을 때(수천 px) 화면이 한없이 길어지는 것만 막는 상한이고,
+     그때만 트리 안에 스크롤이 생긴다. 68vh는 옆 결과 표의 상한(.table-scroll max-height:68vh,
+     style.css)과 같은 값이라 두 칸이 서로 비슷한 선에서 멈춘다.
+     420px 하한을 같이 두는 이유: 창을 세로로 많이 줄이면 68vh가 300px 밑으로 내려가 **폴더를
+     다 접은 상태에서도** 스크롤이 생길 수 있다. 모두 접었을 때 최상위 폴더(현재 화면별 9~12개)는
+     반드시 전부 보여야 한다는 것이 CM 확정 사항이라(2026-08-17), 창이 작아도 최소 이만큼은
+     펴지도록 바닥을 받쳐둔다(약 15줄분). */
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: max(68vh, 420px);
+  overflow-y: auto;
+}
+
+/* 누르면 펼쳐둔 하위 폴더를 전부 접는다 */
+#tree-collapse-all {
+  cursor: pointer;
+  user-select: none;
+}
+
+#tree-collapse-all:hover {
+  color: var(--text-muted);
+}
+
+.tree-node {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  border-radius: var(--radius);
+  margin: 0 6px 0 0;
+}
+
+.tree-node:hover {
+  background: var(--surface-sunken);
+}
+
+/* 폴더·자료 편집 화면의 트리(editor.css .tree-row)와 같은 디자인: 깊이와 무관하게
+   모든 폴더명은 같은 굵기·색이고, 지금 선택된 폴더만 굵게 표시한다. */
+.tree-node {
+  font-weight: 400;
+  color: var(--text);
+}
+
+.tree-node.active {
+  background: var(--accent-soft);
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* 최상위 폴더는 하위 폴더와 구분되도록 이름을 굵게 표시한다(2026-08-13 CM 요청) —
+   TDB 조회·TDB 관리·MDB 조회·MDB 관리 4개 화면의 폴더 트리가 공용으로 쓴다. */
+.tree-node[data-depth="0"] {
+  font-weight: 700;
+}
+
+.tree-toggle {
+  width: 15px;
+  flex: 0 0 15px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 13px;
+  user-select: none;
+}
+
+.tree-toggle:hover {
+  color: var(--text);
+}
+
+.tree-icon {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.tree-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.tree-count {
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 400 !important;
+}
+
+.main-content {
+  flex: 1;
+  min-width: 0;
+  /* 세로로 (상태줄·편집칸) → 결과 표 → [이전/다음] 순서. 폴더트리가 더 길어서 이 칸이
+     늘어날 때, 늘어난 높이를 결과 표가 받아 채우고 [이전/다음]은 항상 그 아래 맨 끝에
+     붙는다(아래 .table-scroll 규칙) — 그래야 [이전/다음] 아래끝이 트리 아래끝과 맞는다. */
+  display: flex;
+  flex-direction: column;
+}
+
+/* 결과 표 — 평소에는 결과 건수만큼만 차지하고(flex-basis:auto), 폴더트리가 더 길어서 남는
+   높이가 생겼을 때만 그만큼 늘어난다(flex-grow:1). 반대로 결과가 아주 많을 때의 상한은
+   style.css의 .table-scroll(max-height:68vh) 그대로다. */
+.main-layout .main-content > .table-scroll {
+  flex: 1 1 auto;
+}
+
+/* 위 필터줄의 조건초기화·엑셀내보내기와 오른쪽 끝을 맞춘다 (거기서도 10px을 남겨둔다) */
+.cart-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 10px;
+}
+
+/* 현재 선택 폴더명 (기본: MDB 조회처럼 "전체 N건" 뒤에 옴) */
+.selected-folder-name {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.selected-folder-name:empty {
+  display: none;
+}
+
+.selected-folder-name:not(:empty) {
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+
+/* TDB·MDB 조회는 폴더명이 "전체 N건"보다 앞에 온다 — 구분선을 건수 쪽으로 옮긴다
+   (TDB 조회·MDB 조회 두 화면이 같은 표기법을 쓰도록 함께 묶는다) */
+#tdb-search-page .selected-folder-name:not(:empty),
+#mdb-search-page .selected-folder-name:not(:empty) {
+  margin-left: 0;
+  padding-left: 0;
+  border-left: none;
+}
+
+#tdb-search-page .selected-folder-name:not(:empty) + #total-count,
+#mdb-search-page .selected-folder-name:not(:empty) + #total-count {
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}

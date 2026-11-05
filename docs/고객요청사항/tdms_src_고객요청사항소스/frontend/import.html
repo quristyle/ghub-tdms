@@ -1,0 +1,352 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>TDMS 기술자료 관리 시스템</title>
+  <link rel="icon" href="assets/favicon.ico?v=1" />
+  <link rel="stylesheet" href="style.css?v=36" />
+  <link rel="stylesheet" href="distribute.css?v=8" />
+  <link rel="stylesheet" href="import.css?v=13" />
+  <script src="auth-guard.js?v=13"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="app-header-inner">
+      <a class="app-brand" href="index.html">
+        <img class="app-brand-logo" src="assets/skgas-logo.png" alt="SK gas" />
+        <span class="app-brand-text"><strong>TDMS</strong> 기술자료 관리 시스템</span>
+      </a>
+      <nav class="app-nav">
+        <a href="index.html">TDB 조회</a>
+        <a href="import.html" class="active">TDB 반입·검수</a>
+        <a href="editor.html">TDB 관리</a>
+        <a href="distributions.html">TDB 반출이력</a>
+        <a href="mdb.html">MDB 조회</a>
+        <a href="mdb-editor.html">MDB 관리</a>
+        <a href="audit.html">시스템 로그</a>
+        <a href="users.html">사용자 관리</a>
+        <a href="backup.html">백업 관리</a>
+      </nav>
+      <div id="user-slot" class="app-user"></div>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="page-head">
+      <div>
+        <h1 class="page-title"><a class="page-title-link" href="import.html">TDB 반입·검수</a><span class="page-title-sub">TDB 신규 자료 등록 및 검토·승인</span></h1>
+      </div>
+    </div>
+
+    <!-- 검색 -->
+    <div class="filter-bar">
+      <div class="filter-row">
+        <div class="filter-fields">
+          <div class="field">
+            <label for="imp-kind">구분</label>
+            <select id="imp-kind">
+              <option value="">전체</option>
+              <option value="REVIEW">검수 대기</option>
+              <option value="ISSUE">확인 필요</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="imp-project">공사</label>
+            <select id="imp-project"><option value="">전체</option></select>
+          </div>
+          <div class="field">
+            <label for="imp-vendor">업체</label>
+            <select id="imp-vendor"><option value="">전체</option></select>
+          </div>
+          <div class="field">
+            <label for="imp-from">기간</label>
+            <input type="date" id="imp-from" />
+          </div>
+          <div class="field">
+            <label for="imp-to">~</label>
+            <input type="date" id="imp-to" />
+          </div>
+          <input type="text" id="imp-q" class="filter-search" placeholder="자료명 검색" />
+          <button id="imp-search-btn" class="primary">검색</button>
+        </div>
+        <div class="filter-actions">
+          <button id="imp-reset-btn" type="button">조건 초기화</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 검수 대기 -->
+    <section id="review-section">
+      <div class="status-bar">
+        <span><b id="review-count"></b></span>
+        <span class="cart-status">
+          <button id="review-bulk-approve-btn" class="cart-btn" type="button">선택 승인</button>
+          <button id="review-bulk-reject-btn" class="cart-btn" type="button">선택 반려</button>
+          <button id="review-export-btn" class="cart-btn" type="button">엑셀 내보내기</button>
+        </span>
+      </div>
+      <div class="table-scroll">
+        <table id="review-table">
+          <colgroup>
+            <col style="width:54px" />
+            <col style="width:48px" />
+            <col style="width:100px" />
+            <col style="width:90px" />
+            <col style="width:150px" />
+            <col style="width:100px" />
+            <col />
+            <col style="width:84px" />
+            <col style="width:104px" />
+            <col style="width:88px" />
+            <col style="width:88px" />
+            <col style="width:84px" />
+            <col style="width:130px" />
+            <col style="width:210px" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>No</th><th class="col-check" data-sort="off"><input type="checkbox" id="review-select-all" /></th>
+              <th>공사</th><th>업체</th><th>반입·검수대기 자료명</th><th>분류</th><th>경로</th>
+              <th>반출Rev</th><th>반입Rev</th><th>반출자료</th><th>반입자료</th><th>중복반출</th><th>업로드 일시</th><th data-sort="off">조치</th>
+            </tr>
+          </thead>
+          <tbody id="review-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 확인 필요 -->
+    <section id="issues-section" class="hidden">
+      <div class="status-bar">
+        <span><b id="issues-count"></b></span>
+        <span class="cart-status">
+          <button id="issues-bulk-recheck-btn" class="cart-btn" type="button">선택 재검수</button>
+          <button id="issues-bulk-reject-btn" class="cart-btn" type="button">선택 반려</button>
+          <button id="issues-export-btn" class="cart-btn" type="button">엑셀 내보내기</button>
+        </span>
+      </div>
+      <div class="table-scroll">
+        <table id="issues-table">
+          <colgroup>
+            <col style="width:54px" />
+            <col style="width:40px" />
+            <col style="width:110px" />
+            <col style="width:100px" />
+            <col style="width:160px" />
+            <col style="width:130px" />
+            <col />
+            <col style="width:520px" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>No</th><th class="col-check" data-sort="off"><input type="checkbox" id="issues-select-all" /></th>
+              <th>공사</th><th>업체</th><th>자료명</th><th>업로드 일시</th><th>사유</th><th data-sort="off">비고</th>
+            </tr>
+          </thead>
+          <tbody id="issues-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 반입 등록: 반입 Zip | 반입 자료 -->
+    <section id="bulk-form" class="import-form" data-perm="screen.tdb_import.register">
+      <div class="bulk-top-grid">
+        <!-- 반입 Zip -->
+        <div class="bulk-block card">
+          <div class="bulk-block-head">
+            <span class="bulk-block-title">반입등록 (Zip 파일)</span>
+            <span class="bulk-block-desc">Zip(반출목록 xlxs+폴더) 첨부</span>
+          </div>
+          <div class="bulk-block-body">
+            <div class="file-row">
+              <label class="file-label">
+                <input type="file" id="zip-file" accept=".zip" />
+              </label>
+              <button id="zip-submit" class="primary" type="button">업로드</button>
+            </div>
+            <div id="zip-result" class="result-box hidden"></div>
+          </div>
+        </div>
+
+        <!-- 반입 자료 -->
+        <div class="bulk-block card">
+          <div class="bulk-block-head">
+            <span class="bulk-block-title">반입등록 (개별 자료)</span>
+            <span class="bulk-block-desc">자료 선택 후, 자료(원본+사본) 첨부</span>
+          </div>
+          <div class="bulk-block-body">
+            <div class="sel-row">
+              <div class="field">
+                <label for="sel-project">공사</label>
+                <select id="sel-project"><option value="">공사 선택</option></select>
+              </div>
+              <div class="field">
+                <label for="sel-vendor">업체</label>
+                <select id="sel-vendor"><option value="">업체 선택</option></select>
+              </div>
+              <div class="field field-date">
+                <label for="sel-date-from">기간</label>
+                <input type="date" id="sel-date-from" />
+              </div>
+              <div class="field field-date">
+                <label for="sel-date-to">~</label>
+                <input type="date" id="sel-date-to" />
+              </div>
+              <button id="sel-search-btn" class="primary" type="button">자료검색</button>
+              <span id="sel-count" class="sel-count">선택된 도면: 0건</span>
+            </div>
+            <div class="file-row">
+              <label class="file-label">
+                <input type="file" id="sel-files" multiple />
+              </label>
+              <button id="sel-submit" class="primary" type="button">업로드</button>
+            </div>
+            <div id="sel-result" class="result-box hidden"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 반출본 ↔ 반입본 비교 -->
+  <div id="compare-modal" class="modal-overlay hidden">
+    <div class="compare-box">
+      <div class="compare-head">
+        <span id="compare-title"></span>
+        <button id="compare-close" type="button">닫기</button>
+      </div>
+      <div class="compare-panes">
+        <div class="compare-pane">
+          <div class="compare-label">반출자료</div>
+          <div id="compare-left"></div>
+        </div>
+        <div class="compare-pane">
+          <div class="compare-label">반입자료</div>
+          <div id="compare-right"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 자료검색 / 경로 재선택 공용 팝업 -->
+  <div id="picker-modal" class="modal-overlay hidden">
+    <div class="picker-box">
+      <div class="picker-head">
+        <span id="picker-title">자료검색</span>
+      </div>
+      <div class="picker-sub" id="picker-sub"></div>
+      <div class="picker-tabs">
+        <span class="picker-tab-group">
+          <button type="button" data-view="ALL" class="active">전체</button>
+          <button type="button" data-view="REVIEWING">검수대기</button>
+          <button type="button" data-view="DONE">반입완료</button>
+          <button type="button" data-view="INCOMPLETE">반입미완료</button>
+        </span>
+        <button id="picker-export-btn" type="button">엑셀 내보내기</button>
+      </div>
+      <div class="picker-scroll">
+        <table id="picker-table">
+          <colgroup>
+            <col style="width:50px" />
+            <col style="width:40px" />
+            <col style="width:170px" />
+            <col style="width:110px" />
+            <col />
+            <col style="width:66px" />
+            <col style="width:52px" />
+            <col style="width:52px" />
+            <col style="width:52px" />
+            <col style="width:52px" />
+            <col style="width:86px" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>No</th><th data-sort="off" class="col-check"><input type="checkbox" id="picker-select-all" /></th><th>자료명</th><th>분류</th><th>경로</th>
+              <th>반출Rev</th><th>DWG</th><th>XLSX</th><th>ETC</th><th>PDF</th><th>상태</th>
+            </tr>
+          </thead>
+          <tbody id="picker-tbody"></tbody>
+        </table>
+      </div>
+      <div class="picker-actions">
+        <span id="picker-count" class="sel-count">선택 0건</span>
+        <button id="picker-close" type="button">닫기</button>
+        <button id="picker-confirm" class="primary" type="button">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 확인 필요: 사유 상세 -->
+  <div id="detail-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h2>사유 상세</h2>
+      <p id="detail-text" class="issue-detail-text"></p>
+      <div class="modal-actions">
+        <button id="detail-close" class="primary" type="button">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 확인 필요: 자료 재첨부 -->
+  <div id="reattach-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h2>자료 재첨부</h2>
+      <p id="reattach-desc" class="page-desc"></p>
+      <label>파일 <span class="opt">(원본 + PDF 함께)</span>
+        <input type="file" id="reattach-files" multiple />
+      </label>
+      <div class="modal-actions">
+        <button id="reattach-cancel" type="button">취소</button>
+        <button id="reattach-confirm" class="primary" type="button">재첨부</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 중복반출 현황 -->
+  <div id="dup-modal" class="modal-overlay hidden">
+    <div class="modal-box dup-box">
+      <div class="dup-head">
+        <h2 id="dup-title">중복반출 현황</h2>
+        <button id="dup-export-btn" type="button">엑셀 내보내기</button>
+      </div>
+      <div class="table-scroll dup-scroll">
+        <table id="dup-table">
+          <colgroup>
+            <col style="width:54px" />
+            <col style="width:140px" />
+            <col style="width:110px" />
+            <col style="width:150px" />
+            <col style="width:100px" />
+          </colgroup>
+          <thead>
+            <tr><th>No</th><th>공사</th><th>업체</th><th>반출일시</th><th>상태</th></tr>
+          </thead>
+          <tbody id="dup-tbody"></tbody>
+        </table>
+      </div>
+      <div class="modal-actions">
+        <button id="dup-close" class="primary" type="button">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 중복반출 승인: 병합본 첨부 -->
+  <div id="merge-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h2>병합본 첨부 후 승인</h2>
+      <p id="merge-desc" class="page-desc"></p>
+      <label>파일 <span class="opt">(반출 때 있었던 종류 전부)</span>
+        <input type="file" id="merge-files" multiple />
+      </label>
+      <div class="modal-actions">
+        <button id="merge-cancel" type="button">취소</button>
+        <button id="merge-confirm" class="primary" type="button">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="ui.js?v=40"></script>
+  <script src="favorites.js?v=9"></script>
+  <script src="import.js?v=14"></script>
+</body>
+</html>

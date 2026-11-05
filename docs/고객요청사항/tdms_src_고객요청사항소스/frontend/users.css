@@ -1,0 +1,91 @@
+/* 사용자 관리 화면. Y/N 토글(.yn-toggle/.yn-btn)·그룹 패널(.perm-*)은 groups.css로 옮겼다
+   (권한 관리가 팝업에서 별도 화면으로 바뀜, 2026-08-11). */
+
+/* ---------- 사용자 추가·수정 팝업 (마이페이지 팝업과 같은 디자인 — .mypage-field-label 등 재사용) ---------- */
+.user-modal-box input[type="text"],
+.user-modal-box select {
+  width: 100%;
+  max-width: none;
+}
+
+/* 제목·"아이디" 표시 칸 — TDB/MDB 관리 팝업(editor.css)과 같은 디자인(2026-08-12 CM 요청).
+   users.html은 editor.css를 안 불러오므로 여기 그대로 옮겨둔다(같은 값, mdb.css의
+   .modal-title 중복 방식과 동일). */
+.modal-title { font-size: 15px; font-weight: 700; margin: 0 0 10px; }
+.edit-target {
+  margin-top: 6px; padding: 10px 12px; border-radius: var(--radius);
+  background: var(--surface-alt); border: 1px solid var(--border);
+  font-size: 12.5px; line-height: 1.5; word-break: break-all;
+}
+.kv-line { display: flex; gap: 8px; }
+.kv-line + .kv-line { margin-top: 4px; }
+.kv-label { flex: 0 0 auto; color: var(--text-muted); }
+
+/* 계정 상태(재직/퇴직/삭제) — 위 yn-toggle과 같은 만듦새를 3버튼으로 늘린 것 */
+.user-status-toggle {
+  display: flex;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.user-status-btn {
+  flex: 1;
+  height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.user-status-btn + .user-status-btn {
+  border-left: 1px solid var(--border-strong);
+}
+
+.user-status-btn:hover:not(.active) {
+  background: var(--surface-alt);
+}
+
+.user-status-btn.active[data-status="ACTIVE"] {
+  background: var(--ok-soft);
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.user-status-btn.active[data-status="RETIRED"] {
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.user-status-btn.active[data-status="DELETED"] {
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.reset-password-btn {
+  width: 100%;
+  margin-top: 4px;
+}
+
+/* ---------- 권한 관리 팝업 (groups.html을 iframe으로 크게 띄운다, 2026-08-12) ----------
+   내용(그룹·권한트리·구성원 3분할)이 많아 일반 모달보다 훨씬 크게 잡는다. */
+.perm-modal-box {
+  width: 96vw;
+  max-width: 1600px;
+  height: 94vh;
+  max-height: 94vh;
+  padding: 0;
+  overflow: hidden;
+}
+
+.perm-modal-box #perm-modal-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}

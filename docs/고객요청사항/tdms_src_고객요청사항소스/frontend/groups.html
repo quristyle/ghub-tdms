@@ -1,0 +1,101 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>TDMS 기술자료 관리 시스템</title>
+  <link rel="icon" href="assets/favicon.ico?v=1" />
+  <link rel="stylesheet" href="style.css?v=36" />
+  <link rel="stylesheet" href="tree.css?v=3" />
+  <link rel="stylesheet" href="distribute.css?v=8" />
+  <link rel="stylesheet" href="groups.css?v=2" />
+  <script src="auth-guard.js?v=14"></script>
+  <script src="embed-mode.js?v=1"></script>
+</head>
+<body data-require-permission="screen.users.access">
+  <header class="app-header">
+    <div class="app-header-inner">
+      <a class="app-brand" href="index.html">
+        <img class="app-brand-logo" src="assets/skgas-logo.png" alt="SK gas" />
+        <span class="app-brand-text"><strong>TDMS</strong> 기술자료 관리 시스템</span>
+      </a>
+      <nav class="app-nav">
+        <a href="index.html">TDB 조회</a>
+        <a href="import.html">TDB 반입·검수</a>
+        <a href="editor.html">TDB 관리</a>
+        <a href="distributions.html">TDB 반출이력</a>
+        <a href="mdb.html">MDB 조회</a>
+        <a href="mdb-editor.html">MDB 관리</a>
+        <a href="audit.html">시스템 로그</a>
+        <a href="users.html" class="active">사용자 관리</a>
+        <a href="backup.html">백업 관리</a>
+      </nav>
+      <div id="user-slot" class="app-user"></div>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="page-head">
+      <div>
+        <h1 class="page-title"><a class="page-title-link" href="users.html">권한 관리</a></h1>
+      </div>
+      <div class="page-actions">
+        <span id="perm-dirty-note" class="page-desc hidden">저장하지 않은 변경사항이 있습니다</span>
+        <button type="button" id="back-to-users-btn">닫기</button>
+        <button type="button" class="primary" id="save-perm-btn" disabled>저장</button>
+      </div>
+    </div>
+
+    <div class="perm-page-layout">
+      <div class="perm-side">
+        <div class="perm-panel">
+          <div class="perm-panel-head"><span class="perm-panel-title">그룹</span></div>
+          <div class="perm-panel-body">
+            <div id="group-list" class="perm-group-list-full"></div>
+            <div class="inline-add">
+              <input type="text" id="new-group-name" placeholder="새 그룹명" />
+              <button type="button" id="add-group-btn">＋추가</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="perm-panel perm-main">
+        <div class="perm-panel-head">
+          <span class="perm-panel-title" id="tree-title"></span>
+        </div>
+        <div class="perm-panel-body">
+          <div id="perm-tree" class="perm-tree"></div>
+        </div>
+      </div>
+
+      <div class="perm-panel perm-members-side">
+        <div class="perm-panel-head"><span class="perm-panel-title" id="members-title">구성원</span></div>
+        <div class="perm-panel-body">
+          <div class="table-scroll perm-members-scroll">
+            <table id="members-table">
+              <colgroup>
+                <col style="width:44px" />
+                <col style="width:110px" />
+                <col style="width:110px" />
+                <col style="width:110px" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>No</th><th>아이디</th><th>이름</th><th>그룹</th>
+                </tr>
+              </thead>
+              <tbody id="members-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="modal-root"></div>
+
+  <script src="ui.js?v=40"></script>
+  <script src="favorites.js?v=9"></script>
+  <script src="groups.js?v=2"></script>
+</body>
+</html>

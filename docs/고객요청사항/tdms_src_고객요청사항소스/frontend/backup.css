@@ -1,0 +1,176 @@
+/* 백업 관리 화면 (2026-09-29 CM 지시, D-105).
+   색·모서리·그림자는 style.css의 값을 그대로 쓴다 — 이 화면만 튀지 않게. */
+
+.bk-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+
+.bk-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.bk-panel-title {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.bk-count {
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: 6px;
+}
+
+.bk-panel-actions { display: flex; gap: 8px; }
+
+.bk-dest,
+.bk-hint {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  text-align: right;
+  word-break: break-all;
+}
+.bk-dest span { color: var(--text); }
+.bk-free { color: var(--text-muted) !important; }
+
+.bk-never { color: var(--text-faint); }
+.bk-changed { color: var(--warn); font-weight: 600; }
+.bk-explain { color: var(--text-muted); }
+.bk-dash { color: var(--text-faint); }
+.bk-file { overflow: hidden; text-overflow: ellipsis; }
+
+/* 백업 이력 표: 아래 칸의 값은 가운데 맞춤, 나머지(종류·파일명·받는 방법·비고)는 왼쪽 맞춤.
+   칸 번호: 1 No · 2 회차 · 4 범위 · 7 담은 자료 · 8 묶음 크기 · 9 파일 수 · 10 없어진 파일 ·
+   11 만든 사람 · 12 만든 시각 · 13 받은 횟수 · 14 마지막 받은 시각 · 15 상태 · 16 조치 */
+#bk-runs-table tbody td { text-align: left; }
+#bk-runs-table tbody td:not(.empty):is(:nth-child(1), :nth-child(2), :nth-child(4),
+  :nth-child(n+7):nth-child(-n+16)) { text-align: center; }
+
+/* ---------- 만들기 ---------- */
+.bk-form {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+
+.bk-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.bk-label {
+  flex: 0 0 72px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.bk-kinds { display: flex; gap: 14px; flex-wrap: wrap; }
+
+.bk-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.bk-input {
+  flex: 1 1 420px;
+  min-width: 260px;
+  max-width: none;
+}
+
+.bk-note-text {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.bk-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+/* ---------- 진행상황 ---------- */
+.bk-progress {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.bk-progress-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.bk-progress-head span:last-child { font-weight: 400; color: var(--text-muted); }
+
+.bk-bar {
+  height: 8px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.bk-bar-fill {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.bk-progress-detail {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ---------- 결과·경고 ---------- */
+.bk-result,
+.bk-warn {
+  margin-top: 12px;
+  padding: 11px 14px;
+  border-radius: var(--radius);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.bk-result ul { margin: 6px 0 0; padding-left: 18px; }
+.bk-result-good { background: var(--ok-soft); border: 1px solid var(--ok); color: var(--text); }
+.bk-result-bad { background: var(--danger-soft); border: 1px solid var(--danger); color: var(--text); }
+.bk-warn {
+  margin: 0 0 10px;
+  background: var(--warn-soft);
+  border: 1px solid var(--warn);
+  color: var(--text);
+}
+
+/* 비밀번호가 적혀 있어 묶음에서 뺀 파일 알림 (D-105 ②) */
+.bk-leak {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--danger-soft);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+}
+.bk-leak ul { margin: 6px 0 0; padding-left: 18px; }

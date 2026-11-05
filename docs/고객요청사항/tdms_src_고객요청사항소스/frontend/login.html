@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>TDMS 기술자료 관리 시스템</title>
+  <link rel="icon" href="assets/favicon.ico?v=1" />
+  <link rel="stylesheet" href="style.css?v=36" />
+  <link rel="stylesheet" href="login.css?v=6" />
+</head>
+<body class="login-body">
+  <div class="login-box">
+    <div class="login-brand">
+      <img class="login-brand-logo" src="assets/skgas-logo.png" alt="SK gas" />
+      <div class="login-brand-text">
+        <h1 class="login-title">TDMS</h1>
+        <p class="login-sub">기술자료 관리 시스템</p>
+      </div>
+    </div>
+
+    <!-- 로그인 -->
+    <div id="login-panel">
+      <label>아이디
+        <input type="text" id="username" autocomplete="username" />
+      </label>
+      <label>비밀번호
+        <input type="password" id="password" autocomplete="current-password" />
+      </label>
+      <button id="login-btn" class="primary" type="button">로그인</button>
+    </div>
+
+    <!-- 처음 로그인(기본 비밀번호)했을 때 새 비밀번호 정하기 (2026-09-17).
+         급할 땐 [다음에 변경하기]로 미루고 다음 로그인 때 다시 안내한다 (2026-09-29) -->
+    <div id="change-panel" class="hidden">
+      <p class="login-change-title">새 비밀번호를 정해 주세요</p>
+      <label id="change-current-label">현재(임시) 비밀번호
+        <input type="password" id="change-current" autocomplete="current-password" />
+      </label>
+      <label>새 비밀번호
+        <input type="password" id="change-new" autocomplete="new-password" />
+      </label>
+      <label>새 비밀번호 확인
+        <input type="password" id="change-confirm" autocomplete="new-password" />
+      </label>
+      <p id="change-rule" class="login-rule"></p>
+      <button id="change-btn" class="primary" type="button">비밀번호 변경</button>
+      <button id="change-later-btn" class="login-secondary-btn" type="button">다음에 변경하기</button>
+      <button id="change-logout-btn" class="login-secondary-btn" type="button">로그아웃</button>
+    </div>
+
+    <p id="login-error" class="login-error hidden"></p>
+  </div>
+  <script src="login.js?v=6"></script>
+</body>
+</html>

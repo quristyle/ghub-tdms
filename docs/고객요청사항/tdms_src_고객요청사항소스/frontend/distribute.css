@@ -1,0 +1,222 @@
+/* 모달 (반출하기 등) — 공통 오버레이·박스·버튼줄은 style.css로 옮겨서 모든 화면에서 재사용 */
+
+.modal-box label {
+  display: block;
+  margin-top: 12px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+/* fieldset처럼 <label>로 감쌀 수 없는 섹션 제목(반출목적 등)도 공사/업체와 같은 모양으로 */
+.modal-box-label {
+  display: block;
+  margin-top: 12px;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.modal-box input[type="text"],
+.modal-box select {
+  width: 100%;
+  max-width: none;
+  margin-top: 4px;
+}
+
+.modal-box fieldset label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  color: var(--text);
+}
+
+/* 수정용/참조용/기타를 일정한 간격으로 배치 */
+.purpose-row {
+  display: flex;
+  gap: 40px;
+}
+
+/* 반출목적 "기타" 사유 입력칸 — 항상 보이고, "기타"를 고를 때만 입력 가능 */
+#purpose-other-note {
+  display: block;
+  width: 100%;
+  max-width: none;
+  margin-top: 8px;
+  height: 60px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--text);
+  resize: vertical;
+}
+
+#purpose-other-note:disabled {
+  background: var(--surface-alt);
+  color: var(--text-faint);
+  cursor: var(--cursor-forbidden);
+  resize: none;
+}
+
+/* 공사 등록기간으로 드롭다운 목록을 좁히는 검색 필터 */
+.dist-daterange-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+/* 날짜칸이 비활성화되면 "년-월-일" 안내 문구도 다른 비활성 칸처럼 흐리게 보여야 하는데,
+   날짜 입력의 연/월/일 조각은 브라우저가 그리는 부분이라 color만으로는 안 먹는다
+   (2026-08-13 CM 지적) — 각 조각에 직접 걸어준다. */
+.dist-daterange-row input[type="date"]:disabled::-webkit-datetime-edit-fields-wrapper,
+.dist-daterange-row input[type="date"]:disabled::-webkit-datetime-edit-text,
+.dist-daterange-row input[type="date"]:disabled::-webkit-datetime-edit-year-field,
+.dist-daterange-row input[type="date"]:disabled::-webkit-datetime-edit-month-field,
+.dist-daterange-row input[type="date"]:disabled::-webkit-datetime-edit-day-field {
+  color: var(--text-faint);
+}
+
+.dist-daterange-row input[type="date"] {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+.dist-daterange-row input[type="date"]:disabled {
+  color: var(--text-faint);
+}
+
+.dist-daterange-sep {
+  color: var(--text-faint);
+  font-size: 12.5px;
+}
+
+.inline-add {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.inline-add input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 입력창에 붙는 기본 margin-top(4px) 때문에 버튼보다 아래로 처져 보여서, 버튼을 그만큼 내려 높이를 맞춘다 */
+.inline-add button {
+  margin-top: 4px;
+}
+
+.warning-box {
+  margin-top: 12px;
+  padding: 9px 11px;
+  background: var(--warn-soft);
+  border: 1px solid #f3d9a8;
+  border-radius: var(--radius);
+  font-size: 12.5px;
+  color: var(--warn);
+  line-height: 1.5;
+}
+
+/* 반출대기함 모달 */
+.cart-box {
+  width: 900px;
+  max-width: 92vw;
+}
+
+.cart-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.cart-head h2 {
+  margin: 0;
+}
+
+/* 반출하기 팝업 제목줄 — 제목은 왼쪽, [폴더 경로 유지]는 오른쪽 끝(2026-08-28 CM 요청).
+   h2가 갖고 있던 아래 여백(12px)을 이 줄이 대신 갖게 해서 제목 밑 간격은 예전 그대로다. */
+.dist-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.dist-head h2 {
+  margin: 0;
+}
+
+/* 위 ".modal-box label"이 팝업 안 <label>을 전부 한 줄차지(block)로 바꾸므로 되돌린다. */
+.modal-box .dist-keep-paths {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* 수정용일 때 — 켜진 채로 잠긴 상태. 다른 화면의 "권한 없는 항목"과 같이 흐리게만 표시한다. */
+.modal-box .dist-keep-paths.is-locked {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.cart-list {
+  max-height: 60vh;
+  margin-top: 10px;
+}
+
+.cart-list table {
+  width: 100%;
+  table-layout: fixed;
+  font-size: 12.5px;
+}
+
+/* 자료명·분류·경로가 칸보다 길어도 줄바꿈하지 않고 그대로 잘라 보여준다(...으로 표시 안 함, 그냥 잘림). */
+.cart-list td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+/* 버튼 우측 끝을 표(.cart-list) 우측 끝과 맞춘다. 둘 다 modal-box의 같은 좌우 패딩 안에 있으므로
+   별도로 당길 필요 없이 그대로 맞춰지고, 버튼 높이는 아래 닫기/저장/삭제 버튼과 같은 기본 높이(32px)를 쓴다. */
+.cart-head-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.cart-head-actions button {
+  height: 32px;
+  padding: 0 14px;
+  font-size: 12.5px;
+}
+
+/* 팝업 제목줄의 [폴더 경로 유지] 체크박스(2026-08-28). 위 ".modal-box label"이 팝업 안
+   <label>을 전부 한 줄차지(block)로 바꿔버리므로 여기서 한 줄 배치로 되돌린다. */
+.cart-head-actions .cart-keep-paths {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}

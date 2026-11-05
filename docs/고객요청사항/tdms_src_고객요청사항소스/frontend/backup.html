@@ -1,0 +1,145 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>TDMS 기술자료 관리 시스템</title>
+  <link rel="icon" href="assets/favicon.ico?v=1" />
+  <link rel="stylesheet" href="style.css?v=36" />
+  <link rel="stylesheet" href="backup.css?v=3" />
+  <script src="auth-guard.js?v=14"></script>
+</head>
+<body data-require-permission="screen.backup.access">
+  <header class="app-header">
+    <div class="app-header-inner">
+      <a class="app-brand" href="index.html">
+        <img class="app-brand-logo" src="assets/skgas-logo.png" alt="SK gas" />
+        <span class="app-brand-text"><strong>TDMS</strong> 기술자료 관리 시스템</span>
+      </a>
+      <nav class="app-nav">
+        <a href="index.html">TDB 조회</a>
+        <a href="import.html">TDB 반입·검수</a>
+        <a href="editor.html">TDB 관리</a>
+        <a href="distributions.html">TDB 반출이력</a>
+        <a href="mdb.html">MDB 조회</a>
+        <a href="mdb-editor.html">MDB 관리</a>
+        <a href="audit.html">시스템 로그</a>
+        <a href="users.html">사용자 관리</a>
+        <a href="backup.html" class="active">백업 관리</a>
+      </nav>
+      <div id="user-slot" class="app-user"></div>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="page-head">
+      <div>
+        <h1 class="page-title"><a class="page-title-link" href="backup.html">백업 관리</a><span class="page-title-sub">자료 백업 관리</span></h1>
+      </div>
+    </div>
+
+    <!-- 지금 상태 -->
+    <section class="bk-panel">
+      <div class="bk-panel-head">
+        <h2 class="bk-panel-title">지금 상태</h2>
+        <div class="bk-dest">저장 위치 <span id="bk-dest">—</span><span id="bk-free" class="bk-free"></span></div>
+      </div>
+      <div class="table-scroll">
+        <table id="bk-status-table">
+          <colgroup>
+            <col style="width:150px" /><col style="width:190px" /><col style="width:150px" />
+            <col style="width:230px" /><col />
+          </colgroup>
+          <thead>
+            <tr>
+              <th data-sort="off">항목</th>
+              <th data-sort="off">지금 자료</th>
+              <th data-sort="off">마지막 백업</th>
+              <th data-sort="off">그 뒤 달라진 것</th>
+              <th data-sort="off">설명</th>
+            </tr>
+          </thead>
+          <tbody id="bk-status-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 만들기 -->
+    <section class="bk-panel" id="bk-make-panel">
+      <div class="bk-panel-head">
+        <h2 class="bk-panel-title">백업 만들기</h2>
+        <div class="bk-hint">만드는 동안에는 자료를 등록·반입하지 말아 주십시오. 그 사이에 자료가 바뀌면 백업의 시점이 어긋납니다.</div>
+      </div>
+
+      <div class="bk-form">
+        <div class="bk-row">
+          <label class="bk-label">담을 항목</label>
+          <div class="bk-kinds" id="bk-kinds"></div>
+        </div>
+        <div class="bk-row">
+          <label class="bk-label" for="bk-dest-input">저장 위치</label>
+          <input type="text" id="bk-dest-input" class="bk-input" placeholder="비우면 기본 위치에 만듭니다 (외장하드에 바로 만들려면 예: E:\DMS백업)" />
+        </div>
+        <div class="bk-row">
+          <label class="bk-label" for="bk-note-input">비고</label>
+          <input type="text" id="bk-note-input" class="bk-input" placeholder="이 백업에 남길 메모 (나중에 이력 표에서도 고칠 수 있습니다)" />
+        </div>
+        <div class="bk-row">
+          <label class="bk-label">받는 방법</label>
+          <label class="bk-check"><input type="checkbox" id="bk-folder-mode" /> 압축하지 않고 폴더로 그대로 만들기</label>
+          <span class="bk-note-text">외장하드에 바로 만들 때 쓰는 예비 방법입니다. 풀 필요가 없지만 화면에서 내려받을 수는 없습니다(TDB·MDB만).</span>
+        </div>
+        <div class="bk-actions">
+          <button type="button" id="bk-run-full" class="primary">전체 백업 만들기</button>
+          <button type="button" id="bk-run-delta">변경분만 만들기</button>
+          <span class="bk-note-text">변경분은 TDB·MDB 도면 파일만 됩니다. 처음이라면 전체 백업을 먼저 만들어야 합니다.</span>
+        </div>
+      </div>
+
+      <div id="bk-progress" class="bk-progress hidden">
+        <div class="bk-progress-head"><span id="bk-progress-step">준비 중</span><span id="bk-progress-time"></span></div>
+        <div class="bk-bar"><div class="bk-bar-fill" id="bk-bar-fill"></div></div>
+        <div class="bk-progress-detail" id="bk-progress-detail"></div>
+      </div>
+      <div id="bk-result" class="bk-result hidden"></div>
+    </section>
+
+    <!-- 이력 -->
+    <section class="bk-panel">
+      <div class="bk-panel-head">
+        <h2 class="bk-panel-title">백업 이력 <span id="bk-count" class="bk-count"></span></h2>
+        <div class="bk-panel-actions">
+          <button type="button" id="bk-export-btn">엑셀 내보내기</button>
+        </div>
+      </div>
+      <div id="bk-warn" class="bk-warn hidden"></div>
+      <div class="table-scroll">
+        <table id="bk-runs-table">
+          <colgroup>
+            <col style="width:48px" /><col style="width:62px" /><col style="width:120px" />
+            <col style="width:130px" /><col style="width:300px" /><col style="width:86px" />
+            <col style="width:96px" /><col style="width:96px" /><col style="width:80px" />
+            <col style="width:88px" /><col style="width:90px" /><col style="width:126px" />
+            <col style="width:78px" /><col style="width:126px" /><col style="width:80px" />
+            <col style="width:166px" /><col style="width:220px" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>No</th><th>회차</th><th>종류</th><th>범위</th><th>파일명</th><th>받는 방법</th>
+              <th>담은 자료</th><th>묶음 크기</th><th>파일 수</th><th>없어진 파일</th>
+              <th>만든 사람</th><th>만든 시각</th><th>받은 횟수</th><th>마지막 받은 시각</th>
+              <th>상태</th><th data-sort="off">조치</th><th data-sort="off">비고</th>
+            </tr>
+          </thead>
+          <tbody id="bk-runs-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="modal-root"></div>
+
+  <script src="ui.js?v=40"></script>
+  <script src="favorites.js?v=9"></script>
+  <script src="backup.js?v=4"></script>
+</body>
+</html>

@@ -1,0 +1,685 @@
+.mdb-search-meta {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 4px 0 16px;
+}
+
+/* DWG/XLSX/ETC/PDF 네 칸(뒤에서 4번째~마지막)은 Y·. 표시라 가운데 정렬한다 */
+#review-table th:nth-child(n+7),
+#direct-table th:nth-child(n+7),
+#common-table th:nth-child(n+7),
+.mdb-ext-cell {
+  text-align: center;
+}
+
+/* 연도·설비유형 칸도 짧은 값이라 가운데 정렬한다 */
+#review-table th:nth-child(3),
+#direct-table th:nth-child(3),
+#common-table th:nth-child(3),
+#review-table th:nth-child(6),
+#direct-table th:nth-child(6),
+#common-table th:nth-child(6),
+.mdb-center-cell {
+  text-align: center;
+}
+
+.mdb-group {
+  margin-bottom: 24px;
+}
+
+.mdb-group-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.mdb-group-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.mdb-group-export-btn {
+  flex-shrink: 0;
+}
+
+.mdb-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 10px 0;
+}
+
+.mdb-section-divider {
+  border-top: 1px solid var(--border);
+  margin: 32px 0 24px;
+}
+
+.mdb-subtitle {
+  font-size: 18px;
+  margin: 0 0 4px;
+}
+
+.mdb-tag-chip {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  margin: 0 4px 4px 0;
+}
+
+.mdb-holding {
+  display: inline-block;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 3px;
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+}
+
+.mdb-holding.orig { border-color: var(--warn); color: var(--warn); }
+.mdb-holding.copy { border-color: var(--info); color: var(--info); }
+
+.mdb-link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 12px;
+}
+
+.mdb-more-row {
+  text-align: center;
+  margin: 12px 0 24px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* ---- 태그 편집(자료 상세) 모달 ---- */
+/* style.css의 기본 .modal-box는 400px 고정이라(editor.css의 .wide 640px는 이 화면에 안 실림)
+   태그 칩·경로가 길면 가로 스크롤이 생겼다 — MDB 전용으로 넓힌다. */
+.modal-box.wide {
+  width: 640px;
+  max-width: 92vw;
+}
+
+/* editor.css에 있는 .modal-title(굵은 팝업 제목)이 이 화면엔 안 실려서 여기 따로 둔다 */
+.modal-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 10px;
+}
+
+.mdb-edit-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  word-break: break-all;
+}
+
+.mdb-edit-path {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  margin: 0 0 12px;
+  word-break: break-all;
+}
+
+/* 자료명 클릭 -> 상세(태그 편집) 모달, 옆의 돋보기 아이콘은 미리보기 전용 */
+.mdb-doc-link {
+  color: var(--text);
+  text-decoration: none;
+}
+.mdb-doc-link:hover {
+  text-decoration: underline;
+}
+
+/* 폴더 트리 안의 자료(파일) 노드 — 폴더보다 흐리게, 굵기는 고정 */
+.tree-node.is-doc {
+  color: var(--text-muted);
+  font-weight: 400 !important;
+}
+
+/* Tag No를 담아두는 칸. Tag No는 개수 제한이 없어 수십 개가 들어갈 수 있는데,
+   이 칸이 끝없이 길어지면 밑에 있는 입력칸·[저장] 버튼이 팝업 밖으로 밀려나가
+   "더 이상 입력이 안 된다"고 보이는 문제가 있었다(2026-08-28 CM 보고, 약 30개부터).
+   칸 높이를 제한하고 이 칸 안에서만 스크롤하게 해서, 몇 개를 넣든 아래 모양은 그대로 둔다. */
+.mdb-chip-area {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 6px;
+  margin-bottom: 10px;
+  min-height: 26px;
+  max-height: 132px;
+  overflow-y: auto;
+}
+
+.mdb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 3px 6px 3px 10px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* MDB 자료 상세보기 Tag No 줄 맨 앞의 개수(2026-09-01 CM 지시) — Tag No가 많으면
+   칩이 여러 줄로 늘어서 몇 개인지 세기 어려워진다. 값 자체가 아니라 안내라 라벨과 같은 톤으로 둔다. */
+.mdb-tag-count {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+/* 자료명·정보 변경 팝업에서는 Tag No를 눌러 입력칸으로 불러올 수 있다(2026-08-28).
+   고치는 중인 Tag No는 테두리로 어느 것을 고치는 중인지 보여준다. */
+.mdb-chip.is-clickable {
+  cursor: pointer;
+}
+
+.mdb-chip.is-editing {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+  font-weight: 700;
+}
+
+.mdb-chip button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  color: inherit;
+  padding: 0;
+}
+
+.mdb-form-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.mdb-form-row > * {
+  flex: 1;
+}
+
+.mdb-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+/* Tag No 후보 선택 팝업 — 칸이 `Tag No`·`자료 수` 둘뿐이라 넓을 필요가 없어 폭을 줄였다
+   (2026-08-31 CM 요청). 제목 한 줄은 그대로 들어가면서 표가 허전해 보이지 않는 폭이다.
+   MDB 조회·MDB 관리가 같은 팝업이므로 두 화면이 이 폭을 함께 쓴다. */
+.modal-box.mdb-pick-box {
+  width: 480px;
+  max-width: 92vw;
+}
+
+.mdb-pick-table {
+  width: 100%;
+}
+
+.mdb-pick-table th {
+  text-align: left;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mdb-pick-row td {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.mdb-pick-row:hover td {
+  background: var(--accent-soft);
+}
+
+.mdb-form-grid label,
+.mdb-form-row label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+/* 소속공사·연도는 최상위 폴더명에서 정해지는 값이라 참고용으로만 보여주고 수정은 막는다.
+   style.css의 input[type="text"]{color:var(--text)}보다 우선하도록 input을 같이 붙여 써야 한다
+   (클래스 단독 선택자는 우선순위가 밀려 회색이 안 먹혔었다). 커서도 막는다는 표시(빨간 금지 아이콘)
+   없이 그냥 기본 커서로 둔다. */
+input.mdb-readonly-field {
+  background: var(--surface-sunken);
+  color: var(--text-faint);
+  cursor: default;
+}
+
+/* ---------- MDB 자료 상세보기 — 그 자리에서 고치기 (2026-08-29 CM 지시) ----------
+   Tag No·Note·설비유형·자료유형은 팝업을 띄우지 않고 이 화면에서 바로 고친다. 평소엔 값만
+   보이고, 값 오른쪽 연필(✎)을 눌러야 아래(Note 줄 다음)에 편집칸이 열린다(표 안 비고 칸과 같은 방식). */
+.detail-field .detail-edit-btn {
+  align-self: flex-start;
+  margin-top: 1px;
+}
+
+/* 편집칸 본체 — 위 제목 아래에 들어간다. 값 칸과 ✎는 감추지 않고 그대로 둔다 */
+.detail-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Tag No·Note처럼 입력칸이 여러 줄인 것은 세로로 쌓는다 */
+.detail-edit-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.detail-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* [확인]·[취소]만 있는 줄은 오른쪽 끝이 아니라 왼쪽에 붙여 위 입력칸과 시작점을 맞춘다 */
+.detail-edit-row-end {
+  justify-content: flex-start;
+}
+
+.detail-edit-row input[type="text"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 320px;
+}
+
+.detail-edit-hint {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* 편집칸은 어느 항목을 고치든 자료내용 카드 맨 아래(Note 줄 다음) 한 자리에 열린다
+   (2026-08-29 CM 지시). 위쪽에 그대로 남아 있는 기존 내용과 섞여 보이지 않게 가로줄로 경계를
+   긋는다. 늘 같은 자리·같은 모양이라 창 너비와 상관없이 어디서 열리는지 헷갈리지 않고, 첫 줄의
+   좁은 칸(설비유형·자료유형)에서 드롭다운을 열어도 고른 값이 가려지지 않는다. */
+.detail-edit-area {
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+  padding-top: 10px;
+}
+
+/* 편집칸 제목 — 지금 고치는 중인 항목 이름 뒤에 "편집"을 붙인다(예: "Tag No 편집") */
+.detail-edit-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+/* 고치는 중인 항목은 아래 편집칸이 어느 값의 것인지 한눈에 보이게 연필을 진하게 표시한다 */
+.detail-field.is-editing .detail-edit-btn {
+  color: var(--text);
+}
+
+/* 편집칸 안의 설비유형·자료유형 드롭다운 — 한 줄을 다 쓰는 자리라 그대로 두면 지나치게 넓어진다 */
+.detail-edit .type-dropdown {
+  flex: 0 1 320px;
+  min-width: 0;
+}
+
+.detail-edit .type-dropdown .dropdown-list {
+  right: auto;
+  min-width: 220px;
+}
+
+/* 펼친 목록이 카드 밖으로 나가도 잘리지 않게 한다 (2026-08-29 CM 보고).
+   편집칸은 자료내용 카드 맨 아래에 열리므로 설비유형·자료유형 목록을 펼치면 카드 밑변을
+   넘어가는데, detail.css의 section.card{overflow:hidden}(둥근 모서리 밖으로 내용이 삐져나오지
+   않게 하는 규칙)이 그 넘어간 부분을 잘라내 목록이 몇 줄만 보였다. 이 카드에는 잘라내야 할
+   것(미리보기 카드의 PDF 창 같은 것)이 없으므로 자르지 않도록 되돌리고, 대신 위 제목줄
+   배경이 카드의 둥근 두 귀퉁이 밖으로 삐져나오지 않게 그 두 모서리를 직접 둥글린다.
+   목록은 지금처럼 그 자리에 겹쳐 뜨므로 아래 [확인]·[취소] 버튼이 밀려 내려가지 않는다.
+   (선택자에 section.card를 같이 적은 것은 위 detail.css 규칙보다 뒤로 밀리지 않기 위함) */
+section.card.detail-info-card {
+  overflow: visible;
+}
+
+section.card.detail-info-card .section-head {
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+/* Note를 고치는 동안에는 칸 안에서 스크롤한다(아래 미리보기가 밀려 내려가지 않게).
+   저장한 뒤 보여줄 때는 .detail-note 규칙대로 스크롤 없이 전부 펼친다. */
+.detail-edit textarea.di-note {
+  max-width: 720px;
+  min-height: 96px;
+  max-height: 260px;
+}
+
+/* ---------------------------------------------------------------------------
+   MDB 관리 "Tag No 이력관리" — Tag No 변경이력 (2026-08-30 CM 확정)
+   이 화면에만 쓰는 것들이라 클래스 이름을 .th-로 따로 뒀다(공용 클래스를 고치면 다른
+   화면까지 같이 바뀐다).
+   --------------------------------------------------------------------------- */
+
+/* 이력 등록·수정·복사 팝업 폭 (2026-09-01 CM 지시) — `Note에 들어갈 문구` 미리보기가 표로
+   바뀌면서(2026-09-01) 600px으로는 표가 칸을 넘쳐 가로 스크롤바가 늘 생겨 1060px으로 넓혔는데,
+   써 보니 너무 넓다는 CM 지시로 그 폭의 80%인 848px로 줄였다(같은 날). 표 안의 글자는 줄바꿈되지
+   않고 한 줄로 서므로(앱 공통 표 규칙) 사유가 아주 긴 줄은 표 안에서 가로로 스크롤될 수 있다.
+   같은 폭을 쓰던 [자료명·정보 변경] 팝업(.doc-info-box, 600px)은 CM이 정한 폭이라 그대로 두고
+   이 팝업만 따로 정한 것이다.
+   화면이 좁으면 창을 넘지 않게 줄인다(다른 팝업들과 같은 방식). */
+.modal-box.th-form-box { width: 848px; max-width: 94vw; }
+
+/* 입력칸 두 개를 한 줄에 반씩 (대상 Tag No + 공사 범위, 적용 + 새 Tag No) */
+.th-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  align-items: end;
+}
+.th-two-col > input,
+.th-two-col > select,
+/* 칸 안에 라벨까지 들어가는 경우(구분·연도)의 입력칸도 같이 — 그냥 두면 select에 걸린
+   전역 상한(max-width: 260px) 때문에 옆 칸(연도)보다 눈에 띄게 짧아 줄이 어긋나 보인다 */
+.th-two-col > div > input,
+.th-two-col > div > select { width: 100%; max-width: none; min-width: 0; }
+/* 칸 안에 라벨까지 들어가는 경우(구분·연도) 라벨의 위 여백이 두 칸에서 같아야 줄이 안 어긋난다 */
+.th-two-col > div > .field-label { margin-top: 0; }
+
+/* ---- [적용 내용 일괄 반영] (2026-09-01 CM 지시) ----
+   팝업 제목 바로 아래 첫 줄이라 다른 체크박스 줄(14px)보다 위 여백을 줄인다. */
+.th-bulk-line { margin-top: 6px; }
+
+/* ---- 대상 Tag No 줄 (2026-09-01 CM 지시) ----
+   대상 Tag No · 적용 내용 · 새 Tag No 세 칸이 한 줄이고, [행 추가]를 누를 때마다 줄이
+   늘어난다. 저장하면 **줄마다 이력 1건씩** 따로 만들어진다. 라벨은 맨 윗줄(.th-tag-head)에
+   한 번만 두고 아래 줄들은 입력칸만 세운다.
+   [적용 내용 일괄 반영]을 켜면 맨 위 줄을 뺀 적용 내용 칸이 disabled가 되는데, 회색 바탕과
+   흐린 글자는 공용 규칙(style.css의 select:disabled)이 이미 해주므로 여기서 따로 칠하지 않는다. */
+.th-tag-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  align-items: center;
+}
+.th-tag-row + .th-tag-row { margin-top: 6px; }
+/* select에 걸린 전역 상한(max-width: 260px) 때문에 옆 칸보다 짧아 보이는 것을 푼다 */
+.th-tag-row > input,
+.th-tag-row > select { width: 100%; max-width: none; min-width: 0; }
+.th-tag-head > .field-label { margin-bottom: 4px; }
+
+/* [행 추가] — 줄 전체 너비를 쓰는 보조 버튼 */
+.th-add-row { width: 100%; margin-top: 6px; }
+
+/* 적용 내용 설명 — 줄마다 다른 것을 골랐으면 설명이 여러 줄이 되므로 줄바꿈을 살린다 */
+.th-action-hint { white-space: pre-line; }
+
+/* 바뀔 자료 미리보기 — 한 번에 수십 건이 바뀌므로 누르기 전에 눈으로 확인하는 칸 */
+.th-target-box {
+  margin-top: 8px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+  font-size: 12.5px;
+  line-height: 1.6;
+  /* 줄이 여러 개면 Tag No마다 한 구획씩 쌓이므로, 상자가 팝업을 아래로 밀어내지 않게
+     상자째 스크롤한다. 구획 안 자료 목록은 저마다 짧게 잘려 있어(.th-target-list)
+     Tag No들이 한눈에 들어온다. */
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+/* Tag No가 둘 이상이면 구획마다 자료 목록을 더 짧게 줄인다 — 목록을 길게 두면 두 번째
+   Tag No의 제목이 한참 아래로 밀려, 정작 확인해야 할 "어느 Tag No가 몇 건인지"가 한눈에
+   안 들어오기 때문이다. */
+.th-target-box--multi .th-target-list { max-height: 76px; }
+
+/* Tag No별 구획 — 어디까지가 한 Tag No의 자료인지 점선으로 나눈다 (2026-09-01 CM 승인) */
+.th-target-sec + .th-target-sec {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+.th-target-list {
+  margin-top: 6px;
+  max-height: 132px;
+  overflow-y: auto;
+}
+.th-target-list > div {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.th-suggest { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.th-suggest-btn {
+  height: 22px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+/* 완성된 Note 문구 미리보기 — 실제로 자료 Note에 들어갈 그 한 줄.
+   아직 문구가 만들어지지 않았을 때(대상 Tag No가 비었을 때) 안내글을 담는 칸이다. */
+.th-preview {
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+  font-size: 12.5px;
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+/* 문구가 만들어지면 그 자리에 MDB 자료 상세보기와 같은 Note 표를 넣는다(2026-09-01 CM 지시).
+   표에 이미 테두리가 있어 칸의 테두리·바탕을 그대로 두면 두 겹으로 보이므로 없앤다.
+   글자를 아무 데서나 자르는 규칙(word-break)도 표 안에서는 끈다 — Tag No가 중간에서 잘린다. */
+.th-preview.th-preview-table {
+  padding: 0;
+  border: 0;
+  background: none;
+  word-break: normal;
+}
+
+/* [Note 작성]을 끄면 그 아래 칸들을 흐리게 하고 조작을 막는다 */
+.th-off { opacity: 0.45; pointer-events: none; }
+
+/* [Note 작성] 체크박스와 그 아래 첫 칸(구분) 사이 이격 (2026-09-01 CM 지시) —
+   .th-two-col 안의 라벨은 위 여백이 0이라(두 칸의 줄을 맞추려고) 체크박스에 딱 붙어
+   보였다. 다른 칸들과 같은 간격(field-label의 위 여백 12px)만큼 벌린다. */
+.th-note-fields { margin-top: 12px; }
+
+/* 체크박스 줄 — 글자와 네모가 한 줄에 나란히 (팝업 안 <label>은 기본이 한 줄 차지라 풀어준다) */
+.th-check-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+/* ---- 팝업 안 섹션 경계 (2026-09-01 CM 지시) ----
+   이력 등록·수정·복사 팝업은 하는 일이 세 덩이다 — ① 대상 Tag No를 정하고 무엇을 할지(추가·
+   삭제·변경) 고르는 부분 ② Note에 남길 문구를 만드는 부분 ③ 앞으로 자동으로 적용할지 정하는
+   부분. 칸이 줄줄이 이어져 어디까지가 한 덩이인지 알아보기 어렵다는 CM 지적으로 ②·③ 앞에
+   가로줄을 그어 나눴다(①은 팝업 제목 바로 아래라 줄이 필요 없다). */
+.th-section {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* 섹션 첫 줄이 체크박스면 그 줄의 위 여백을 없앤다 — 가로줄이 이미 자리를 벌려주고 있어
+   그대로 두면 줄과 글자 사이가 두 배로 뜬다 */
+.th-section > .th-check-line:first-child { margin-top: 0; }
+
+/* ---- 앞으로 자동 적용 (2026-09-01 CM 확정) ----
+   이력은 등록하는 그때 있던 자료에만 들어간다. 이 체크를 켜두면 나중에 어떤 자료에 그 Tag No를
+   달았을 때 같은 처리가 그 자리에서 자동으로 들어간다. 새 이력은 켜짐이 기본이다. */
+.th-auto-box .th-check-line {
+  font-weight: 600;
+}
+
+/* 이력 목록 표 "상태" 칸의 자동 배지 — 칸을 새로 만들지 않고 상태 아래에 한 줄로 붙인다.
+   상태 글자도 <div>로 감싸 각자 한 줄이 되게 한다(표 칸에 nowrap이 걸려 있어 그냥 두면
+   "적용됨"과 "자동"의 폭이 한 줄로 합산돼 상태 글자가 "적용…"으로 잘린다).
+   줄이 하나 늘어나는 만큼만 행이 높아지도록 배지는 작게 둔다. */
+.th-auto-badge {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+  font-size: 10.5px;
+  line-height: 15px;
+  color: var(--text-muted);
+}
+
+/* 되돌린 이력은 켜져 있어도 지금은 발동하지 않으므로 더 흐리게 */
+.th-auto-badge.is-off { opacity: 0.5; }
+
+/* 되돌린(취소된) 이력 줄은 흐리게 — 목록에서 사라지지 않되 지금은 효력이 없다는 표시 */
+#th-table tr.th-row-reverted td { color: var(--text-faint); }
+
+/* ---- MDB 자료 상세보기의 Note 표 (2026-09-01 CM 확정) ----
+   Note는 Tag No 이력이 한 줄씩 쌓아 만든 기록인데, 조각을 밑줄로 이어 붙인 문장이라 그대로
+   두면 무엇이 어떻게 바뀌었는지 눈에 안 들어온다는 CM 지적으로 표로 바꿨다. 줄마다 구분·
+   Tag No·연도·공사명·사유·비고가 같은 자리에 세로로 줄 맞춰 서므로 여러 줄이 쌓여도 비교하기
+   쉽다. 창이 좁거나 팝업(embed) 안이면 표 안에서만 가로로 스크롤한다(카드가 밀리지 않게). */
+/* 표를 넣은 Note 칸 — .detail-note의 pre-wrap(적은 줄바꿈을 살리는 규칙)이 그대로면
+   표 앞뒤의 줄바꿈·들여쓰기까지 빈 줄로 나와 표가 라벨 아래로 밀린다. */
+.detail-note.has-note-table { white-space: normal; }
+
+.note-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.note-table {
+  border-collapse: collapse;
+  /* 위 .detail-note의 pre-wrap(적은 줄바꿈을 살리는 규칙)이 표 안까지 먹지 않게 되돌린다 */
+  white-space: normal;
+  font-size: 12.5px;
+  /* border-collapse로 셀 테두리만 이으면 반올림 오차로 아래쪽 모서리 선이 끊겨 보일 때가
+     있다 — 표 자체에도 같은 테두리를 둬서 사각형이 항상 닫히게 한다 */
+  border: 1px solid var(--border);
+}
+
+.note-table th,
+.note-table td {
+  border: 1px solid var(--border);
+  padding: 4px 9px;
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.5;
+}
+
+.note-table th {
+  background: var(--surface-alt);
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* 구분·Tag No·연도는 줄바꿈되면 오히려 읽기 나쁘다 — 한 줄로 두고 표를 스크롤한다 */
+.note-table .note-label,
+.note-table .note-tag,
+.note-table .note-year {
+  white-space: nowrap;
+}
+
+/* 무엇이 무엇으로 바뀌었는지가 이 표의 핵심이라 Tag No만 진하게 */
+.note-table .note-tag { font-weight: 600; }
+
+.note-table .note-arrow {
+  color: var(--text-muted);
+  font-weight: 400;
+  margin: 0 2px;
+}
+
+/* 이력에서 온 줄이 아니면(사람이 예전에 적어둔 것) 나눌 조각이 없어 칸을 합쳐 그대로 보여준다 */
+.note-table .note-row-raw td { white-space: pre-wrap; }
+
+/* ---- 고칠 Note 줄 고르기 (MDB 자료 상세보기의 Note ✎) ----
+   자료 Note에 이력이 남긴 줄이 둘 이상이면 어느 줄을 고칠지 먼저 고른다. 줄 자체가 버튼이라
+   길어도 잘리지 않게 여러 줄로 펼쳐 보여준다(어느 줄인지 알아보려면 문구가 다 보여야 한다). */
+.note-history-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.note-history-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  height: auto;
+  padding: 9px 11px;
+  text-align: left;
+  font-size: 12.5px;
+  line-height: 1.6;
+  word-break: break-all;
+  white-space: normal;
+}
+
+.note-history-no {
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+/* ---- MDB 자료 상세보기를 팝업 안에 띄울 때 (mdb-detail.html?embed=1) ----
+   MDB 관리의 [Tag No·유형 미분류 관리] 표에서 자료명을 누르면 이 화면이 그대로 팝업 안에
+   뜬다(2026-08-30 CM 지시). 화면 전체를 다시 만들지 않고 상세보기 화면을 그대로 띄우므로,
+   팝업에서 쓸 일이 없는 것만 감춘다 — 위쪽 머리말·메뉴, 화면 제목, [목록으로]와 이전/다음.
+   다운로드 버튼과 자료내용(고치기 ✎ 포함)·미리보기는 그대로 쓴다. */
+body.detail-embed .app-header,
+body.detail-embed .page-head,
+body.detail-embed .detail-toolbar-left { display: none; }
+
+/* 왼쪽([목록으로]·이전/다음)을 감추고 나면 줄에 다운로드 버튼만 남는데, 원래는 양끝
+   정렬(space-between)이라 그 버튼이 왼쪽으로 붙었다. 팝업에서도 상세보기 화면과 같이
+   오른쪽에 두도록 오른쪽 정렬로 바꾼다(2026-08-30 CM 지시). */
+body.detail-embed .detail-toolbar { justify-content: flex-end; }
+
+body.detail-embed .page { padding: 14px 16px 16px; }
+
+/* 팝업 높이가 정해져 있어 미리보기까지 한 화면에 다 담기지 않는다 — 미리보기 칸을 조금
+   줄여 자료내용을 먼저 보여주고, 더 보려면 팝업 안에서 스크롤한다. */
+body.detail-embed #pdf-area iframe,
+body.detail-embed #pdf-area .preview-stage { height: 520px; }
+
+/* MDB 자료 상세보기 팝업 상자 — 미리보기 팝업(preview-modal)의 뼈대를 그대로 쓰되, 안에
+   자료내용 카드가 들어가므로 조금 좁고 낮게 잡는다(미리보기 팝업은 96vw × 94vh). */
+.modal-box.preview-modal.mdb-detail-modal {
+  max-width: 1280px;
+  height: 90vh;
+  max-height: 90vh;
+}
+
+/* 팝업 안 iframe은 스스로 스크롤한다 — 자료내용과 미리보기가 한 화면에 다 안 들어가므로 */
+.mdb-detail-modal .preview-frame-box {
+  background: var(--surface);
+}
