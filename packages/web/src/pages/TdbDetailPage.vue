@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useQuery } from '@tanstack/vue-query'
+import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type {
-  DistributionListResponse, DocumentDetail, RevisionListResponse,
+  DistributionListResponse, DocumentDetail, RevisionListResponse, UploadResult,
 } from '@tdms/contracts'
 import DataTable, { type Column } from '@/ui/DataTable.vue'
 import Tabs from '@/ui/Tabs.vue'
@@ -18,6 +18,8 @@ import { DOC_STATUS_LABEL, PURPOSE_LABEL } from '@/lib/labels'
 const route = useRoute()
 const router = useRouter()
 const session = useSession()
+const qc = useQueryClient()
+const canRegister = computed(() => session.can('screen.tdb_import.register'))
 
 const id = computed(() => Number(route.params.id))
 const tab = ref<'info' | 'preview' | 'revisions' | 'distributions'>('info')
@@ -46,7 +48,8 @@ const { data: revisions } = useQuery({
 const { data: distributions } = useQuery({
   queryKey: computed(() => [...qk.documents.detail(id.value), 'distributions']),
   queryFn: () => api.get<DistributionListResponse>(`/documents/${id.value}/distributions`),
-  enabled: computed(() => tab.value === 'distributions'),
+  // 반입등록 칸의 업체 후보도 반출 이력에서 뽑는다
+  enabled: computed(() => tab.value === 'distributions' || (tab.value === 'info' && canRegister.value)),
   staleTime: staleTime.detail,
 })
 
@@ -62,7 +65,72 @@ const previewFile = computed(() =>
   ?? doc.value?.files.find((f) => f.fileExt.toLowerCase() === 'pdf'),
 )
 
-watch(id, () => (tab.value = 'info'))
+watch(id, () => {
+  tab.value = 'info'
+  resetUpload()
+})
+
+// ── 반입등록 (개별 자료) ─────────────────────────────────────────────
+// 반입·검수 화면이 "자료를 찾아 상세 화면에서 올린다"고 안내하는 자리다.
+// 업체 이름으로 리비전·분기가 정해지므로(서버 determineRevBranch) 업체는 반드시 받는다.
+const UPLOAD_ACCEPT = '.dwg,.dxf,.pdf,.xlsx,.xls,.docx,.pptx'
+
+const uploadVendor = ref('')
+const uploadFiles = ref<File[]>([])
+const uploadInput = ref<HTMLInputElement | null>(null)
+const uploading = ref(false)
+const uploadMsg = ref<{ kind: 'ok' | 'err'; text: string } | null>(null)
+
+/** 아직 돌아오지 않은 반출의 업체 — 대개 이 중 하나가 반입한다 */
+const vendorCandidates = computed(() => [
+  ...new Set((distributions.value?.items ?? [])
+    .filter((x) => x.state === 'OUTSTANDING')
+    .map((x) => x.vendorName)),
+])
+
+function resetUpload() {
+  uploadVendor.value = ''
+  uploadFiles.value = []
+  if (uploadInput.value) uploadInput.value.value = ''
+}
+
+function pickFiles(ev: Event) {
+  uploadFiles.value = [...((ev.target as HTMLInputElement).files ?? [])]
+}
+
+async function submitUpload() {
+  const vendor = uploadVendor.value.trim()
+  if (!vendor || !uploadFiles.value.length || uploading.value) return
+  // 필드를 파일보다 먼저 넣는다 — 서버는 파트를 순서대로 읽는다
+  const fd = new FormData()
+  fd.append('vendorName', vendor)
+  for (const f of uploadFiles.value) fd.append('file', f)
+
+  uploading.value = true
+  uploadMsg.value = null
+  try {
+    const r = await fetch(`/api/documents/${id.value}/revisions`, { method: 'POST', body: fd })
+    const body = await r.json().catch(() => ({}))
+    if (r.ok) {
+      const out = body as UploadResult
+      uploadMsg.value = {
+        kind: out.warning || out.branched ? 'err' : 'ok',
+        text: `${out.created}개 파일을 ${out.revLabel} 로 반입했습니다. 검수 대기로 넘어갑니다.`
+          + (out.branched ? ' (중복반출로 분기됨)' : '')
+          + (out.warning ? ' — 파일명의 업체 표기 Rev 가 다릅니다. 검수 때 확인하세요.' : ''),
+      }
+      resetUpload()
+      void qc.invalidateQueries({ queryKey: qk.documents.detail(id.value) })
+      void qc.invalidateQueries({ queryKey: ['pending-review'] })
+    } else {
+      uploadMsg.value = { kind: 'err', text: body.message ?? `올리지 못했습니다 (${r.status})` }
+    }
+  } catch {
+    uploadMsg.value = { kind: 'err', text: '올리지 못했습니다. 연결을 확인하세요.' }
+  } finally {
+    uploading.value = false
+  }
+}
 
 const STATUS_LABEL = DOC_STATUS_LABEL
 const DIST_STATE: Record<string, string> = {
@@ -190,6 +258,25 @@ const DIST_COLUMNS: Column<DistRow>[] = [
               <a class="btn btn-sm" :href="`/api/files/${row.id}/download`" @click.stop>받기</a>
             </template>
           </DataTable>
+
+          <template v-if="canRegister">
+            <h2>반입등록 (개별 자료)</h2>
+            <p class="muted small">
+              업체가 수정해 보낸 DWG·PDF 등을 이 자료의 새 Rev 로 올립니다. 올린 파일은 검수 대기로 넘어갑니다.
+            </p>
+            <div class="upload">
+              <input v-model="uploadVendor" type="text" list="upload-vendors" placeholder="반입 업체 (필수)"
+                     style="width:200px" :disabled="uploading" />
+              <datalist id="upload-vendors">
+                <option v-for="v in vendorCandidates" :key="v" :value="v" />
+              </datalist>
+              <input ref="uploadInput" type="file" multiple :accept="UPLOAD_ACCEPT"
+                     :disabled="uploading" @change="pickFiles" />
+              <button class="btn btn-sm" :disabled="!uploadVendor.trim() || !uploadFiles.length || uploading"
+                      @click="submitUpload">{{ uploading ? '올리는 중…' : '반입등록' }}</button>
+            </div>
+            <div v-if="uploadMsg" class="upload-msg" :class="uploadMsg.kind">{{ uploadMsg.text }}</div>
+          </template>
         </section>
 
         <!-- 미리보기 -->
@@ -270,6 +357,10 @@ h2 { font-size: var(--fs-base); margin: 20px 0 8px; }
 .kv { border: 1px solid var(--border); }
 .kv th, .kv td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
 .kv th { background: var(--bg); width: 110px; font-weight: 600; white-space: nowrap; }
+
+.upload { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.upload-msg { margin-top: 8px; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border); }
+.upload-msg.err { color: var(--danger, #c0392b); }
 
 .tag {
   font-size: 10px; padding: 1px 5px; border-radius: 8px; margin-left: 4px;
