@@ -12,7 +12,7 @@ import DrawingPreview from '@/ui/DrawingPreview.vue'
 import { api, ApiError, qs } from '@/lib/api'
 import { qk, staleTime } from '@/lib/queryKeys'
 import { useSession } from '@/lib/session'
-import { DOC_STATUS_LABEL, PURPOSE_LABEL } from '@/lib/labels'
+import { DOC_STATUS_LABEL, PURPOSE_LABEL, REVIEW_STATUS_LABEL } from '@/lib/labels'
 import { NAV_FROM_LIST, readListNav } from '@/lib/tdbListNav'
 
 /** TDB 자료 상세 — 기존 detail.html 의 4개 탭을 재현한다. */
@@ -94,30 +94,92 @@ async function jumpTo() {
   }
 }
 
-// 미리보기 대상: 현재 Rev 의 PDF 만.
-// 예전에는 현재본에 PDF 가 없으면 아무 PDF 나 띄웠다 — DWG 만 반입·승인한 자료가
-// 옛 Rev(반려본 포함) 도면을 최신인 양 보여 줬다. 옛 PDF 는 이제 '이전 Rev' 라고
-// 밝히고 사용자가 고를 때만 연다.
+// ── 미리보기: 어느 Rev 를 볼 것인가 ───────────────────────────────────
+// 기본은 현재 Rev. 예전에는 현재본에 PDF 가 없으면 아무 PDF 나 띄웠다 — DWG 만 반입·승인한
+// 자료가 옛 Rev(반려본 포함) 도면을 최신인 양 보여 줬다. 그래서 옛 Rev 는 사용자가 고를 때만
+// 열고, 열면 '이전 Rev 도면입니다' 띠를 붙인다.
+// 고객 시스템(detail.js renderRevTable)은 Revision 이력 표의 돋보기로 그 Rev 세트
+// (같은 rev 로 함께 올라온 원본+PDF)를 미리보기 창에 띄우고 이전/다음으로 넘겨 본다.
+// 여기서는 미리보기 탭의 Rev 고르기 + ◀▶ 로 같은 일을 한다(이력 표 돋보기도 이리로 온다).
 const isPdf = (f: FileRow) => f.fileExt.toLowerCase() === 'pdf'
-const currentFiles = computed(() => doc.value?.files.filter((f) => f.isCurrent) ?? [])
-const previewFile = computed(() => currentFiles.value.find(isPdf))
-/** 현재본의 원본 도면 — 서버가 PDF 로 바꿔 보여 준다(고객 시스템 D-102 의 [원본] 보기). DWG 를 먼저 */
 const hasExt = (ext: string) => (f: FileRow) => f.fileExt.toLowerCase() === ext
-const currentDrawing = computed(() =>
-  currentFiles.value.find(hasExt('dwg')) ?? currentFiles.value.find(hasExt('dxf')))
+const revKey = (rev: number, branch: string | null) => `${rev}|${branch ?? ''}`
+const revText = (rev: number, branch: string | null) => `Rev${rev}${branch ? `-${branch}` : ''}`
+
+interface RevSet {
+  key: string
+  label: string
+  isCurrent: boolean
+  /** 세트의 검수 상태 — 하나라도 승인이 아니면 그 상태(반려·검수대기…)를 보인다 */
+  status: string
+  files: FileRow[]
+  pdf: FileRow | undefined
+  /** 원본 도면 — 서버가 PDF 로 바꿔 보여 준다(고객 시스템 D-102 의 [원본] 보기). DWG 를 먼저 */
+  drawing: FileRow | undefined
+}
+
+/** 파일을 Rev 세트로 묶는다 — 서버가 rev DESC 로 주므로 최신 Rev 가 먼저 */
+const revSets = computed<RevSet[]>(() => {
+  const map = new Map<string, FileRow[]>()
+  for (const f of doc.value?.files ?? []) {
+    const k = revKey(f.rev, f.branch)
+    map.set(k, [...(map.get(k) ?? []), f])
+  }
+  return [...map.entries()].map(([key, files]) => {
+    const f0 = files[0]!
+    const notOk = files.find((f) => f.reviewStatus !== 'APPROVED')
+    return {
+      key,
+      label: revText(f0.rev, f0.branch),
+      isCurrent: files.some((f) => f.isCurrent),
+      status: REVIEW_STATUS_LABEL[notOk?.reviewStatus ?? 'APPROVED'] ?? notOk?.reviewStatus ?? '승인',
+      files,
+      pdf: files.find(isPdf),
+      drawing: files.find(hasExt('dwg')) ?? files.find(hasExt('dxf')),
+    }
+  })
+})
+const canPreviewSet = (s: RevSet | undefined) => !!s && (!!s.pdf || !!s.drawing)
+
+/** 고른 Rev — null 이면 현재 Rev */
+const previewRevKey = ref<string | null>(null)
+const currentSet = computed(() => revSets.value.find((s) => s.isCurrent))
+const selectedSet = computed(() =>
+  (previewRevKey.value && revSets.value.find((s) => s.key === previewRevKey.value)) || currentSet.value)
+const isOldRev = computed(() => !!selectedSet.value && !selectedSet.value.isCurrent)
+const selFiles = computed(() => selectedSet.value?.files ?? [])
+const previewFile = computed(() => selectedSet.value?.pdf)
+const selDrawing = computed(() => selectedSet.value?.drawing)
+/** Rev 고르기 칸 — 바꿀 때 사본(PDF)부터 다시 보인다 */
+const selKeyModel = computed({
+  get: () => selectedSet.value?.key ?? '',
+  set: (k: string) => openRev(k),
+})
+/** ◀ 이전 Rev(더 옛것) / 다음 Rev ▶(더 새것) — 목록은 최신이 앞이다 */
+const selIdx = computed(() => revSets.value.findIndex((s) => s.key === selectedSet.value?.key))
+const olderSet = computed(() => (selIdx.value >= 0 ? revSets.value[selIdx.value + 1] : undefined))
+const newerSet = computed(() => (selIdx.value > 0 ? revSets.value[selIdx.value - 1] : undefined))
+
+function openRev(key: string | null) {
+  previewRevKey.value = key && key !== currentSet.value?.key ? key : null
+  previewSource.value = 'pdf'
+}
+
+/** Revision 이력 표의 돋보기 — 그 Rev 를 미리보기 탭에서 연다 */
+function previewRevRow(row: RevRow) {
+  openRev(revKey(row.rev, row.branch))
+  tab.value = 'preview'
+}
+
 /** PDF 사본과 원본 도면이 둘 다 있으면 고를 수 있다. 기본은 사본(PDF) */
 const previewSource = ref<'pdf' | 'drawing'>('pdf')
 const showDrawing = computed(() =>
-  !!currentDrawing.value && (previewSource.value === 'drawing' || !previewFile.value))
-/** 현재본에 PDF 가 없을 때 고를 수 있는 옛 PDF (최신 Rev 먼저 — 서버가 rev DESC 로 준다) */
-const olderPdfs = computed(() => doc.value?.files.filter((f) => !f.isCurrent && isPdf(f)) ?? [])
-const olderPdfId = ref<number | null>(null)
-const olderPdf = computed(() => olderPdfs.value.find((f) => f.id === olderPdfId.value))
+  !!selDrawing.value && (previewSource.value === 'drawing' || !previewFile.value))
 
 watch(id, () => {
   tab.value = 'info'
   noteMsg.value = null
-  olderPdfId.value = null
+  previewRevKey.value = null
   previewSource.value = 'pdf'
   resetUpload()
 })
@@ -265,6 +327,9 @@ const revRows = computed<RevRow[]>(() =>
 const revAll = computed(() => revisions.value?.items.length ?? 0)
 
 const REV_COLUMNS: Column<RevRow>[] = [
+  // 고객 시스템의 줄마다 돋보기 — 그 Rev 의 도면을 미리보기 탭에서 연다
+  { key: 'view', label: '보기', width: '56px', align: 'center', sortable: false, filterable: false,
+    render: () => '' },
   // 엑셀에도 "최신본"이 나가야 화면과 같은 뜻이 된다
   { key: 'label', label: 'Rev', width: '110px', align: 'center',
     render: (r) => (r.isCurrent ? `${r.label} 최신본` : r.label) },
@@ -384,52 +449,49 @@ const DIST_COLUMNS: Column<DistRow>[] = [
 
         <!-- 미리보기 -->
         <section v-else-if="tab === 'preview'" class="preview">
-          <!-- 원본 도면이 있으면 사본(PDF)·원본을 고른다. 현재본에 PDF 가 없으면 옛 Rev PDF 도 여기서 -->
-          <div v-if="currentDrawing && !olderPdf && (previewFile || olderPdfs.length)" class="source-bar">
-            <button v-if="previewFile" class="btn btn-sm" :class="{ 'btn-primary': !showDrawing }"
-                    @click="previewSource = 'pdf'">PDF 사본</button>
-            <button class="btn btn-sm" :class="{ 'btn-primary': showDrawing }"
-                    @click="previewSource = 'drawing'">{{ currentDrawing.fileExt.toUpperCase() }} 원본</button>
-            <template v-if="!previewFile">
-              <span class="muted" style="margin-left:8px">이전 Rev PDF:</span>
-              <button v-for="f in olderPdfs" :key="f.id" class="btn btn-sm" @click="olderPdfId = f.id">
-                Rev{{ f.rev }}{{ f.branch ? `-${f.branch}` : '' }}
-                ({{ f.reviewStatus === 'APPROVED' ? '승인' : f.reviewStatus }})
-              </button>
+          <!-- Rev 고르기(이전 Rev 도면도 여기서) + 원본 도면이 있으면 사본(PDF)·원본 고르기 -->
+          <div v-if="revSets.length" class="source-bar">
+            <button class="btn btn-sm" title="이전 Rev(더 옛것)" :disabled="!olderSet"
+                    @click="olderSet && openRev(olderSet.key)">◀ 이전 Rev</button>
+            <select v-model="selKeyModel" class="rev-select" title="볼 Rev 고르기">
+              <option v-if="!currentSet" value="" disabled>현재 Rev 파일 없음</option>
+              <option v-for="s in revSets" :key="s.key" :value="s.key" :disabled="!canPreviewSet(s)">
+                {{ s.label }} ({{ s.status }}){{ s.isCurrent ? ' 최신본' : '' }}{{ canPreviewSet(s) ? '' : ' — 볼 도면 없음' }}
+              </option>
+            </select>
+            <button class="btn btn-sm" title="다음 Rev(더 새것)" :disabled="!newerSet"
+                    @click="newerSet && openRev(newerSet.key)">다음 Rev ▶</button>
+            <template v-if="selDrawing && previewFile">
+              <span class="sep" />
+              <button class="btn btn-sm" :class="{ 'btn-primary': !showDrawing }"
+                      @click="previewSource = 'pdf'">PDF 사본</button>
+              <button class="btn btn-sm" :class="{ 'btn-primary': showDrawing }"
+                      @click="previewSource = 'drawing'">{{ selDrawing.fileExt.toUpperCase() }} 원본</button>
             </template>
           </div>
-          <template v-if="olderPdf">
-            <div class="old-pdf-bar">
-              <b>이전 Rev 도면입니다</b> —
-              Rev{{ olderPdf.rev }}{{ olderPdf.branch ? `-${olderPdf.branch}` : '' }}
-              ({{ olderPdf.reviewStatus === 'APPROVED' ? '승인' : olderPdf.reviewStatus }}).
-              현재 Rev{{ doc.currentRev }} 과 다를 수 있습니다.
-              <button class="btn btn-sm" @click="olderPdfId = null">닫기</button>
-            </div>
-            <PdfViewer :file-id="olderPdf.id" :document-id="doc.id" />
-          </template>
-          <DrawingPreview v-else-if="showDrawing && currentDrawing" :key="currentDrawing.id"
-                          :file-id="currentDrawing.id" :document-id="doc.id"
-                          :label="`Rev${currentDrawing.rev} ${currentDrawing.fileExt.toUpperCase()}`" />
-          <PdfViewer v-else-if="previewFile" :file-id="previewFile.id" :document-id="doc.id" />
+          <div v-if="isOldRev && selectedSet" class="old-pdf-bar">
+            <b>이전 Rev 도면입니다</b> — {{ selectedSet.label }} ({{ selectedSet.status }}).
+            현재 Rev{{ doc.currentRev }} 과 다를 수 있습니다.
+            <button class="btn btn-sm" @click="openRev(null)">최신본 보기</button>
+          </div>
+          <DrawingPreview v-if="showDrawing && selDrawing" :key="selDrawing.id"
+                          :file-id="selDrawing.id" :document-id="doc.id"
+                          :label="`Rev${selDrawing.rev} ${selDrawing.fileExt.toUpperCase()}`" />
+          <PdfViewer v-else-if="previewFile" :key="previewFile.id" :file-id="previewFile.id" :document-id="doc.id" />
           <div v-else class="pad muted tc">
-            현재 Rev{{ doc.currentRev }} 에는 PDF 가 없습니다 — 원본을 받아 CAD 에서 여세요.
-            <div style="margin-top:12px">
-              <a v-for="f in currentFiles" :key="f.id" class="btn btn-sm btn-primary"
+            <template v-if="isOldRev">{{ selectedSet?.label }} 에는 볼 수 있는 도면(PDF·DWG)이 없습니다.</template>
+            <template v-else>현재 Rev{{ doc.currentRev }} 에는 PDF 가 없습니다 — 원본을 받아 CAD 에서 여세요.</template>
+            <div v-if="selFiles.length" style="margin-top:12px">
+              <a v-for="f in selFiles" :key="f.id" class="btn btn-sm btn-primary"
                  :href="`/api/files/${f.id}/download`" style="margin:0 4px">
-                Rev{{ f.rev }} {{ f.fileExt.toUpperCase() }} 받기
+                {{ revText(f.rev, f.branch) }} {{ f.fileExt.toUpperCase() }} 받기
               </a>
             </div>
-            <div v-if="canRegister" style="margin-top:8px">
+            <div v-if="canRegister && !isOldRev" style="margin-top:8px">
               미리보기가 필요하면 '자료내용' 탭 반입등록에서 DWG 또는 PDF 를 올리세요.
             </div>
-            <div v-if="olderPdfs.length" style="margin-top:16px">
-              이전 Rev PDF 보기:
-              <button v-for="f in olderPdfs" :key="f.id" class="btn btn-sm" style="margin:0 4px"
-                      @click="olderPdfId = f.id">
-                Rev{{ f.rev }}{{ f.branch ? `-${f.branch}` : '' }}
-                ({{ f.reviewStatus === 'APPROVED' ? '승인' : f.reviewStatus }})
-              </button>
+            <div v-if="revSets.some((s) => !s.isCurrent && canPreviewSet(s))" style="margin-top:8px">
+              이전 Rev 도면은 위의 Rev 고르기나 'Revision 이력' 탭의 돋보기로 볼 수 있습니다.
             </div>
           </div>
         </section>
@@ -455,6 +517,12 @@ const DIST_COLUMNS: Column<DistRow>[] = [
             <template #cell:label="{ row }">
               <span>{{ row.label }}</span>
               <span v-if="row.isCurrent" class="tag">최신본</span>
+            </template>
+
+            <template #cell:view="{ row }">
+              <button class="btn btn-sm icon" :disabled="!canPreviewSet(revSets.find((s) => s.key === revKey(row.rev, row.branch)))"
+                      :title="canPreviewSet(revSets.find((s) => s.key === revKey(row.rev, row.branch))) ? `${row.label} 미리보기` : '볼 도면(PDF·DWG) 없음'"
+                      @click.stop="previewRevRow(row)">🔍</button>
             </template>
 
             <template #cell:note="{ row }">
@@ -510,8 +578,12 @@ const DIST_COLUMNS: Column<DistRow>[] = [
 .grid-tab > :deep(.dt) { flex: 1; min-height: 0; }
 .preview { display: flex; flex-direction: column; }
 .source-bar {
-  flex: 0 0 auto; display: flex; gap: 4px; padding: 6px 12px; border-bottom: 1px solid var(--border);
+  flex: 0 0 auto; display: flex; align-items: center; gap: 4px; padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
 }
+.source-bar .sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 6px; }
+.rev-select { padding: 2px 4px; }
+.icon { padding: 0 6px; line-height: 1.4; }
 .old-pdf-bar {
   flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding: 6px 12px;
   background: var(--warn-bg, #fff4d6); border-bottom: 1px solid var(--border);
