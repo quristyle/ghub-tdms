@@ -69,3 +69,49 @@ export function reviveZombies() {
       WHERE state = 'running' AND heartbeat_at < now() - interval '2 minutes'`,
   )
 }
+
+// ── API 안에서 도는 작업 ────────────────────────────────────────────────
+// 반입(bulk_import)은 리비전 등록(imports/service.registerRevision)을 그대로 써야 해서 API 가
+// 직접 돈다. 처음부터 running·locked_by='api' 로 넣어 워커가 집어 가지 않게 한다
+// (워커는 queued 만 집는다). attempts = max_attempts = 1 이라 API 가 도중에 죽으면 좀비 회수가
+// 다시 큐에 넣지 않고 '실패'로 닫는다.
+
+export async function createRunning(kind: string, payload: unknown, requestedBy: number): Promise<number> {
+  const row = await one<{ id: number }>(
+    `INSERT INTO jobs (kind, payload, requested_by, state, locked_by, heartbeat_at, started_at,
+                       attempts, max_attempts, progress_note)
+     VALUES ($1, $2, $3, 'running', 'api', now(), now(), 1, 1, '받는 중')
+     RETURNING id`,
+    [kind, JSON.stringify(payload), requestedBy],
+  )
+  return row!.id
+}
+
+export function reportProgress(id: number, percent: number, note: string | null) {
+  return query(
+    `UPDATE jobs SET progress = $2, progress_note = coalesce($3, progress_note), heartbeat_at = now()
+      WHERE id = $1 AND state = 'running'`,
+    [id, percent, note],
+  )
+}
+
+export function heartbeat(id: number) {
+  return query(`UPDATE jobs SET heartbeat_at = now() WHERE id = $1 AND state = 'running'`, [id])
+}
+
+export function finishJob(id: number, result: unknown, note: string) {
+  return query(
+    `UPDATE jobs SET state = 'done', progress = 100, progress_note = $3, result = $2,
+                     error = NULL, finished_at = now(), locked_by = NULL
+      WHERE id = $1`,
+    [id, JSON.stringify(result), note],
+  )
+}
+
+export function failJob(id: number, message: string) {
+  return query(
+    `UPDATE jobs SET state = 'failed', error = $2, finished_at = now(), locked_by = NULL
+      WHERE id = $1`,
+    [id, message.slice(0, 4000)],
+  )
+}

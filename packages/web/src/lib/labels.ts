@@ -36,3 +36,18 @@ export const REVIEW_STATUS_LABEL: Record<string, string> = {
   ISSUE: '확인필요',
   MERGED: '통합됨',
 }
+
+/** 반입 확인 필요 사유 — 계약의 REASON_LABELS(@tdms/contracts/importMatch)와 같은 글자 */
+export const IMPORT_REASON_LABEL: Record<string, string> = {
+  FILENAME_MISMATCH: '자료명 불일치',
+  PATH_MISMATCH: '경로 불일치',
+  ORIGINAL_MISSING: '원본 누락',
+  PDF_MISSING: '사본 누락',
+  ALREADY_IMPORTED: '기 반입 완료',
+  NOT_DISTRIBUTED: '반출 대상 아님',
+  DUPLICATE_FILE: '같은 형식 파일 중복',
+  REV_MISMATCH: '표기 불일치',
+  REV_TAG_MISSING: '리비전 표기 없음',
+  REV_TAG_MALFORMED: '리비전 표기 형식 오류',
+  REGISTER_FAILED: '등록 실패',
+}

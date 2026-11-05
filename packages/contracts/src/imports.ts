@@ -39,6 +39,8 @@ export const PendingReviewGroup = z.object({
   branchArrived: z.number().int().nullable(),
   branchExpected: z.number().int().nullable(),
   hasWarning: z.boolean(),
+  /** 지금 승인된 리비전의 PDF — [비교]의 왼쪽(반출본) */
+  currentPdfFileId: z.number().int().nullable(),
 })
 export type PendingReviewGroup = z.infer<typeof PendingReviewGroup>
 
@@ -70,18 +72,40 @@ export const BulkReviewResult = z.object({
 
 // ── 확인 필요 ───────────────────────────────────────────────────────────
 
+export const ImportIssueFile = z.object({
+  filename: z.string(),
+  ext: z.string(),
+  byteSize: z.number().int().nullable(),
+  /** Zip 안 폴더 (재첨부·개별 업로드면 null) */
+  folder: z.string().nullable(),
+})
+
 export const ImportIssue = z.object({
   id: z.number().int(),
   filename: z.string(),
   originalFilename: z.string().nullable(),
   byteSize: z.number().int().nullable(),
+  /** 사유 코드를 쉼표로 이은 것 (예: "PATH_MISMATCH,PDF_MISSING") */
   reason: z.string(),
   reasonDetail: z.string().nullable(),
+  /** 사유 코드 목록 — 라벨은 REASON_LABELS */
+  reasons: z.array(z.string()),
+  /** [사유상세] 문장 */
+  detailText: z.string(),
+  /** 목록의 자료명 — 대상 자료가 정해졌으면 그 자료명(꼬리 포함), 아니면 받은 파일 이름 */
+  displayName: z.string(),
+  files: z.array(ImportIssueFile),
+  hasPdf: z.boolean(),
   vendorName: z.string().nullable(),
+  projectId: z.number().int().nullable(),
   projectName: z.string().nullable(),
-  /** 파일명으로 짐작한 대상 자료 */
+  /** 대상 자료 (반입 진단·경로 재선택으로 정해진 것) */
   suggestedDocumentId: z.number().int().nullable(),
   suggestedDrawingNo: z.string().nullable(),
+  /** 대상 자료의 폴더 경로 */
+  folderPath: z.string().nullable(),
+  /** 대상 자료의 지금 승인된 PDF — [비교]의 왼쪽 */
+  currentPdfFileId: z.number().int().nullable(),
   createdAt: z.string(),
   createdBy: z.string().nullable(),
 })
@@ -89,11 +113,24 @@ export type ImportIssue = z.infer<typeof ImportIssue>
 
 export const ImportIssueResponse = z.object({ items: z.array(ImportIssue) })
 
-/** 경로 재선택 — 어느 자료에 붙일지 정해 준다 */
+/**
+ * 경로 재선택 — 이 파일이 실제로 어느 자료인지 정해 둔다.
+ * 등록은 [재검수]에서 한다 — 재첨부와 경로 재선택을 둘 다 한 뒤 한 번에 다시 검사하기 위해서다.
+ */
 export const ResolveIssueRequest = z.object({
   documentId: z.number().int(),
-  vendorName: z.string().min(1).max(200),
-  projectId: z.number().int().nullable().default(null),
+})
+
+export const ResolveIssueResult = z.object({
+  documentId: z.number().int(),
+  drawingNo: z.string(),
+  message: z.string(),
+})
+
+/** 자료 재첨부 결과 — 파일만 갈아끼운다. 다시 검사는 [재검수]가 한다. */
+export const ReattachIssueResult = z.object({
+  fileCount: z.number().int(),
+  message: z.string(),
 })
 
 /** 재검수 — 파일은 그대로 두고 다시 검사한다 */
@@ -143,8 +180,80 @@ export const UploadResult = z.object({
   reason: z.string(),
 })
 
-/** Zip 대량 반입 — 워커로 넘긴다 */
+/** Zip 반입 · 반입 자료(선택 반출 건) — 작업으로 넘기고 진행률은 /jobs/:id/stream 으로 본다 */
 export const ZipImportAccepted = JobCreated
+
+/** 반입 실행 결과 — 작업(jobs.result)에 남는다 */
+export const ImportRunResult = z.object({
+  matched: z.array(z.object({
+    documentId: z.number().int(),
+    drawingNo: z.string(),
+    revLabel: z.string(),
+    fileCount: z.number().int(),
+    branched: z.boolean(),
+  })),
+  issues: z.array(z.object({
+    drawingNo: z.string(),
+    reasons: z.array(z.string()),
+    reasonText: z.string(),
+  })),
+  /** 받지 않은 파일 (형식이 맞지 않는 것 등) */
+  skipped: z.array(z.string()),
+  message: z.string(),
+})
+export type ImportRunResult = z.infer<typeof ImportRunResult>
+
+/** 반입 자료 — 반출 건 선택 팝업의 한 줄 (기존 /distributions/for-import) */
+export const ImportTargetStatus = z.enum(['INCOMPLETE', 'REVIEWING', 'DONE'])
+export const ImportTarget = z.object({
+  distributionId: z.number().int(),
+  documentId: z.number().int(),
+  drawingNo: z.string(),
+  /** 반출 당시 이름 — `도면번호_Rev00` */
+  displayName: z.string(),
+  title: z.string(),
+  folderPath: z.string(),
+  revAtDistribution: z.number().int(),
+  vendorName: z.string(),
+  projectId: z.number().int().nullable(),
+  projectName: z.string().nullable(),
+  zipName: z.string().nullable(),
+  distributedAt: z.string(),
+  hasDwg: z.boolean(),
+  hasPdf: z.boolean(),
+  hasXlsx: z.boolean(),
+  hasEtc: z.boolean(),
+  status: ImportTargetStatus,
+})
+export type ImportTarget = z.infer<typeof ImportTarget>
+
+export const ImportTargetQuery = z.object({
+  /** 없으면 반입 미완료 건 전체 (업체·공사 드롭다운 구성용) */
+  vendorName: z.string().max(200).optional(),
+  projectId: z.coerce.number().int().optional(),
+  dateFrom: z.string().max(30).optional(),
+  dateTo: z.string().max(30).optional(),
+})
+export type ImportTargetQuery = z.infer<typeof ImportTargetQuery>
+
+export const ImportTargetResponse = z.object({ items: z.array(ImportTarget) })
+export type ImportTargetResponse = z.infer<typeof ImportTargetResponse>
+
+/** 반입 화면의 고르기 목록 (업체·공사) */
+export const ImportOptions = z.object({
+  vendors: z.array(z.object({ id: z.number().int(), name: z.string() })),
+  projects: z.array(z.object({ id: z.number().int(), name: z.string() })),
+})
+export type ImportOptions = z.infer<typeof ImportOptions>
+
+/** 신규 자료 등록 결과 — Rev00 승인·현재본으로 바로 들어간다 */
+export const RegisterNewResult = z.object({
+  documentId: z.number().int(),
+  drawingNo: z.string(),
+  revLabel: z.string(),
+  fileCount: z.number().int(),
+})
+export type RegisterNewResult = z.infer<typeof RegisterNewResult>
 
 // ── 병합본 첨부 후 승인 ─────────────────────────────────────────────────
 
@@ -161,6 +270,8 @@ export type BulkReviewRequest = z.infer<typeof BulkReviewRequest>
 export type BulkReviewResult = z.infer<typeof BulkReviewResult>
 export type ImportIssueResponse = z.infer<typeof ImportIssueResponse>
 export type ResolveIssueRequest = z.infer<typeof ResolveIssueRequest>
+export type ResolveIssueResult = z.infer<typeof ResolveIssueResult>
+export type ReattachIssueResult = z.infer<typeof ReattachIssueResult>
 export type RecheckIssueResult = z.infer<typeof RecheckIssueResult>
 export type DiscardIssueRequest = z.infer<typeof DiscardIssueRequest>
 export type DuplicateDistributionResponse = z.infer<typeof DuplicateDistributionResponse>
