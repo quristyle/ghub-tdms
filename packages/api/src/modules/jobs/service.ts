@@ -59,3 +59,26 @@ export async function mine(userId: number) {
 export async function cancel(id: number, userId: number) {
   await q.cancelJob(id, userId)
 }
+
+// ── API 프로세스가 직접 처리하는 작업 (Zip 폴더 업로드 등) ───────────────
+// 202 로 먼저 답한 뒤 같은 프로세스에서 처리한다. 화면은 같은 SSE(JobProgress)로 본다.
+
+export function createRunning(kind: string, payload: unknown, userId: number): Promise<number> {
+  return q.insertRunning(kind, payload, userId)
+}
+
+/** 진행률 갱신. heartbeat 도 함께 갱신된다. */
+export async function progress(jobId: number, pct: number, note: string | null = null): Promise<void> {
+  await q.updateProgress(jobId, pct, note)
+}
+
+/** 완료. result.note 가 있으면 진행 안내문으로도 보여 준다. */
+export async function finish(jobId: number, result: unknown): Promise<void> {
+  const note = typeof result === 'object' && result !== null && 'note' in result
+    ? String((result as { note: unknown }).note) : null
+  await q.markDone(jobId, result, note)
+}
+
+export async function fail(jobId: number, message: string): Promise<void> {
+  await q.markFailed(jobId, message)
+}

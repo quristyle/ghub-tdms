@@ -59,7 +59,7 @@ const LABEL: Record<string, string> = {
       <span style="flex:1" />
       <span v-if="job.state === 'running'">{{ job.progress }}%</span>
       <a
-        v-if="job.state === 'done'" class="btn btn-sm btn-primary"
+        v-if="job.state === 'done' && job.resultFilename" class="btn btn-sm btn-primary"
         :href="`/api/jobs/${job.id}/download`"
       >받기</a>
     </div>

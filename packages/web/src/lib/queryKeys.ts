@@ -12,6 +12,11 @@ export const qk = {
     list: (p: Partial<DocumentListQuery>) => ['documents', 'list', p] as const,
     detail: (id: number) => ['documents', 'detail', id] as const,
   },
+  /** 공사·업체 관리 (ProjectManager.vue) */
+  catalog: {
+    all: ['catalog'] as const,
+    list: (kind: 'projects' | 'vendors', includeHidden: boolean) => ['catalog', kind, includeHidden] as const,
+  },
 } as const
 
 /** 자원별 캐시 수명 — 04 설계문서의 기준표 그대로 */
