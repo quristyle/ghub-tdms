@@ -1,6 +1,6 @@
 import type pg from 'pg'
 import type { AuditQuery } from '@tdms/contracts'
-import { many, one, tx } from '../../core/db.js'
+import { many, one, query, tx } from '../../core/db.js'
 import { decodeCursor } from '../../core/cursor.js'
 
 /** 운영 화면 쿼리 — 시스템 로그 / 사용자·권한 / 백업 */
@@ -497,6 +497,20 @@ export function setBackupNote(c: pg.PoolClient, runId: number, note: string | nu
 }
 
 /** 파일만 지운다 — 이력 줄은 어떤 경우에도 안 지워진다 (기존 정책) */
+export function backupFile(runId: number) {
+  return one<{ seq: number; state: string; setKey: string | null }>(
+    'SELECT seq, state, set_key AS "setKey" FROM backup_runs WHERE id = $1',
+    [runId],
+  )
+}
+
+export function countBackupDownload(runId: number) {
+  return query(
+    'UPDATE backup_runs SET download_count = download_count + 1, last_download_at = now() WHERE id = $1',
+    [runId],
+  )
+}
+
 export function markBackupFileDeleted(c: pg.PoolClient, runId: number) {
   return c.query(
     `UPDATE backup_runs SET state = 'FILE_DELETED' WHERE id = $1 AND state <> 'FILE_DELETED'`,

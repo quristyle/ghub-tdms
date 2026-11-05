@@ -13,7 +13,7 @@ from typing import Any, Callable
 import psycopg
 
 from ..config import Config
-from . import excel, preview, zipbuild
+from . import backup, excel, preview, zipbuild
 
 Handler = Callable[[psycopg.Connection, Config, dict[str, Any], Callable[..., None]], dict[str, Any]]
 
@@ -21,5 +21,6 @@ HANDLERS: dict[str, Handler] = {
     "excel_export": excel.run,
     "convert_preview": preview.run,
     "zip_build": zipbuild.run,
+    "backup": backup.run,
     # 이후 단계에서 추가: convert, mirror, gc
 }

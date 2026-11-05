@@ -37,9 +37,12 @@ services:
     environment:
       <<: *app-env
       API_LISTEN: 0.0.0.0:8080
+      BACKUP_ROOT: /srv/tdms/backup
     volumes:
       - /srv/tdms/blobs:/srv/tdms/blobs
       - /srv/tdms/tmp:/srv/tdms/tmp
+      # 백업 묶음 받기·파일 삭제 (만드는 것은 워커)
+      - /srv/tdms/backup:/srv/tdms/backup
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 20s

@@ -68,6 +68,11 @@ async function run() {
 }
 
 // ── 이력 조치 ─────────────────────────────────────────────────────────
+/** 받은 횟수·시각은 내려받기가 시작된 뒤 서버가 올린다 — 조금 뒤에 다시 읽는다 */
+function refreshSoon() {
+  setTimeout(() => void qc.invalidateQueries({ queryKey: ['backup-runs'] }), 1500)
+}
+
 const deleteTarget = ref<BackupRunRow | null>(null)
 
 async function confirmDelete() {
@@ -143,7 +148,7 @@ const STATE_LABEL: Record<string, string> = {
         </div>
         <div class="bar">
           <span class="group-label">저장 위치</span>
-          <input v-model="form.storagePath" type="text" placeholder="비우면 기본 위치 (예: /mnt/backup)" style="width:280px" />
+          <input v-model="form.storagePath" type="text" placeholder="비우면 기본 위치. 백업 폴더 아래 하위 폴더 이름 (예: 2026-외장)" style="width:280px" />
           <label class="r"><input v-model="form.compressed" type="checkbox" /> 압축</label>
           <span style="flex:1" />
           <button class="btn btn-sm btn-primary" :disabled="!canRun || !form.scope.size" @click="run">
@@ -190,8 +195,9 @@ const STATE_LABEL: Record<string, string> = {
                      @change="saveNote(r, ($event.target as HTMLInputElement).value)" />
             </td>
             <td class="tc">
-              <a v-if="r.state === 'READY' && r.jobId !== null && canRun"
-                 class="btn btn-sm" :href="`/api/jobs/${r.jobId}/download`">받기</a>
+              <a v-if="r.state === 'READY' && canRun"
+                 class="btn btn-sm" :href="`/api/backup/runs/${r.id}/download`"
+                 @click="refreshSoon">받기</a>
               <button v-if="r.state === 'READY'" class="btn btn-sm" :disabled="!canDeleteFile"
                       :title="canDeleteFile ? '' : '권한이 없습니다'"
                       @click="deleteTarget = r">파일 삭제</button>

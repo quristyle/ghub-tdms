@@ -1,5 +1,8 @@
+import { rm, stat } from 'node:fs/promises'
+import { basename, resolve, sep } from 'node:path'
 import type { AuditQuery, GroupSaveRequest, PartnerCompanySaveRequest, UserCreateRequest, UserUpdateRequest } from '@tdms/contracts'
 import { LEAF_KEY_SET } from '@tdms/contracts'
+import { config } from '../../core/config.js'
 import { tx } from '../../core/db.js'
 import { invalidate } from '../../core/cache.js'
 import { Errors } from '../../core/errors.js'
@@ -262,8 +265,36 @@ export async function setBackupNote(runId: number, note: string | null) {
   await tx((c) => q.setBackupNote(c, runId, note))
 }
 
+/**
+ * 백업 묶음의 실제 자리. set_key 는 BACKUP_ROOT 기준 상대경로이고, 워커가 적는다.
+ * 그 밖으로 나가는 값이면 받지 않는다 — DB 값만 믿고 서버의 아무 파일이나 내주지 않게.
+ */
+async function backupPath(runId: number) {
+  const run = await q.backupFile(runId)
+  if (!run) throw Errors.notFound('백업')
+  if (!run.setKey) return { run, path: null }
+  const root = resolve(config.backupRoot)
+  const path = resolve(root, run.setKey)
+  if (!path.startsWith(root + sep)) throw Errors.notFound('백업 파일')
+  return { run, path }
+}
+
+/** 받기 — 파일이 실제로 있는지 보고 받은 횟수를 올린다(기존 backup.py download). */
+export async function backupDownload(runId: number) {
+  const { run, path } = await backupPath(runId)
+  if (run.state !== 'READY' || !path) {
+    throw Errors.invalid('BACKUP_NOT_READY', '받을 수 있는 상태의 백업이 아닙니다.')
+  }
+  const st = await stat(path).catch(() => null)
+  if (!st?.isFile()) throw Errors.notFound('백업 파일')
+  await q.countBackupDownload(runId)
+  return { path, filename: basename(path), byteSize: st.size, seq: run.seq }
+}
+
 /** 파일만 지운다 — 이력 줄은 어떤 경우에도 안 지워진다 (기존 정책) */
 export async function deleteBackupFile(runId: number) {
+  const { path } = await backupPath(runId)
+  if (path) await rm(path, { force: true })
   await tx((c) => q.markBackupFileDeleted(c, runId))
 }
 

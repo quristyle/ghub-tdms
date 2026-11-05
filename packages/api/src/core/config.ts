@@ -66,6 +66,9 @@ export const config = {
 
   storageRoot: process.env.STORAGE_ROOT ?? '/srv/tdms',
 
+  /** 백업 묶음 자리. 워커가 쓰고 API 가 내려준다 — 자료 전체를 blob 으로 한 벌 더 두지 않는다. */
+  backupRoot: process.env.BACKUP_ROOT ?? `${process.env.STORAGE_ROOT ?? '/srv/tdms'}/backup`,
+
   auth: {
     pbkdf2Iterations: 600_000,
     maxFailBeforeLock: 5,

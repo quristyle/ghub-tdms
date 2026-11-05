@@ -1,3 +1,4 @@
+import { createReadStream } from 'node:fs'
 import { z } from 'zod'
 import type { FastifyInstance } from 'fastify'
 import {
@@ -10,6 +11,7 @@ import {
   UserCreateRequest, UserListResponse, UserUpdateRequest,
 } from '@tdms/contracts'
 import { AUTHENTICATED, defineRoute, permission } from '../../core/route.js'
+import { contentDisposition } from '../../core/files.js'
 import { Errors } from '../../core/errors.js'
 import * as svc from './service.js'
 
@@ -390,6 +392,25 @@ export function registerAdminRoutes(app: FastifyInstance): void {
       await svc.setBackupNote(id, b.note)
       req.setAuditTarget(`백업 ${id}`, { note: b.note })
       return { ok: true as const }
+    },
+  })
+
+  // 받기 — 묶음은 blob 저장소 밖(BACKUP_ROOT)에 있어 X-Accel 이 아니라 직접 흘려보낸다
+  defineRoute(app, {
+    method: 'GET',
+    url: '/backup/runs/:id/download',
+    access: permission('screen.backup.run'),
+    audit: { screen: '백업 관리', action: '백업 받기' },
+    schema: { params: IdParam, response: { 404: ErrorResponse, 422: ErrorResponse } },
+    handler: async (req, reply) => {
+      const { id } = IdParam.parse(req.params)
+      const f = await svc.backupDownload(id)
+      req.setAuditTarget(f.filename, { runId: id, seq: f.seq, byteSize: f.byteSize })
+      return reply
+        .header('Content-Type', 'application/zip')
+        .header('Content-Disposition', contentDisposition(f.filename))
+        .header('Content-Length', String(f.byteSize))
+        .send(createReadStream(f.path))
     },
   })
 
