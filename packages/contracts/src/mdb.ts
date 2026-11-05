@@ -128,6 +128,9 @@ export const TagHistory = z.object({
   reason: z.string().nullable(),
   reasonDetail: z.string().nullable(),
   projectName: z.string().nullable(),
+  /** 적용 범위 폴더 (없으면 전체) */
+  folderId: z.number().int().nullable().optional(),
+  folderName: z.string().nullable().optional(),
   state: TagHistoryState,
   appliedCount: z.number().int(),
   createdBy: z.string().nullable(),

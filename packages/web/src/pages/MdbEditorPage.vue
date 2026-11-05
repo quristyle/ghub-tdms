@@ -2,8 +2,8 @@
 import { computed, ref } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type {
-  ArchiveListResponse, FolderNode, MdbListItem, MdbListResponse, MdbMeta,
-  TagHistory, TagHistoryListResponse, TagTargetsResponse,
+  ArchiveBatch, ArchiveListResponse, FolderNode, JobCreated, MdbListItem, MdbListResponse, MdbMeta,
+  MdbRegisterResult, MdbReplaceResult,
 } from '@tdms/contracts'
 import LazyTree from '@/ui/LazyTree.vue'
 import DataTable, { type Column, type SortDir } from '@/ui/DataTable.vue'
@@ -12,6 +12,11 @@ import JobProgress from '@/ui/JobProgress.vue'
 import { api, ApiError, qs } from '@/lib/api'
 import { qk, staleTime } from '@/lib/queryKeys'
 import { useSession } from '@/lib/session'
+import TypeListModal from './mdb/TypeListModal.vue'
+import MdbInfoModal from './mdb/MdbInfoModal.vue'
+import UnclassifiedModal from './mdb/UnclassifiedModal.vue'
+import PairMergeModal from './mdb/PairMergeModal.vue'
+import TagHistoryModal from './mdb/TagHistoryModal.vue'
 
 /** MDB 관리 — 기존 mdb-editor.html 구성을 재현한다. */
 
@@ -23,6 +28,7 @@ const canDoc = computed(() => session.can('screen.mdb_editor.document'))
 const canZip = computed(() => session.can('screen.mdb_editor.zip_register'))
 const canRetire = computed(() => session.can('screen.mdb_editor.retire'))
 const canRestore = computed(() => session.can('screen.mdb_editor.restore'))
+const canTrashNote = computed(() => session.can('common.note_edit.mdb_trash'))
 
 const message = ref<{ kind: 'ok' | 'err'; text: string } | null>(null)
 const say = (kind: 'ok' | 'err', text: string) => (message.value = { kind, text })
@@ -193,59 +199,145 @@ async function purgeSelected() {
   } catch (e) { fail(e) }
 }
 
-// ── Tag 이력 ──────────────────────────────────────────────────────────
+// ── 보관함: 비고 · 다운로드 ─────────────────────────────────────────
+const noteEditing = ref<number | null>(null)
+const noteText = ref('')
+function canEditNote() {
+  return boxOpen.value === 'TRASH' ? canTrashNote.value : canRetire.value
+}
+function startNote(b: ArchiveBatch) { noteEditing.value = b.id; noteText.value = b.note ?? '' }
+async function saveNote(b: ArchiveBatch) {
+  const path = boxOpen.value === 'TRASH' ? 'trash' : 'retired'
+  noteEditing.value = null
+  try {
+    await api.post(`/mdb-editor/${path}/${b.id}/note`, { note: noteText.value.trim() || null })
+    void qc.invalidateQueries({ queryKey: ['mdb-archive'] })
+  } catch (e) { fail(e) }
+}
+
+const trashJobId = ref<number | null>(null)
+async function downloadBatch(b: ArchiveBatch) {
+  try {
+    const r = await api.post<JobCreated>(`/mdb-editor/trash/${b.id}/download-zip`)
+    trashJobId.value = r.jobId
+  } catch (e) { fail(e) }
+}
+
+// ── 팝업들 ────────────────────────────────────────────────────────────
 const tagOpen = ref(false)
-const tagForm = ref({ baseTag: '', newTag: '', reason: '' })
-const previewId = ref<number | null>(null)
+const typesOpen = ref(false)
+const unclassifiedOpen = ref(false)
+const pairOpen = ref(false)
+const infoId = ref<number | null>(null)
+const onePicked = computed(() => (picked.value.size === 1 ? [...picked.value][0]! : null))
+const pickedRow = computed(() => rows.value.find((r) => r.id === onePicked.value) ?? null)
 
-const { data: history } = useQuery({
-  queryKey: ['mdb-tag-history'],
-  queryFn: () => api.get<TagHistoryListResponse>('/mdb-tag-history'),
-  enabled: computed(() => tagOpen.value),
-  staleTime: staleTime.worklist,
-})
-
-const { data: targets } = useQuery({
-  queryKey: computed(() => ['mdb-tag-targets', previewId.value]),
-  queryFn: () => api.get<TagTargetsResponse>(`/mdb-tag-history/${previewId.value}/targets`),
-  enabled: computed(() => previewId.value !== null),
-})
-
-async function createTagHistory() {
-  try {
-    await api.post('/mdb-tag-history', {
-      baseTag: tagForm.value.baseTag, newTag: tagForm.value.newTag,
-      reason: tagForm.value.reason || null,
-    })
-    say('ok', 'Tag 이력을 등록했습니다. 대상을 확인한 뒤 적용하세요.')
-    tagForm.value = { baseTag: '', newTag: '', reason: '' }
-    void qc.invalidateQueries({ queryKey: ['mdb-tag-history'] })
-  } catch (e) { fail(e) }
+function onInfoSaved() {
+  infoId.value = null
+  say('ok', '자료 정보를 저장했습니다.')
+  refreshAll()
 }
 
-async function tagAction(h: TagHistory, action: 'apply' | 'revert') {
+// ── 신규추가 (여러 파일) ──────────────────────────────────────────────
+const registerOpen = ref(false)
+const registerFiles = ref<File[]>([])
+const busy = ref(false)
+
+/** 같은 이름·같은 형식이 2개 이상이면 서버가 먼저 묻는다 — 확인하면 다시 보낸다 */
+function confirmDuplicates(r: MdbRegisterResult): boolean {
+  const list = r.duplicates
+    .map((d) => `${d.folder ? `${d.folder} / ` : ''}${d.stem} (${d.exts.join(', ').toUpperCase()})`)
+    .join('\n')
+  return window.confirm(
+    `같은 폴더에 같은 이름·같은 형식의 파일이 2개 이상 있습니다:\n${list}\n\n` +
+    '정상은 한 자료에 형식마다 1개씩입니다. 그래도 계속 등록하시겠습니까?')
+}
+
+function registerMessage(r: { created: number; attached: number; skipped: string[] }) {
+  const parts = [`${r.created}건 등록되었습니다.`]
+  if (r.attached) parts.push(`기존 자료에 파일 ${r.attached}개를 채워 넣었습니다.`)
+  if (r.skipped.length) {
+    parts.push(`건너뛴 것: ${r.skipped.slice(0, 5).join(', ')}${r.skipped.length > 5 ? ` 외 ${r.skipped.length - 5}건` : ''}`)
+  }
+  return parts.join(' ')
+}
+
+async function postForm<T>(path: string, fd: FormData): Promise<{ status: number; body: T }> {
+  const r = await fetch(`/api${path}`, { method: 'POST', body: fd, credentials: 'same-origin' })
+  const body = await r.json().catch(() => ({}))
+  if (!r.ok) throw new ApiError(r.status, body.code ?? 'ERROR', body.message ?? '처리하지 못했습니다.')
+  return { status: r.status, body: body as T }
+}
+
+async function submitRegister() {
+  if (!folder.value || !registerFiles.value.length) return
+  busy.value = true
   try {
-    const r = await api.post<{ applied?: number; reverted?: number }>(`/mdb-tag-history/${h.id}/${action}`)
-    say('ok', action === 'apply' ? `${r.applied}건에 적용했습니다.` : `${r.reverted}건을 되돌렸습니다.`)
+    for (let confirm = false; ;) {
+      const fd = new FormData()
+      fd.append('targetFolderId', String(folder.value.id))
+      fd.append('confirmDuplicates', String(confirm))
+      for (const f of registerFiles.value) fd.append('files', f)
+      const { body } = await postForm<MdbRegisterResult>('/mdb-editor/register', fd)
+      if (body.needsConfirmation) {
+        if (!confirmDuplicates(body)) return
+        confirm = true
+        continue
+      }
+      registerOpen.value = false
+      registerFiles.value = []
+      say(body.skipped.length ? 'err' : 'ok', registerMessage(body))
+      refreshAll()
+      return
+    }
+  } catch (e) { fail(e) } finally { busy.value = false }
+}
+
+// ── 파일 교체 ─────────────────────────────────────────────────────────
+const replaceOpen = ref(false)
+const replaceFile = ref<File | null>(null)
+async function submitReplace() {
+  if (onePicked.value === null || !replaceFile.value) return
+  busy.value = true
+  try {
+    const fd = new FormData()
+    fd.append('file', replaceFile.value)
+    const { body } = await postForm<MdbReplaceResult>(`/mdb-editor/files/${onePicked.value}/replace`, fd)
+    replaceOpen.value = false
+    replaceFile.value = null
+    say('ok', body.message)
     refreshAll()
-  } catch (e) { fail(e) }
+  } catch (e) { fail(e) } finally { busy.value = false }
 }
 
-const TAG_STATE: Record<string, string> = { DRAFT: '등록됨', APPLIED: '적용됨', REVERTED: '되돌림' }
-
-// ── Zip 업로드 ────────────────────────────────────────────────────────
+// ── Zip 폴더 업로드 ───────────────────────────────────────────────────
+// 넣을 위치는 왼쪽 트리에서 지금 고른 폴더. 고르지 않으면 Zip 의 첫 단계 폴더가 최상위 폴더가 된다.
 const zipJobId = ref<number | null>(null)
 async function uploadZip(ev: Event) {
   const input = ev.target as HTMLInputElement
   const file = input.files?.[0]
-  if (!file) return
-  const fd = new FormData()
-  fd.append('file', file)
-  const r = await fetch('/api/imports/zip', { method: 'POST', body: fd })
-  const body = await r.json()
-  if (r.status === 202) { zipJobId.value = body.jobId; say('ok', '압축을 푸는 중입니다.') }
-  else say('err', body.message ?? '올리지 못했습니다.')
   input.value = ''
+  if (!file) return
+  const where = folder.value ? `"${folder.value.name}" 폴더 아래` : '최상위'
+  if (!window.confirm(`${file.name} 을(를) ${where}에 폴더째 등록합니다.`)) return
+  busy.value = true
+  try {
+    for (let confirm = false; ;) {
+      const fd = new FormData()
+      if (folder.value) fd.append('targetFolderId', String(folder.value.id))
+      fd.append('confirmDuplicates', String(confirm))
+      fd.append('file', file)
+      const { status, body } = await postForm<MdbRegisterResult & JobCreated>('/mdb-editor/zip-register', fd)
+      if (status === 202) {
+        zipJobId.value = body.jobId
+        say('ok', '압축을 풀어 등록하는 중입니다. 아래 진행률을 확인하세요.')
+        return
+      }
+      if (body.needsConfirmation && confirmDuplicates(body)) { confirm = true; continue }
+      say('err', '등록을 취소했습니다.')
+      return
+    }
+  } catch (e) { fail(e) } finally { busy.value = false }
 }
 </script>
 
@@ -259,6 +351,8 @@ async function uploadZip(ev: Event) {
       <div class="bar">
         <strong>MDB 폴더 및 디렉토리 구조 관리</strong>
         <span style="flex:1" />
+        <button class="btn btn-sm" @click="unclassifiedOpen = true">미분류 정리</button>
+        <button class="btn btn-sm" @click="typesOpen = true">목록 관리</button>
         <button class="btn btn-sm" @click="tagOpen = true">Tag 이력</button>
         <button class="btn btn-sm" @click="boxOpen = 'RETIRE'">
           폐기 보관함 <span class="cnt">{{ retireBox?.count ?? 0 }}</span>
@@ -276,6 +370,7 @@ async function uploadZip(ev: Event) {
         <button class="btn btn-sm" :disabled="!canFolder || !folder"
                 @click="folderDialog = 'move'; moveTargetId = null">위치 이동</button>
         <button class="btn btn-sm" :disabled="!canRestore || !folder" @click="sendTo('TRASH', true)">폴더 삭제</button>
+        <button class="btn btn-sm" :disabled="!canFolder" @click="pairOpen = true">원본·사본 폴더 병합</button>
       </div>
 
       <div class="bar">
@@ -283,15 +378,22 @@ async function uploadZip(ev: Event) {
         <input v-model="keyword" type="text" placeholder="검색어" style="width:170px" />
         <span class="muted">선택 {{ picked.size }}건</span>
         <span style="flex:1" />
+        <button class="btn btn-sm" :disabled="!canDoc || !folder"
+                :title="folder ? '' : '왼쪽에서 등록할 폴더를 고르세요'"
+                @click="registerOpen = true; registerFiles = []">신규추가</button>
+        <button class="btn btn-sm" :disabled="!canDoc || onePicked === null"
+                @click="infoId = onePicked">정보 수정</button>
+        <button class="btn btn-sm" :disabled="!canDoc || onePicked === null"
+                @click="replaceOpen = true; replaceFile = null">파일 교체</button>
         <button class="btn btn-sm" :disabled="!canDoc || !picked.size"
                 @click="moveDocsOpen = true; docTargetId = null">자료 이동</button>
         <button class="btn btn-sm" :disabled="!canDoc || !picked.size"
                 @click="equipOpen = true; newEquip = ''">설비유형 일괄변경</button>
         <button class="btn btn-sm" :disabled="!canRetire || !picked.size" @click="sendTo('RETIRE', false)">폐기</button>
         <button class="btn btn-sm" :disabled="!canRestore || !picked.size" @click="sendTo('TRASH', false)">삭제</button>
-        <label class="btn btn-sm" :class="{ disabled: !canZip }">
+        <label class="btn btn-sm" :class="{ disabled: !canZip || busy }">
           Zip 폴더 업로드
-          <input type="file" accept=".zip" hidden :disabled="!canZip" @change="uploadZip" />
+          <input type="file" accept=".zip" hidden :disabled="!canZip || busy" @change="uploadZip" />
         </label>
       </div>
 
@@ -365,7 +467,8 @@ async function uploadZip(ev: Event) {
       <table class="grid">
         <thead>
           <tr><th style="width:34px"></th><th>이름</th><th>원래 자리</th><th>건수</th>
-              <th>사유</th><th>보낸 사람</th><th>보낸 시각</th></tr>
+              <th>사유</th><th>보낸 사람</th><th>보낸 시각</th><th>비고</th>
+              <th v-if="boxOpen === 'TRASH'">받기</th></tr>
         </thead>
         <tbody>
           <tr v-for="b in box?.items ?? []" :key="b.id">
@@ -379,10 +482,25 @@ async function uploadZip(ev: Event) {
             <td>{{ b.reason ?? '-' }}</td>
             <td class="tc">{{ b.archivedBy ?? '-' }}</td>
             <td class="tc">{{ b.archivedAt.slice(0, 16).replace('T', ' ') }}</td>
+            <td class="note-cell">
+              <template v-if="noteEditing === b.id">
+                <input v-model="noteText" type="text" maxlength="2000" style="width:100%"
+                       @keydown.enter="saveNote(b)" @keydown.esc.stop="noteEditing = null" />
+                <button class="btn btn-sm" @click="saveNote(b)">저장</button>
+              </template>
+              <template v-else>
+                <span>{{ b.note ?? '' }}</span>
+                <button v-if="canEditNote()" class="btn btn-sm" title="비고 작성" @click="startNote(b)">✎</button>
+              </template>
+            </td>
+            <td v-if="boxOpen === 'TRASH'" class="tc">
+              <button class="btn btn-sm" :disabled="!canRestore" @click="downloadBatch(b)">Zip</button>
+            </td>
           </tr>
-          <tr v-if="!box?.items.length"><td colspan="7" class="tc muted">보관된 자료가 없습니다.</td></tr>
+          <tr v-if="!box?.items.length"><td :colspan="boxOpen === 'TRASH' ? 9 : 8" class="tc muted">보관된 자료가 없습니다.</td></tr>
         </tbody>
       </table>
+      <JobProgress v-if="boxOpen === 'TRASH' && trashJobId !== null" :job-id="trashJobId" />
       <template #footer>
         <button v-if="boxOpen === 'TRASH'" class="btn" :disabled="!boxSel.size || !canRestore"
                 @click="purgeConfirm = true">완전 삭제</button>
@@ -400,60 +518,42 @@ async function uploadZip(ev: Event) {
       </template>
     </Modal>
 
-    <!-- Tag 이력 -->
-    <Modal v-if="tagOpen" wide title="Tag 이력" @close="tagOpen = false; previewId = null">
-      <p class="muted">
-        설비 Tag 가 바뀌면(설비 교체·체계 변경·오기 정정) 해당 자료의 Tag 를 한꺼번에 고칩니다.
-        <strong>적용 전에 바뀔 대상을 먼저 확인</strong>하고, 적용한 뒤에도 되돌릴 수 있습니다.
+    <!-- 신규추가 -->
+    <Modal v-if="registerOpen" title="신규추가" @close="registerOpen = false">
+      <p class="muted">추가 위치: <strong>{{ folder?.name }}</strong></p>
+      <p class="muted small">
+        이름이 같고 확장자만 다른 파일(A.xlsx + A.pdf)은 자료 1건으로 들어갑니다. 같은 자리에 같은 자료명이
+        이미 있으면 없는 형식만 채워 넣고, 이미 있는 형식은 건너뜁니다.
       </p>
-      <div class="bar" style="margin-bottom:10px">
-        <input v-model="tagForm.baseTag" type="text" placeholder="바꿀 Tag" style="width:140px" />
-        <span class="muted">→</span>
-        <input v-model="tagForm.newTag" type="text" placeholder="새 Tag" style="width:140px" />
-        <input v-model="tagForm.reason" type="text" placeholder="사유" style="width:150px" />
-        <button class="btn btn-sm btn-primary"
-                :disabled="!canFolder || !tagForm.baseTag || !tagForm.newTag"
-                @click="createTagHistory">등록</button>
-      </div>
-      <table class="grid">
-        <thead>
-          <tr><th>바꿀 Tag</th><th>새 Tag</th><th>사유</th><th>상태</th><th>적용 건수</th>
-              <th>등록자</th><th>등록일</th><th>조치</th></tr>
-        </thead>
-        <tbody>
-          <tr v-for="h in history?.items ?? []" :key="h.id" :class="{ applied: h.state === 'APPLIED' }">
-            <td>{{ h.oldTag ?? h.baseTag }}</td>
-            <td>{{ h.newTag ?? '-' }}</td>
-            <td>{{ h.reason ?? '-' }}</td>
-            <td class="tc">{{ TAG_STATE[h.state] ?? h.state }}</td>
-            <td class="tc">{{ h.appliedCount }}</td>
-            <td class="tc">{{ h.createdBy ?? '-' }}</td>
-            <td class="tc">{{ h.createdAt.slice(0, 10) }}</td>
-            <td class="tc">
-              <button class="btn btn-sm" @click="previewId = h.id">대상 보기</button>
-              <button v-if="h.state === 'DRAFT'" class="btn btn-sm" :disabled="!canFolder"
-                      @click="tagAction(h, 'apply')">적용</button>
-              <button v-if="h.state === 'APPLIED'" class="btn btn-sm" :disabled="!canFolder"
-                      @click="tagAction(h, 'revert')">되돌리기</button>
-            </td>
-          </tr>
-          <tr v-if="!history?.items.length"><td colspan="8" class="tc muted">Tag 이력이 없습니다.</td></tr>
-        </tbody>
-      </table>
-
-      <template v-if="previewId !== null">
-        <h3>바뀔 대상 ({{ targets?.items.length ?? 0 }}건)</h3>
-        <table class="grid">
-          <thead><tr><th>자료명</th><th>폴더</th><th>지금 Tag</th></tr></thead>
-          <tbody>
-            <tr v-for="t in targets?.items ?? []" :key="t.mdbFileId">
-              <td>{{ t.title }}</td><td class="tc">{{ t.folderName }}</td><td class="tc">{{ t.currentTag }}</td>
-            </tr>
-            <tr v-if="!targets?.items.length"><td colspan="3" class="tc muted">바뀔 대상이 없습니다.</td></tr>
-          </tbody>
-        </table>
+      <input type="file" multiple
+             @change="registerFiles = [...(($event.target as HTMLInputElement).files ?? [])]" />
+      <p v-if="registerFiles.length" class="muted small">{{ registerFiles.length }}개 선택됨</p>
+      <template #footer>
+        <button class="btn" @click="registerOpen = false">취소</button>
+        <button class="btn btn-primary" :disabled="!registerFiles.length || busy" @click="submitRegister">등록</button>
       </template>
     </Modal>
+
+    <!-- 파일 교체 -->
+    <Modal v-if="replaceOpen" title="자료 교체" @close="replaceOpen = false">
+      <p>교체 대상: <strong>{{ pickedRow?.title ?? '' }}</strong>
+        <span class="muted">({{ pickedRow?.fileExt?.toUpperCase() }})</span></p>
+      <p class="muted small">
+        내용(파일)만 바뀌고 이름·Tag No·설비유형 등 다른 정보는 그대로입니다. 올린 파일과
+        <strong>형식이 같은 쪽</strong>이 바뀌고(엑셀을 올리면 엑셀만), 이 자료에 없는 형식이면 새로 붙습니다.
+      </p>
+      <input type="file" @change="replaceFile = ($event.target as HTMLInputElement).files?.[0] ?? null" />
+      <template #footer>
+        <button class="btn" @click="replaceOpen = false">취소</button>
+        <button class="btn btn-primary" :disabled="!replaceFile || busy" @click="submitReplace">교체</button>
+      </template>
+    </Modal>
+
+    <MdbInfoModal v-if="infoId !== null" :file-id="infoId" @close="infoId = null" @saved="onInfoSaved" />
+    <TypeListModal v-if="typesOpen" @close="typesOpen = false; refreshAll()" />
+    <UnclassifiedModal v-if="unclassifiedOpen" @close="unclassifiedOpen = false" @changed="refreshAll" />
+    <PairMergeModal v-if="pairOpen" @close="pairOpen = false" @merged="refreshAll" />
+    <TagHistoryModal v-if="tagOpen" @close="tagOpen = false" @changed="refreshAll" />
   </main>
 </template>
 
@@ -478,6 +578,8 @@ async function uploadZip(ev: Event) {
 .table-panel > * {
   flex: 1; min-width: 0;
 }
-.grid tr.applied { background: var(--accent-soft); }
-h3 { font-size: var(--fs-base); margin: 16px 0 6px; }
+.small { font-size: var(--fs-sm); }
+.note-cell { min-width: 140px; }
+.note-cell > * { vertical-align: middle; }
+.note-cell .btn { margin-left: 4px; padding: 0 6px; }
 </style>

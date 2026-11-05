@@ -1,5 +1,5 @@
 import type pg from 'pg'
-import type { MdbListQuery } from '@tdms/contracts'
+import type { MdbListQuery, MdbUnclassifiedQuery } from '@tdms/contracts'
 import { many, one } from '../../core/db.js'
 import { decodeCursor } from '../../core/cursor.js'
 
@@ -313,4 +313,63 @@ export async function purgeBatch(c: pg.PoolClient, batchId: number) {
   )
   const del = await c.query('DELETE FROM mdb_files WHERE archive_batch_id = $1', [batchId])
   return { purged: del.rowCount ?? 0, freedBytes: Number(sized.rows[0]?.bytes ?? 0) }
+}
+
+// ── 미분류 자료 정리 ────────────────────────────────────────────────────
+
+/**
+ * 자료(같은 폴더 + 같은 자료명) 단위로 묶어 분류를 계산한다 (기존 mdb_group.py 규칙).
+ *   전용 = Tag No 가 붙음 / 공용 = Tag No 없이 설비유형만 / 확인필요 = 둘 다 없음
+ * 한 번에 넉넉히 500건까지 — 더 많으면 검색으로 좁힌다 (기존 화면과 같다).
+ */
+export function unclassified(v: MdbUnclassifiedQuery) {
+  const params: unknown[] = []
+  const where = ['NOT m.is_archived']
+  if (v.projectId !== undefined) { params.push(v.projectId); where.push(`m.project_id = $${params.length}`) }
+  if (v.q) {
+    params.push(`%${v.q}%`)
+    where.push(`(m.title ILIKE $${params.length} OR f.name ILIKE $${params.length})`)
+  }
+  params.push(v.category === 'ALL' ? null : v.category)
+  const cat = params.length
+
+  return many<{
+    id: number; title: string; folderId: number; folderName: string; year: number | null
+    projectName: string | null; exts: string[]; equipmentType: string | null; docType: string | null
+    tagCount: number; category: 'UNCHECKED' | 'SHARED' | 'DEDICATED'; total: number
+  }>(
+    `WITH g AS (
+       SELECT min(m.id)::int               AS id,
+              m.title,
+              m.folder_id::int             AS "folderId",
+              f.name                       AS "folderName",
+              max(m.year)::int             AS year,
+              max(p.name)                  AS "projectName",
+              array_agg(DISTINCT lower(m.file_ext)) AS exts,
+              max(m.equipment_type)        AS "equipmentType",
+              max(m.doc_type)              AS "docType",
+              (SELECT count(DISTINCT upper(t.tag_no))::int
+                 FROM mdb_file_tags t
+                 JOIN mdb_files mm ON mm.id = t.mdb_file_id
+                WHERE mm.folder_id = m.folder_id AND mm.title = m.title
+                  AND NOT mm.is_archived) AS "tagCount"
+         FROM mdb_files m
+         JOIN folders f       ON f.id = m.folder_id
+    LEFT JOIN projects p      ON p.id = m.project_id
+        WHERE ${where.join(' AND ')}
+        GROUP BY m.folder_id, f.name, m.title
+     ), c AS (
+       SELECT g.*,
+              CASE WHEN g."tagCount" > 0 THEN 'DEDICATED'
+                   WHEN coalesce(g."equipmentType", '') <> '' THEN 'SHARED'
+                   ELSE 'UNCHECKED' END AS category
+         FROM g
+     )
+     SELECT c.*, (count(*) OVER ())::int AS total
+       FROM c
+      WHERE $${cat}::text IS NULL OR c.category = $${cat}::text
+      ORDER BY c."folderName", c.title
+      LIMIT 500`,
+    params,
+  )
 }
