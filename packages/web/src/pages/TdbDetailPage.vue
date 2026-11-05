@@ -8,6 +8,7 @@ import type {
 import DataTable, { type Column } from '@/ui/DataTable.vue'
 import Tabs from '@/ui/Tabs.vue'
 import PdfViewer from '@/ui/PdfViewer.vue'
+import DrawingPreview from '@/ui/DrawingPreview.vue'
 import { api } from '@/lib/api'
 import { qk, staleTime } from '@/lib/queryKeys'
 import { useSession } from '@/lib/session'
@@ -66,6 +67,14 @@ const { data: neighbors } = useQuery({
 const isPdf = (f: FileRow) => f.fileExt.toLowerCase() === 'pdf'
 const currentFiles = computed(() => doc.value?.files.filter((f) => f.isCurrent) ?? [])
 const previewFile = computed(() => currentFiles.value.find(isPdf))
+/** 현재본의 원본 도면 — 서버가 PDF 로 바꿔 보여 준다(고객 시스템 D-102 의 [원본] 보기). DWG 를 먼저 */
+const hasExt = (ext: string) => (f: FileRow) => f.fileExt.toLowerCase() === ext
+const currentDrawing = computed(() =>
+  currentFiles.value.find(hasExt('dwg')) ?? currentFiles.value.find(hasExt('dxf')))
+/** PDF 사본과 원본 도면이 둘 다 있으면 고를 수 있다. 기본은 사본(PDF) */
+const previewSource = ref<'pdf' | 'drawing'>('pdf')
+const showDrawing = computed(() =>
+  !!currentDrawing.value && (previewSource.value === 'drawing' || !previewFile.value))
 /** 현재본에 PDF 가 없을 때 고를 수 있는 옛 PDF (최신 Rev 먼저 — 서버가 rev DESC 로 준다) */
 const olderPdfs = computed(() => doc.value?.files.filter((f) => !f.isCurrent && isPdf(f)) ?? [])
 const olderPdfId = ref<number | null>(null)
@@ -74,6 +83,7 @@ const olderPdf = computed(() => olderPdfs.value.find((f) => f.id === olderPdfId.
 watch(id, () => {
   tab.value = 'info'
   olderPdfId.value = null
+  previewSource.value = 'pdf'
   resetUpload()
 })
 
@@ -288,8 +298,21 @@ const DIST_COLUMNS: Column<DistRow>[] = [
 
         <!-- 미리보기 -->
         <section v-else-if="tab === 'preview'" class="preview">
-          <PdfViewer v-if="previewFile" :file-id="previewFile.id" :document-id="doc.id" />
-          <template v-else-if="olderPdf">
+          <!-- 원본 도면이 있으면 사본(PDF)·원본을 고른다. 현재본에 PDF 가 없으면 옛 Rev PDF 도 여기서 -->
+          <div v-if="currentDrawing && !olderPdf && (previewFile || olderPdfs.length)" class="source-bar">
+            <button v-if="previewFile" class="btn btn-sm" :class="{ 'btn-primary': !showDrawing }"
+                    @click="previewSource = 'pdf'">PDF 사본</button>
+            <button class="btn btn-sm" :class="{ 'btn-primary': showDrawing }"
+                    @click="previewSource = 'drawing'">{{ currentDrawing.fileExt.toUpperCase() }} 원본</button>
+            <template v-if="!previewFile">
+              <span class="muted" style="margin-left:8px">이전 Rev PDF:</span>
+              <button v-for="f in olderPdfs" :key="f.id" class="btn btn-sm" @click="olderPdfId = f.id">
+                Rev{{ f.rev }}{{ f.branch ? `-${f.branch}` : '' }}
+                ({{ f.reviewStatus === 'APPROVED' ? '승인' : f.reviewStatus }})
+              </button>
+            </template>
+          </div>
+          <template v-if="olderPdf">
             <div class="old-pdf-bar">
               <b>이전 Rev 도면입니다</b> —
               Rev{{ olderPdf.rev }}{{ olderPdf.branch ? `-${olderPdf.branch}` : '' }}
@@ -299,6 +322,10 @@ const DIST_COLUMNS: Column<DistRow>[] = [
             </div>
             <PdfViewer :file-id="olderPdf.id" :document-id="doc.id" />
           </template>
+          <DrawingPreview v-else-if="showDrawing && currentDrawing" :key="currentDrawing.id"
+                          :file-id="currentDrawing.id" :document-id="doc.id"
+                          :label="`Rev${currentDrawing.rev} ${currentDrawing.fileExt.toUpperCase()}`" />
+          <PdfViewer v-else-if="previewFile" :file-id="previewFile.id" :document-id="doc.id" />
           <div v-else class="pad muted tc">
             현재 Rev{{ doc.currentRev }} 에는 PDF 가 없습니다 — 원본을 받아 CAD 에서 여세요.
             <div style="margin-top:12px">
@@ -308,7 +335,7 @@ const DIST_COLUMNS: Column<DistRow>[] = [
               </a>
             </div>
             <div v-if="canRegister" style="margin-top:8px">
-              미리보기가 필요하면 '자료내용' 탭 반입등록에서 DWG 와 PDF 를 함께 올리세요.
+              미리보기가 필요하면 '자료내용' 탭 반입등록에서 DWG 또는 PDF 를 올리세요.
             </div>
             <div v-if="olderPdfs.length" style="margin-top:16px">
               이전 Rev PDF 보기:
@@ -380,6 +407,9 @@ const DIST_COLUMNS: Column<DistRow>[] = [
 }
 .grid-tab > :deep(.dt) { flex: 1; min-height: 0; }
 .preview { display: flex; flex-direction: column; }
+.source-bar {
+  flex: 0 0 auto; display: flex; gap: 4px; padding: 6px 12px; border-bottom: 1px solid var(--border);
+}
 .old-pdf-bar {
   flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding: 6px 12px;
   background: var(--warn-bg, #fff4d6); border-bottom: 1px solid var(--border);

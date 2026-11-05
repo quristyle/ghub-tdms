@@ -55,6 +55,7 @@ class Config:
     storage_root: Path
     soffice: str
     oda: str
+    dwg2dxf: str
     convert_timeout: int
     poll_seconds: int = 30  # NOTIFY 를 놓쳤을 때를 대비한 안전망. 평소엔 쓰이지 않는다.
 
@@ -80,5 +81,6 @@ def load() -> Config:
         storage_root=Path(os.environ.get("STORAGE_ROOT", "/srv/tdms")),
         soffice=os.environ.get("PREVIEW_SOFFICE_PATH", "/usr/bin/soffice"),
         oda=os.environ.get("PREVIEW_ODA_PATH", ""),
+        dwg2dxf=os.environ.get("PREVIEW_DWG2DXF_PATH") or "dwg2dxf",
         convert_timeout=int(os.environ.get("PREVIEW_TIMEOUT_SECONDS", "180")),
     )

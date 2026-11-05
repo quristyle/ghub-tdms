@@ -7,6 +7,30 @@
 # 빌드:  docker build -f deploy/docker/Dockerfile.worker -t ghcr.io/quristyle/ghub-tdms-worker:<tag> .
 # BuildKit 전용 문법을 쓰지 않는다 — 운영서버에는 buildx 가 없다. 급할 때 거기서도 구워야 한다.
 
+# ── DWG → DXF 변환기 (LibreDWG) ─────────────────────────────────────────
+# 원본(DWG) 미리보기에 쓴다(handlers/preview.py). 데비안 bookworm·trixie 에 꾸러미가 없어
+# GNU 배포본을 받아 직접 굽는다. 받은 파일은 sha256 으로 확인한다 — 다르면 빌드가 멈춘다.
+# ODA File Converter 는 재배포가 막혀 있어 이미지에 굽지 못한다 — 필요하면 호스트에서
+# 볼륨으로 붙이고 PREVIEW_ODA_PATH 로 가리킨다(있으면 그쪽을 먼저 쓴다).
+FROM python:3.12-slim-bookworm AS libredwg
+ARG LIBREDWG_VERSION=0.13.4
+ARG LIBREDWG_SHA256=7e153ea4dac4cbf3dc9c50b9ef7a5604e09cdd4c5520bcf8017877bbe1422cd5
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends build-essential pkg-config curl ca-certificates xz-utils \
+ && rm -rf /var/lib/apt/lists/*
+WORKDIR /build
+RUN curl -fsSL -o libredwg.tar.xz \
+      "https://ftp.gnu.org/gnu/libredwg/libredwg-${LIBREDWG_VERSION}.tar.xz" \
+ && echo "${LIBREDWG_SHA256}  libredwg.tar.xz" | sha256sum -c - \
+ && tar xf libredwg.tar.xz \
+ && cd "libredwg-${LIBREDWG_VERSION}" \
+ && ./configure --prefix=/opt/libredwg --disable-bindings --disable-docs --disable-static --disable-write \
+ && make -j"$(nproc)" \
+ && make install-strip \
+ && mkdir -p /out/bin /out/lib \
+ && cp /opt/libredwg/bin/dwg2dxf /opt/libredwg/bin/dwglayers /out/bin/ \
+ && cp -P /opt/libredwg/lib/libredwg.so* /out/lib/
+
 FROM python:3.12-slim-bookworm AS runtime
 ENV TZ=Etc/UTC \
     PYTHONUNBUFFERED=1 \
@@ -27,10 +51,17 @@ https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" > /etc/apt/sources.
  && apt-get purge -y gnupg curl && apt-get autoremove -y \
  && rm -rf /var/lib/apt/lists/*
 
-# DWG·오피스 변환 핸들러가 붙으면 여기에 libreoffice 를 더한다(이미지가 ~1GB 늘어난다).
-# ODA File Converter 는 재배포가 막혀 있어 이미지에 굽지 못한다 — 호스트에서
-# 볼륨으로 붙이고 PREVIEW_ODA_PATH 로 가리킨다. 지금 구현된 핸들러(excel)는
-# 둘 다 쓰지 않으므로 넣지 않았다.
+# DWG 미리보기 — LibreDWG(위에서 구운 것) + 한글 글꼴. CAD 한글 글꼴(whgtxt.shx 등)은
+# 그리지 못해 한글이 든 글자만 나눔고딕으로 그린다(handlers/preview.py KOREAN_FONT).
+COPY --from=libredwg /out/bin/ /usr/local/bin/
+COPY --from=libredwg /out/lib/ /usr/local/lib/
+RUN ldconfig \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends fonts-nanum \
+ && rm -rf /var/lib/apt/lists/* \
+ && dwg2dxf --version
+
+# 오피스 변환 핸들러가 붙으면 여기에 libreoffice 를 더한다(이미지가 ~1GB 늘어난다).
 
 WORKDIR /app
 COPY packages/worker/pyproject.toml ./

@@ -14,6 +14,8 @@ const props = defineProps<{
   documentId?: number
   /** 보관해 둔 마크업을 되살려 열 때의 보관 번호 */
   favoriteId?: number
+  /** PDF 주소를 따로 줄 때 (DWG 미리보기 — /api/files/:id/preview). 없으면 그 파일의 /view */
+  fileUrl?: string
 }>()
 
 const emit = defineEmits<{ switchSource: [to: string] }>()
@@ -22,12 +24,12 @@ const frame = ref<HTMLIFrameElement | null>(null)
 const src = ref('')
 
 function build() {
-  const file = encodeURIComponent(`/api/files/${props.fileId}/view`)
+  const file = encodeURIComponent(props.fileUrl ?? `/api/files/${props.fileId}/view`)
   const fav = props.favoriteId ? `&fav=${props.favoriteId}` : ''
   src.value = `/pdfjs/web/viewer.html?file=${file}${fav}`
 }
 
-watch(() => [props.fileId, props.favoriteId], build, { immediate: true })
+watch(() => [props.fileId, props.favoriteId, props.fileUrl], build, { immediate: true })
 
 /** 뷰어가 "우리 앱 안"이라고 판단하는 조건 — showAlert 가 함수로 있어야 한다. */
 function installHostApi() {
