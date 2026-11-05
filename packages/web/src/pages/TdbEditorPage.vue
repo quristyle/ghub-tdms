@@ -2,13 +2,15 @@
 import { computed, ref } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type {
-  ArchiveListResponse, DocumentListItem, DocumentListResponse,
-  FolderNode, PairFolderCandidateResponse,
+  ArchiveBatch, ArchiveListResponse, DocumentListItem, DocumentListResponse,
+  ExistingRevLookup, FolderNode, JobCreated, JobDetail, PairFolderCandidateResponse,
+  PartialItem, RegisterResult, ReplaceBulkResult, ReplaceResult, ZipRegisterCheck,
 } from '@tdms/contracts'
 import LazyTree from '@/ui/LazyTree.vue'
 import DataTable, { type Column, type SortDir } from '@/ui/DataTable.vue'
 import Modal from '@/ui/Modal.vue'
 import JobProgress from '@/ui/JobProgress.vue'
+import ProjectManager from '@/ui/ProjectManager.vue'
 import { api, ApiError, qs } from '@/lib/api'
 import { qk, staleTime } from '@/lib/queryKeys'
 import { useSession } from '@/lib/session'
@@ -23,6 +25,7 @@ const canDocument = computed(() => session.can('screen.tdb_editor.document'))
 const canZip = computed(() => session.can('screen.tdb_editor.zip_register'))
 const canRetire = computed(() => session.can('screen.tdb_editor.retire'))
 const canRestore = computed(() => session.can('screen.tdb_editor.restore'))
+const canTrashNote = computed(() => session.can('common.note_edit.tdb_trash'))
 
 const message = ref<{ kind: 'ok' | 'err'; text: string } | null>(null)
 function say(kind: 'ok' | 'err', text: string) { message.value = { kind, text } }
@@ -202,20 +205,367 @@ async function mergePair(p: { parentId: number; dwgFolderId: number; pdfFolderId
   } catch (e) { fail(e) }
 }
 
-// ── Zip 폴더 업로드 ───────────────────────────────────────────────────
-const zipJobId = ref<number | null>(null)
-async function uploadZip(ev: Event) {
-  const input = ev.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  const fd = new FormData()
-  fd.append('file', file)
-  const r = await fetch('/api/imports/zip', { method: 'POST', body: fd })
-  const body = await r.json()
-  if (r.status === 202) { zipJobId.value = body.jobId; say('ok', '압축을 푸는 중입니다.') }
-  else say('err', body.message ?? '올리지 못했습니다.')
-  input.value = ''
+// ── 파일 올리기 공통 ──────────────────────────────────────────────────
+// multipart 라 api 클라이언트 대신 fetch 를 쓴다. 오류 모양은 api 와 같게 맞춘다.
+async function postForm<T>(path: string, fd: FormData): Promise<{ status: number; body: T }> {
+  const res = await fetch(`/api${path}`, { method: 'POST', body: fd, credentials: 'same-origin' })
+  let body: unknown = null
+  try { body = await res.json() } catch { /* 빈 응답 */ }
+  if (!res.ok) {
+    const b = body as { code?: string; message?: string } | null
+    throw new ApiError(res.status, b?.code ?? 'NETWORK', b?.message ?? `요청에 실패했습니다 (${res.status})`)
+  }
+  return { status: res.status, body: body as T }
 }
+
+function filesOf(ev: Event): File[] {
+  return [...((ev.target as HTMLInputElement).files ?? [])]
+}
+
+const busy = ref(false)
+
+// ── 확인창 — 기존 needs_confirmation 흐름 ─────────────────────────────
+// 서버가 아무것도 바꾸지 않고 "확인이 필요하다"고 돌려보내면 여기서 묻고, 승인하면 다시 보낸다.
+interface Ask { title: string; lines: string[]; partial?: PartialItem[] }
+const ask = ref<Ask | null>(null)
+let askResolve: ((ok: boolean) => void) | null = null
+function confirmAsk(a: Ask): Promise<boolean> {
+  ask.value = a
+  return new Promise((r) => { askResolve = r })
+}
+function answer(ok: boolean) {
+  ask.value = null
+  askResolve?.(ok)
+  askResolve = null
+}
+
+// 부분 파일(원본·사본 한쪽만) 표 — 엑셀 내려받기는 DataTable 이 화면 그대로 만든다
+// (기존 /editor/partial-files/export 와 같은 칸: No·자료명·DWG·XLSX·ETC·PDF)
+interface PartialRow { id: number; stem: string; folder: string; dwg: string; xlsx: string; etc: string; pdf: string }
+const partialRows = computed<PartialRow[]>(() => (ask.value?.partial ?? []).map((p, i) => {
+  const e = p.ext.toLowerCase()
+  const bucket = e === 'dwg' || e === 'dxf' ? 'dwg' : e === 'pdf' ? 'pdf' : e === 'xlsx' || e === 'xls' ? 'xlsx' : 'etc'
+  return {
+    id: i + 1, stem: p.stem, folder: p.folder ?? '',
+    dwg: bucket === 'dwg' ? 'O' : '', xlsx: bucket === 'xlsx' ? 'O' : '',
+    etc: bucket === 'etc' ? 'O' : '', pdf: bucket === 'pdf' ? 'O' : '',
+  }
+}))
+const partialColumns = computed<Column<PartialRow>[]>(() => [
+  { key: 'stem', label: '자료명' },
+  ...(partialRows.value.some((r) => r.folder)
+    ? [{ key: 'folder', label: '폴더', width: '180px' } as Column<PartialRow>] : []),
+  { key: 'dwg', label: 'DWG', width: '58px', align: 'center' },
+  { key: 'xlsx', label: 'XLSX', width: '58px', align: 'center' },
+  { key: 'etc', label: 'ETC', width: '58px', align: 'center' },
+  { key: 'pdf', label: 'PDF', width: '58px', align: 'center' },
+])
+
+// ── 자료 이름 변경 ────────────────────────────────────────────────────
+const pickedRows = computed(() => rows.value.filter((r) => picked.value.has(r.id)))
+const renameOpen = ref(false)
+const renameNo = ref('')
+const renameTitle = ref('')
+
+function openRename() {
+  const d = pickedRows.value[0]
+  if (!d || picked.value.size !== 1) { say('err', '자료명 변경은 자료를 1개만 선택했을 때 할 수 있습니다.'); return }
+  renameNo.value = d.drawingNo
+  renameTitle.value = d.title
+  renameOpen.value = true
+}
+
+async function submitRename() {
+  const d = pickedRows.value[0]
+  if (!d) return
+  try {
+    await api.patch(`/editor/documents/${d.id}`, {
+      drawingNo: renameNo.value.trim(), title: renameTitle.value.trim() || renameNo.value.trim(),
+    })
+    renameOpen.value = false
+    say('ok', '자료명을 변경하였습니다.')
+    refreshAll()
+  } catch (e) { fail(e) }
+}
+
+// ── 자료 교체 · 일괄 교체 ─────────────────────────────────────────────
+// "Rev 유지"(기본) — 리비전을 올리지 않고 현재본 내용만 바꾼다.
+// "Rev 변경"        — Rev 를 하나 올려 새 리비전으로 등록한다.
+const replaceOpen = ref(false)
+const replaceFiles = ref<File[]>([])
+const keepRev = ref(true)
+
+function openReplace() {
+  replaceFiles.value = []
+  keepRev.value = true
+  replaceOpen.value = true
+}
+
+async function submitReplace() {
+  const files = replaceFiles.value
+  if (!files.length) return
+  const ids = [...picked.value]
+  busy.value = true
+  try {
+    const flags = { confirmDuplicates: false, confirmMismatch: false, confirmPartial: false }
+    for (;;) {
+      const fd = new FormData()
+      fd.append('keepRev', String(keepRev.value))
+      for (const [k, v] of Object.entries(flags)) fd.append(k, String(v))
+      if (ids.length > 1) for (const id of ids) fd.append('documentIds', String(id))
+      for (const f of files) fd.append('files', f)
+
+      if (ids.length === 1) {
+        const { body } = await postForm<ReplaceResult>(`/editor/documents/${ids[0]}/replace`, fd)
+        if (body.needsConfirmation) {
+          const ok = await confirmAsk({
+            title: '같은 형식 파일이 2개 이상입니다',
+            lines: [
+              `같은 형식(${body.duplicateExts.join(', ')})의 파일이 2개 이상 첨부되었습니다.`,
+              '정상은 이름당 원본 1개+PDF 1개뿐입니다. 첨부한 파일을 다시 확인해 주세요.',
+              '그래도 이대로 계속 교체하시겠습니까?',
+            ],
+          })
+          if (!ok) return
+          flags.confirmDuplicates = true
+          continue
+        }
+        say('ok', body.message)
+      } else {
+        const { body } = await postForm<ReplaceBulkResult>('/editor/documents/replace-bulk', fd)
+        if (body.needsConfirmation) {
+          let ok: boolean
+          if (body.duplicateExts.length) {
+            ok = await confirmAsk({
+              title: '같은 형식 파일이 2개 이상입니다',
+              lines: [`같은 형식(${body.duplicateExts.join(', ')})의 파일이 2개 이상 첨부된 자료가 있습니다.`,
+                      '그래도 이대로 계속 교체하시겠습니까?'],
+            })
+            flags.confirmDuplicates = true
+          } else if (body.unmatchedDocs.length || body.unmatchedFiles.length) {
+            ok = await confirmAsk({
+              title: '자료명과 파일 이름이 맞지 않습니다',
+              lines: [
+                ...(body.unmatchedDocs.length
+                  ? [`선택했지만 같은 이름의 첨부 파일이 없는 자료: ${body.unmatchedDocs.join(', ')}`] : []),
+                ...(body.unmatchedFiles.length
+                  ? [`첨부했지만 같은 이름의 선택 자료가 없는 파일: ${body.unmatchedFiles.join(', ')}`] : []),
+                '이름이 일치하는 자료만 교체하고 나머지는 건너뛰시겠습니까?',
+              ],
+            })
+            flags.confirmMismatch = true
+          } else {
+            ok = await confirmAsk({
+              title: '원본·사본 확인',
+              lines: ['다음 자료는 원본과 사본(PDF) 중 한쪽만 첨부되었습니다. 그대로 교체하시겠습니까?'],
+              partial: body.partial,
+            })
+            flags.confirmPartial = true
+          }
+          if (!ok) return
+          continue
+        }
+        say('ok', body.message)
+      }
+      replaceOpen.value = false
+      picked.value = new Set()
+      refreshAll()
+      return
+    }
+  } catch (e) { fail(e) } finally { busy.value = false }
+}
+
+// ── 신규 자료 등록 (기존 Rev 조회 포함) ───────────────────────────────
+const registerOpen = ref(false)
+const registerFiles = ref<File[]>([])
+const registerRev = ref(0)
+const revMatch = ref<ExistingRevLookup | null>(null)
+
+function openRegister() {
+  registerFiles.value = []
+  registerRev.value = 0
+  revMatch.value = null
+  registerOpen.value = true
+}
+
+/** 파일을 딱 1개 골랐을 때 — 같은 이름(다른 형식) 자료가 있으면 그 Rev 로 맞춘다 */
+async function onRegisterFiles(ev: Event) {
+  registerFiles.value = filesOf(ev)
+  revMatch.value = null
+  const only = registerFiles.value.length === 1 ? registerFiles.value[0]! : null
+  if (!only || !folder.value) return
+  const dot = only.name.lastIndexOf('.')
+  const stem = dot > 0 ? only.name.slice(0, dot) : only.name
+  const ext = dot > 0 ? only.name.slice(dot + 1).toLowerCase() : ''
+  try {
+    const r = await api.get<ExistingRevLookup>(
+      `/editor/documents/existing-rev${qs({ folderId: folder.value.id, stem })}`)
+    if (r.found && !r.exts.includes(ext) && r.currentRev !== null) {
+      revMatch.value = r
+      registerRev.value = r.currentRev
+    }
+  } catch { /* 조회 실패는 등록 시점에 서버가 다시 맞춘다 */ }
+}
+
+async function submitRegister() {
+  if (!folder.value || !registerFiles.value.length) return
+  const rev = revMatch.value?.currentRev ?? Math.max(0, Math.floor(Number(registerRev.value) || 0))
+  busy.value = true
+  try {
+    const flags = { confirmDuplicates: false, confirmPartial: false }
+    for (;;) {
+      const fd = new FormData()
+      fd.append('folderId', String(folder.value.id))
+      fd.append('rev', String(rev))
+      for (const [k, v] of Object.entries(flags)) fd.append(k, String(v))
+      for (const f of registerFiles.value) fd.append('files', f)
+      const { body } = await postForm<RegisterResult>('/editor/documents/register', fd)
+      if (body.needsConfirmation) {
+        let ok: boolean
+        if (body.duplicates.length && !flags.confirmDuplicates) {
+          ok = await confirmAsk({
+            title: '같은 이름·같은 형식 파일이 2개 이상입니다',
+            lines: [
+              ...body.duplicates.map((d) => `${d.stem} (${d.exts.join(', ')} 중복)`),
+              '해당 자료는 등록하지 않고 건너뛰고, 나머지만 계속 등록하시겠습니까?',
+            ],
+          })
+          flags.confirmDuplicates = true
+        } else {
+          ok = await confirmAsk({
+            title: '원본·사본 확인',
+            lines: ['다음 자료는 원본과 사본(PDF) 중 한쪽만 있습니다. 그대로 등록하시겠습니까?'],
+            partial: body.partial,
+          })
+          flags.confirmPartial = true
+        }
+        if (!ok) return
+        continue
+      }
+      registerOpen.value = false
+      say(body.alreadyExists.length ? 'err' : 'ok',
+        body.alreadyExists.length
+          ? `${body.message} — ${body.alreadyExists.map((a) => `${a.stem}(${a.exts.join('/')})`).join(', ')}`
+          : body.message)
+      refreshAll()
+      return
+    }
+  } catch (e) { fail(e) } finally { busy.value = false }
+}
+
+// ── Zip 폴더 업로드 ───────────────────────────────────────────────────
+// 반입(/imports/zip)이 아니다 — Zip 의 폴더 구조가 선택한 폴더 아래 폴더가 되고 파일은 자료가 된다.
+// 확인이 필요하면 서버가 token 을 주므로, 다시 보낼 때 Zip 을 또 올리지 않는다.
+const zipOpen = ref(false)
+const zipFile = ref<File | null>(null)
+const zipRev = ref(0)
+const zipJobId = ref<number | null>(null)
+
+function openZip() {
+  zipFile.value = null
+  zipRev.value = 0
+  zipOpen.value = true
+}
+
+async function submitZip() {
+  const file = zipFile.value
+  if (!folder.value || !file) return
+  const flags = { confirmUnsafePaths: false, confirmDuplicates: false, confirmPartial: false }
+  let token: string | null = null
+  busy.value = true
+  try {
+    for (;;) {
+      const fd = new FormData()
+      fd.append('folderId', String(folder.value.id))
+      fd.append('rev', String(Math.max(0, Math.floor(Number(zipRev.value) || 0))))
+      for (const [k, v] of Object.entries(flags)) fd.append(k, String(v))
+      if (token) fd.append('token', token)
+      else fd.append('file', file)
+      const { status, body } = await postForm<ZipRegisterCheck | JobCreated>('/editor/zip-register', fd)
+      if (status === 202) {
+        zipJobId.value = (body as JobCreated).jobId
+        zipOpen.value = false
+        say('ok', `"${file.name}" 압축을 풀어 등록하는 중입니다.`)
+        return
+      }
+      const c = body as ZipRegisterCheck
+      token = c.token
+      let ok: boolean
+      if (c.unsafePaths.length && !flags.confirmUnsafePaths) {
+        ok = await confirmAsk({
+          title: '상위 폴더로 빠져나가려는 이름이 있습니다',
+          lines: [
+            ...c.unsafePaths,
+            '그 부분은 무시하고(선택한 폴더 밖으로는 절대 나가지 않음) 나머지 폴더 이름만 써서 계속 등록하시겠습니까?',
+          ],
+        })
+        flags.confirmUnsafePaths = true
+      } else if (c.duplicates.length && !flags.confirmDuplicates) {
+        ok = await confirmAsk({
+          title: '같은 이름·같은 형식 파일이 2개 이상입니다',
+          lines: [
+            ...c.duplicates.map((d) => `${d.folder ? `${d.folder} / ` : ''}${d.stem} (${d.exts.join(', ')} 중복)`),
+            '이 자료들은 등록하지 않고 건너뛰고, 나머지만 계속 등록하시겠습니까?',
+          ],
+        })
+        flags.confirmDuplicates = true
+      } else {
+        ok = await confirmAsk({
+          title: '원본·사본 확인',
+          lines: ['다음 자료는 원본과 사본(PDF) 중 한쪽만 있습니다. 그대로 등록하시겠습니까?',
+                  ...(c.pairFolders.length ? [`DWG·PDF 폴더를 합쳤습니다: ${c.pairFolders.join(', ')}`] : [])],
+          partial: c.partial,
+        })
+        flags.confirmPartial = true
+      }
+      if (!ok) return
+    }
+  } catch (e) { fail(e) } finally { busy.value = false }
+}
+
+function onZipDone(j: JobDetail) {
+  say('ok', `Zip 등록을 마쳤습니다. ${j.progressNote ?? ''}`)
+  refreshAll()
+}
+
+// ── 보관함 비고 · 묶음 다운로드 ───────────────────────────────────────
+const noteTarget = ref<ArchiveBatch | null>(null)
+const noteText = ref('')
+const boxJobId = ref<number | null>(null)
+
+const canBoxNote = computed(() => (boxOpen.value === 'TRASH' ? canTrashNote.value : canRetire.value))
+
+function editNote(b: ArchiveBatch) {
+  noteTarget.value = b
+  noteText.value = b.note ?? ''
+}
+
+async function saveNote() {
+  const b = noteTarget.value
+  if (!b) return
+  const path = boxOpen.value === 'TRASH' ? `/editor/trash/${b.id}/note` : `/editor/retired/${b.id}/note`
+  try {
+    await api.post(path, { note: noteText.value.trim() || null })
+    noteTarget.value = null
+    void qc.invalidateQueries({ queryKey: ['archive'] })
+  } catch (e) { fail(e) }
+}
+
+async function downloadBatch(b: ArchiveBatch) {
+  try {
+    const r = await api.post<JobCreated>(`/editor/trash/${b.id}/download`)
+    boxJobId.value = r.jobId
+  } catch (e) { fail(e) }
+}
+
+function closeBox() {
+  boxOpen.value = null
+  boxSel.value = new Set()
+  boxJobId.value = null
+}
+
+// ── 공사 · 업체 관리 ──────────────────────────────────────────────────
+const catalogOpen = ref<'projects' | 'vendors' | null>(null)
 </script>
 
 <template>
@@ -228,6 +578,8 @@ async function uploadZip(ev: Event) {
       <div class="bar">
         <strong>TDB 폴더 및 디렉토리 구조 관리</strong>
         <span style="flex:1" />
+        <button class="btn btn-sm" @click="catalogOpen = 'projects'">공사 관리</button>
+        <button class="btn btn-sm" @click="catalogOpen = 'vendors'">업체 관리</button>
         <button class="btn btn-sm" @click="boxOpen = 'RETIRE'">
           폐기 보관함 <span class="cnt">{{ retireBox?.count ?? 0 }}</span>
         </button>
@@ -257,6 +609,13 @@ async function uploadZip(ev: Event) {
         <label class="chk"><input v-model="includeIsometric" type="checkbox" /> Isometric 보기</label>
         <span class="muted">선택 {{ picked.size }}건</span>
         <span style="flex:1" />
+        <button class="btn btn-sm" :disabled="!canDocument || picked.size !== 1" @click="openRename">
+          이름 변경
+        </button>
+        <button class="btn btn-sm" :disabled="!canDocument || !picked.size" @click="openReplace">
+          {{ picked.size > 1 ? '일괄 교체' : '자료 교체' }}
+        </button>
+        <button class="btn btn-sm" :disabled="!canDocument || !folder" @click="openRegister">신규 등록</button>
         <button class="btn btn-sm" :disabled="!canDocument || !picked.size"
                 @click="moveDocsOpen = true; docTargetId = null">자료 이동</button>
         <button class="btn btn-sm" :disabled="!canRetire || !picked.size" @click="sendTo('RETIRE', false)">
@@ -265,13 +624,10 @@ async function uploadZip(ev: Event) {
         <button class="btn btn-sm" :disabled="!canRestore || !picked.size" @click="sendTo('TRASH', false)">
           삭제
         </button>
-        <label class="btn btn-sm" :class="{ disabled: !canZip }">
-          Zip 폴더 업로드
-          <input type="file" accept=".zip" hidden :disabled="!canZip" @change="uploadZip" />
-        </label>
+        <button class="btn btn-sm" :disabled="!canZip || !folder" @click="openZip">Zip 폴더 업로드</button>
       </div>
 
-      <JobProgress :job-id="zipJobId" @done="refreshAll" />
+      <JobProgress :job-id="zipJobId" @done="onZipDone" />
     </div>
 
     <div v-if="message" class="panel msg" :class="message.kind">
@@ -327,7 +683,7 @@ async function uploadZip(ev: Event) {
     <!-- 보관함 -->
     <Modal v-if="boxOpen" wide
            :title="boxOpen === 'TRASH' ? '삭제 보관함' : '폐기 보관함'"
-           @close="boxOpen = null; boxSel = new Set()">
+           @close="closeBox">
       <p class="muted">
         <template v-if="boxOpen === 'TRASH'">
           오류 등으로 없앤 자료입니다. 폴더째 묶여 한 줄입니다.
@@ -343,6 +699,7 @@ async function uploadZip(ev: Event) {
           <tr>
             <th style="width:34px"></th>
             <th>이름</th><th>원래 자리</th><th>건수</th><th>사유</th><th>보낸 사람</th><th>보낸 시각</th><th>비고</th>
+            <th v-if="boxOpen === 'TRASH'" style="width:84px">파일</th>
           </tr>
         </thead>
         <tbody>
@@ -357,16 +714,25 @@ async function uploadZip(ev: Event) {
             <td>{{ b.reason ?? '-' }}</td>
             <td class="tc">{{ b.archivedBy ?? '-' }}</td>
             <td class="tc">{{ b.archivedAt.slice(0, 16).replace('T', ' ') }}</td>
-            <td>{{ b.note ?? '-' }}</td>
+            <td class="note-cell">
+              <span>{{ b.note ?? '-' }}</span>
+              <button v-if="canBoxNote" class="btn btn-sm" title="비고 편집" @click="editNote(b)">편집</button>
+            </td>
+            <td v-if="boxOpen === 'TRASH'" class="tc">
+              <button class="btn btn-sm" title="묶음 전체를 Zip 으로 내려받기" @click="downloadBatch(b)">다운로드</button>
+            </td>
           </tr>
-          <tr v-if="!box?.items.length"><td colspan="8" class="tc muted">보관된 자료가 없습니다.</td></tr>
+          <tr v-if="!box?.items.length">
+            <td :colspan="boxOpen === 'TRASH' ? 9 : 8" class="tc muted">보관된 자료가 없습니다.</td>
+          </tr>
         </tbody>
       </table>
+      <JobProgress :job-id="boxJobId" />
       <template #footer>
         <button v-if="boxOpen === 'TRASH'" class="btn"
                 :disabled="!boxSel.size || !canRestore" @click="purgeConfirm = true">완전 삭제</button>
         <span style="flex:1" />
-        <button class="btn" @click="boxOpen = null; boxSel = new Set()">닫기</button>
+        <button class="btn" @click="closeBox">닫기</button>
         <button class="btn btn-primary" :disabled="!boxSel.size" @click="restoreSelected">복구</button>
       </template>
     </Modal>
@@ -403,6 +769,121 @@ async function uploadZip(ev: Event) {
         </tbody>
       </table>
     </Modal>
+
+    <!-- 자료 이름 변경 -->
+    <Modal v-if="renameOpen" title="자료명 변경" @close="renameOpen = false">
+      <p class="muted">변경 대상: <strong>{{ pickedRows[0]?.drawingNo }}</strong></p>
+      <p class="muted">자료명 끝에 리비전 표기(_Rev00)는 적지 않습니다 — 시스템이 붙입니다.</p>
+      <div class="form">
+        <label>자료명 <input v-model="renameNo" type="text" maxlength="255" @keydown.enter="submitRename" /></label>
+        <label>내용 <input v-model="renameTitle" type="text" maxlength="500" @keydown.enter="submitRename" /></label>
+      </div>
+      <template #footer>
+        <button class="btn" @click="renameOpen = false">취소</button>
+        <button class="btn btn-primary" :disabled="!renameNo.trim()" @click="submitRename">확인</button>
+      </template>
+    </Modal>
+
+    <!-- 자료 교체 · 일괄 교체 -->
+    <Modal v-if="replaceOpen" :title="picked.size > 1 ? `일괄 자료 교체 (${picked.size}건)` : '자료 교체'"
+           @close="replaceOpen = false">
+      <p v-if="picked.size === 1" class="muted">
+        교체 대상: <strong>{{ pickedRows[0]?.drawingNo }}</strong> (Rev{{ String(pickedRows[0]?.currentRev ?? 0).padStart(2, '0') }})
+        — 원본과 PDF 중 한쪽만 올려도 됩니다. 둘 다 올릴 때는 이름이 같아야 합니다.
+      </p>
+      <p v-else class="muted">
+        첨부한 파일을 이름(확장자 제외)으로 묶어 같은 자료명을 가진 선택 자료에 맞춥니다.
+        내려받은 이름(<code>자료명_Rev00.dwg</code>) 그대로 올려도 됩니다.
+      </p>
+      <div class="form">
+        <label class="radio"><input v-model="keepRev" type="radio" :value="true" /> Rev 유지 — 지금 현재본을 그대로 덮어씁니다</label>
+        <label class="radio"><input v-model="keepRev" type="radio" :value="false" /> Rev 변경 — Rev 를 하나 올려 새 리비전으로 등록합니다</label>
+        <input type="file" multiple accept=".dwg,.dxf,.pdf,.xlsx,.xls,.docx,.pptx"
+               @change="(ev) => (replaceFiles = filesOf(ev))" />
+        <span class="muted">{{ replaceFiles.length }}개 파일</span>
+      </div>
+      <template #footer>
+        <button class="btn" @click="replaceOpen = false">취소</button>
+        <button class="btn btn-primary" :disabled="busy || !replaceFiles.length" @click="submitReplace">
+          {{ busy ? '올리는 중…' : '교체' }}
+        </button>
+      </template>
+    </Modal>
+
+    <!-- 신규 자료 등록 -->
+    <Modal v-if="registerOpen" title="신규 자료 등록" @close="registerOpen = false">
+      <p class="muted">
+        "<strong>{{ folder?.name }}</strong>" 폴더에 등록합니다. 파일 이름(확장자 제외)이 같은 것끼리 자료 1건이 됩니다.
+        같은 이름의 자료가 이미 있으면 새로 만들지 않고 없는 형식만 붙입니다.
+      </p>
+      <div class="form">
+        <input type="file" multiple accept=".dwg,.dxf,.pdf,.xlsx,.xls,.docx,.pptx" @change="onRegisterFiles" />
+        <label>Rev
+          <input v-model.number="registerRev" type="number" min="0" style="width:80px" :readonly="!!revMatch" />
+        </label>
+        <p v-if="revMatch" class="note">
+          Rev 매칭: 이 폴더에 같은 이름의 자료(이미 있는 형식: {{ revMatch.exts.join('/').toUpperCase() }})가
+          Rev {{ revMatch.currentRev }}로 등록되어 있어, 이 파일도 Rev {{ revMatch.currentRev }}로 등록됩니다.
+        </p>
+      </div>
+      <template #footer>
+        <button class="btn" @click="registerOpen = false">취소</button>
+        <button class="btn btn-primary" :disabled="busy || !registerFiles.length" @click="submitRegister">
+          {{ busy ? '올리는 중…' : '등록' }}
+        </button>
+      </template>
+    </Modal>
+
+    <!-- Zip 폴더 업로드 -->
+    <Modal v-if="zipOpen" title="Zip 폴더 업로드" @close="zipOpen = false">
+      <p class="muted">
+        Zip 안의 폴더 구조가 "<strong>{{ folder?.name }}</strong>" 아래 폴더가 되고, 파일은 자료가 됩니다.
+        같은 폴더의 같은 이름 DWG·PDF 는 자료 1건으로 묶입니다.
+        한 폴더 밑에 DWG 폴더와 PDF 폴더가 나란히 있으면 윗 폴더로 합칩니다.
+      </p>
+      <div class="form">
+        <input type="file" accept=".zip" @change="(ev) => (zipFile = filesOf(ev)[0] ?? null)" />
+        <label>새로 만드는 자료의 Rev
+          <input v-model.number="zipRev" type="number" min="0" style="width:80px" />
+        </label>
+        <span class="muted">이미 있는 자료에 형식만 붙는 경우는 그 자료의 지금 Rev 를 따릅니다.</span>
+      </div>
+      <template #footer>
+        <button class="btn" @click="zipOpen = false">취소</button>
+        <button class="btn btn-primary" :disabled="busy || !zipFile" @click="submitZip">
+          {{ busy ? '올리는 중…' : '올리기' }}
+        </button>
+      </template>
+    </Modal>
+
+    <!-- 확인창 -->
+    <Modal v-if="ask" :wide="!!ask.partial?.length" :title="ask.title" @close="answer(false)">
+      <p v-for="(l, i) in ask.lines" :key="i" class="ask-line">{{ l }}</p>
+      <div v-if="ask.partial?.length" class="partial">
+        <DataTable :columns="partialColumns" :rows="partialRows" auto-height :filter-row="false"
+                   storage-key="tdb-editor-partial" excel-name="원본·사본 확인" />
+      </div>
+      <template #footer>
+        <button class="btn" @click="answer(false)">취소</button>
+        <button class="btn btn-primary" @click="answer(true)">계속 진행</button>
+      </template>
+    </Modal>
+
+    <!-- 보관함 비고 -->
+    <Modal v-if="noteTarget" title="비고 편집" @close="noteTarget = null">
+      <p class="muted">{{ noteTarget.label }}</p>
+      <textarea v-model="noteText" rows="4" maxlength="2000" style="width:100%" />
+      <template #footer>
+        <button class="btn" @click="noteTarget = null">취소</button>
+        <button class="btn btn-primary" @click="saveNote">저장</button>
+      </template>
+    </Modal>
+
+    <!-- 공사 · 업체 관리 -->
+    <Modal v-if="catalogOpen" wide :title="catalogOpen === 'projects' ? '공사 관리' : '업체 관리'"
+           @close="catalogOpen = null">
+      <ProjectManager :key="catalogOpen" :kind="catalogOpen" />
+    </Modal>
   </main>
 </template>
 
@@ -420,6 +901,13 @@ async function uploadZip(ev: Event) {
 }
 .chk { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .btn.disabled { opacity: .45; cursor: not-allowed; }
+.form { display: flex; flex-direction: column; gap: 8px; }
+.form label { display: flex; align-items: center; gap: 8px; }
+.form label input[type='text'] { flex: 1; }
+.note { font-size: var(--fs-sm); color: var(--accent); margin: 0; }
+.ask-line { margin: 0 0 6px; white-space: pre-wrap; word-break: break-all; }
+.partial { margin-top: 8px; }
+.note-cell { display: flex; align-items: center; gap: 6px; justify-content: space-between; }
 .table-panel {
   flex: 1; min-width: 0;
   display: flex; flex-direction: column;

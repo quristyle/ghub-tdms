@@ -4,6 +4,7 @@ import { invalidate } from '../../core/cache.js'
 import { Errors } from '../../core/errors.js'
 import * as archive from '../archive/service.js'
 import * as q from './queries.js'
+import { newNameTailProblem } from './revName.js'
 
 export type DocClass = 'TDB' | 'MDB'
 
@@ -83,7 +84,12 @@ export async function renameDocument(
 ) {
   await tx(async (c) => {
     const found = await q.documentsBrief(c, [id])
-    if (!found.rows.length) throw Errors.notFound('자료')
+    const doc = found.rows[0]
+    if (!doc) throw Errors.notFound('자료')
+    if (v.drawingNo !== undefined) {
+      const problem = newNameTailProblem(v.drawingNo, await q.folderPathText(c, doc.folder_id))
+      if (problem) throw Errors.invalid('REV_TAIL', problem)
+    }
     await q.renameDocument(c, id, v)
   })
   return { ok: true as const, folderId: 0, affectedFolders: 0 }
@@ -139,6 +145,17 @@ export function retire(documentIds: number[], reason: string | null, userId: num
 
 export function listBox(kind: 'TRASH' | 'RETIRE') {
   return archive.listBox(DOC_CLASS, kind)
+}
+
+/** 삭제 보관함 묶음 다운로드 전 확인 — TDB 삭제 보관함에 아직 남아 있는 묶음이어야 한다 */
+export async function trashBatchForDownload(batchId: number) {
+  return tx(async (c) => {
+    const b = await q.batchById(c, batchId)
+    if (!b || b.doc_class !== DOC_CLASS || b.kind !== 'TRASH' || b.restored_at || b.purged_at) {
+      throw Errors.notFound('삭제 보관함 항목')
+    }
+    return b
+  })
 }
 
 export const setNote = archive.setNote

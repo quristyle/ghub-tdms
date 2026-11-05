@@ -6,12 +6,64 @@ import {
   FolderRenameRequest, FolderReparentRequest, NoteRequest, NoteResult,
   PairFolderCandidateResponse, PairFolderMergeRequest, PairFolderMergeResult,
   PurgeRequest, PurgeResult, RestoreResult,
+  ExistingRevLookup, ExistingRevQuery, RegisterResult, ReplaceBulkResult, ReplaceResult,
+  JobCreated, ZipRegisterCheck,
 } from '@tdms/contracts'
-import { AUTHENTICATED, defineRoute, permission } from '../../core/route.js'
+import { AUTHENTICATED, defineRoute, permission, type TdmsRequest } from '../../core/route.js'
+import { Errors } from '../../core/errors.js'
+import { tx } from '../../core/db.js'
+import { registerBlob, storeStream } from '../../core/blob.js'
+import * as jobs from '../jobs/service.js'
 import * as svc from './service.js'
+import * as up from './upload.js'
 
 const SCREEN = 'TDB 관리'
 const IdParam = z.object({ id: z.coerce.number().int() })
+
+/**
+ * multipart 본문을 읽는다 — 파일은 받는 대로 blob 으로 저장하고 필드는 모은다.
+ * 같은 이름 필드가 여럿이면(documentIds) 배열로 모인다.
+ */
+async function readUpload(req: TdmsRequest, allowed: Set<string>) {
+  const fields = new Map<string, string[]>()
+  const files: up.Incoming[] = []
+  for await (const part of req.parts()) {
+    if (part.type === 'field') {
+      const list = fields.get(part.fieldname) ?? []
+      list.push(String(part.value))
+      fields.set(part.fieldname, list)
+      continue
+    }
+    const ext = (part.filename.split('.').pop() ?? '').toLowerCase()
+    if (!allowed.has(ext)) {
+      part.file.resume()
+      throw Errors.invalid('EXT_NOT_ALLOWED', `받을 수 없는 형식입니다: .${ext}`)
+    }
+    // 스트림에 곁다리 리스너를 붙이지 않는다 (core/blob.ts 주석 참조)
+    const stored = await storeStream(part.file, up.MAX_UPLOAD)
+    up.assertUsable(stored, ext, part.filename)
+    await tx((c) => registerBlob(c, stored))
+    files.push(up.incomingOf(stored, part.filename))
+  }
+  const one = (k: string) => fields.get(k)?.[0] ?? ''
+  const flag = (k: string) => ['true', '1', 'yes'].includes(one(k))
+  const int = (k: string, dflt: number) => {
+    const v = one(k)
+    if (v === '') return dflt
+    const n = Number(v)
+    if (!Number.isInteger(n) || n < 0) throw Errors.invalid('BAD_FIELD', `${k} 값이 올바르지 않습니다.`)
+    return n
+  }
+  const ints = (k: string) => (fields.get(k) ?? [])
+    .flatMap((v) => v.split(','))
+    .filter((v) => v.trim() !== '')
+    .map((v) => {
+      const n = Number(v)
+      if (!Number.isInteger(n)) throw Errors.invalid('BAD_FIELD', `${k} 값이 올바르지 않습니다.`)
+      return n
+    })
+  return { files, one, flag, int, ints }
+}
 
 export function registerEditorRoutes(app: FastifyInstance): void {
   // ── 폴더 편집 ────────────────────────────────────────────────────────
@@ -76,7 +128,7 @@ export function registerEditorRoutes(app: FastifyInstance): void {
     audit: { screen: SCREEN, action: '자료 수정' },
     schema: {
       params: IdParam, body: DocumentRenameRequest,
-      response: { 200: FolderMutationResult, 403: ErrorResponse, 404: ErrorResponse },
+      response: { 200: FolderMutationResult, 403: ErrorResponse, 404: ErrorResponse, 422: ErrorResponse },
     },
     handler: async (req) => {
       const { id } = IdParam.parse(req.params)
@@ -103,6 +155,143 @@ export function registerEditorRoutes(app: FastifyInstance): void {
         targetFolderId: b.targetFolderId, moved: out.moved, skipped: out.skipped.length,
       })
       return out
+    },
+  })
+
+  // ── 자료 교체 · 일괄 교체 ───────────────────────────────────────────
+  // multipart: files[], keepRev(기본 true = "Rev 유지"), confirm* (확인창을 거친 뒤 다시 보낼 때)
+  defineRoute(app, {
+    method: 'POST',
+    url: '/editor/documents/:id/replace',
+    access: permission('screen.tdb_editor.document'),
+    audit: { screen: SCREEN, action: '자료 교체' },
+    schema: {
+      params: IdParam,
+      response: { 200: ReplaceResult, 403: ErrorResponse, 404: ErrorResponse, 422: ErrorResponse },
+    },
+    handler: async (req) => {
+      const { id } = IdParam.parse(req.params)
+      const u = await readUpload(req, up.ALLOWED)
+      const keepRev = u.one('keepRev') === '' ? true : u.flag('keepRev')
+      const out = await up.replaceOne(
+        id, u.files, { keepRev, confirmDuplicates: u.flag('confirmDuplicates') }, req.auth.user.id,
+      )
+      req.setAuditTarget(`자료 ${id}`, {
+        keepRev, rev: out.rev, files: u.files.map((f) => f.filename), needsConfirmation: out.needsConfirmation,
+      })
+      return out
+    },
+  })
+
+  defineRoute(app, {
+    method: 'POST',
+    url: '/editor/documents/replace-bulk',
+    access: permission('screen.tdb_editor.document'),
+    audit: { screen: SCREEN, action: '일괄 자료 교체' },
+    schema: { response: { 200: ReplaceBulkResult, 403: ErrorResponse, 422: ErrorResponse } },
+    handler: async (req) => {
+      const u = await readUpload(req, up.ALLOWED)
+      const ids = u.ints('documentIds')
+      const keepRev = u.one('keepRev') === '' ? true : u.flag('keepRev')
+      const out = await up.replaceBulk(ids, u.files, {
+        keepRev,
+        confirmDuplicates: u.flag('confirmDuplicates'),
+        confirmMismatch: u.flag('confirmMismatch'),
+        confirmPartial: u.flag('confirmPartial'),
+      }, req.auth.user.id)
+      req.setAuditTarget(`자료 ${ids.length}건`, {
+        keepRev, replaced: out.replaced, files: u.files.length, needsConfirmation: out.needsConfirmation,
+      })
+      return out
+    },
+  })
+
+  // ── 기존 Rev 조회 · 신규 자료 등록 ──────────────────────────────────
+  defineRoute(app, {
+    method: 'GET',
+    url: '/editor/documents/existing-rev',
+    access: permission('screen.tdb_editor.document'),
+    schema: { querystring: ExistingRevQuery, response: { 200: ExistingRevLookup, 403: ErrorResponse, 404: ErrorResponse } },
+    handler: async (req) => {
+      const qy = ExistingRevQuery.parse(req.query)
+      return up.existingRev(qy.folderId, qy.stem)
+    },
+  })
+
+  // multipart: folderId, rev(기본 0), files[], confirmDuplicates, confirmPartial
+  defineRoute(app, {
+    method: 'POST',
+    url: '/editor/documents/register',
+    access: permission('screen.tdb_editor.document'),
+    audit: { screen: SCREEN, action: '신규 자료 등록' },
+    schema: { response: { 200: RegisterResult, 403: ErrorResponse, 404: ErrorResponse, 422: ErrorResponse } },
+    handler: async (req) => {
+      const u = await readUpload(req, up.ALLOWED)
+      const folderId = u.int('folderId', -1)
+      if (folderId < 0) throw Errors.invalid('NO_FOLDER', '등록할 폴더를 골라 주세요.')
+      const rev = u.int('rev', 0)
+      const out = await up.register(folderId, u.files, {
+        rev, confirmDuplicates: u.flag('confirmDuplicates'), confirmPartial: u.flag('confirmPartial'),
+      }, req.auth.user.id)
+      req.setAuditTarget(`폴더 ${folderId}`, {
+        rev, created: out.created, attached: out.attached, files: u.files.length,
+        needsConfirmation: out.needsConfirmation,
+      })
+      return out
+    },
+  })
+
+  // ── Zip 폴더 업로드 ─────────────────────────────────────────────────
+  // Zip 안 폴더 구조가 선택한 폴더 아래 폴더가 되고, 파일은 자료가 된다(DWG+PDF 는 이름으로 짝).
+  // 확인이 필요하면 200 {needsConfirmation, token}, 진행하면 202 {jobId} — 처리는 응답 뒤에 한다.
+  // 반입(검수) 파이프라인인 /imports/zip 과는 다르다 — 이건 CM 이 직접 넣는 등록이다.
+  defineRoute(app, {
+    method: 'POST',
+    url: '/editor/zip-register',
+    access: permission('screen.tdb_editor.zip_register'),
+    audit: { screen: SCREEN, action: 'Zip 폴더 업로드' },
+    schema: {
+      response: {
+        200: ZipRegisterCheck, 202: JobCreated,
+        403: ErrorResponse, 404: ErrorResponse, 409: ErrorResponse, 422: ErrorResponse,
+      },
+    },
+    handler: async (req, reply) => {
+      const u = await readUpload(req, new Set(['zip']))
+      const userId = req.auth.user.id
+      const folderId = u.int('folderId', -1)
+      if (folderId < 0) throw Errors.invalid('NO_FOLDER', 'Zip 을 넣을 폴더를 골라 주세요.')
+
+      let zipBlob: { sha256: Buffer; filename: string }
+      if (u.files.length) {
+        if (u.files.length > 1) throw Errors.invalid('ONE_ZIP', 'Zip 파일은 한 번에 하나씩 올려 주세요.')
+        zipBlob = { sha256: u.files[0]!.sha256, filename: u.files[0]!.filename }
+      } else if (u.one('token')) {
+        zipBlob = up.redeemTicket(u.one('token'), userId)
+      } else {
+        throw Errors.invalid('NO_FILE', '올릴 Zip 파일이 없습니다.')
+      }
+
+      const o: up.ZipRegisterOptions = {
+        folderId,
+        rev: u.int('rev', 0),
+        confirmUnsafePaths: u.flag('confirmUnsafePaths'),
+        confirmDuplicates: u.flag('confirmDuplicates'),
+        confirmPartial: u.flag('confirmPartial'),
+      }
+      const { check, groups } = await up.zipCheck(zipBlob, o, userId)
+      if (check) {
+        req.setAuditTarget(zipBlob.filename, { folderId, needsConfirmation: true })
+        return check
+      }
+
+      const jobId = await jobs.createRunning('zip_register', {
+        sha256: zipBlob.sha256.toString('hex'), filename: zipBlob.filename, ...o,
+      }, userId)
+      req.setAuditTarget(zipBlob.filename, { folderId, rev: o.rev, jobId, groups })
+      // 응답을 먼저 보내고 같은 프로세스에서 처리한다 (runZipRegister 는 예외를 던지지 않는다)
+      setImmediate(() => { void up.runZipRegister(jobId, zipBlob, o, userId) })
+      return reply.code(202).send({ jobId })
     },
   })
 
@@ -175,6 +364,25 @@ export function registerEditorRoutes(app: FastifyInstance): void {
       await svc.setNote(id, b.note)
       req.setAuditTarget(`묶음 ${id}`, { note: b.note })
       return { ok: true as const }
+    },
+  })
+
+  // 묶음 다운로드 — 워커의 zip_build 로 넘긴다. 결과는 /jobs/:id/download 로 받는다.
+  defineRoute(app, {
+    method: 'POST',
+    url: '/editor/trash/:id/download',
+    access: permission('screen.tdb_editor.access'),
+    audit: { screen: SCREEN, action: '삭제 보관함 다운로드' },
+    schema: {
+      params: IdParam,
+      response: { 202: JobCreated, 403: ErrorResponse, 404: ErrorResponse },
+    },
+    handler: async (req, reply) => {
+      const { id } = IdParam.parse(req.params)
+      const b = await svc.trashBatchForDownload(id)
+      const jobId = await jobs.create('zip_build', { kind: 'TRASH', docClass: 'TDB', batchId: id }, req.auth.user.id)
+      req.setAuditTarget(b.label, { batchId: id, jobId })
+      return reply.code(202).send({ jobId })
     },
   })
 

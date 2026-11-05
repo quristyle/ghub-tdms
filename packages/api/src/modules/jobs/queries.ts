@@ -69,3 +69,42 @@ export function reviveZombies() {
       WHERE state = 'running' AND heartbeat_at < now() - interval '2 minutes'`,
   )
 }
+
+// ── API 프로세스가 직접 처리하는 작업 ────────────────────────────────────
+// 처음부터 running·locked_by='api' 로 넣어 Python 워커가 집어 가지 않게 한다.
+// attempts = max_attempts = 1 이라 heartbeat 가 끊겨도 좀비 회수가 큐로 되돌리지 않고
+// 실패로 닫는다 (워커가 모르는 kind 를 다시 집어 가는 일이 없다).
+
+export async function insertRunning(kind: string, payload: unknown, requestedBy: number): Promise<number> {
+  const row = await one<{ id: number }>(
+    `INSERT INTO jobs (kind, payload, requested_by, state, locked_by, heartbeat_at, started_at,
+                       attempts, max_attempts)
+     VALUES ($1, $2, $3, 'running', 'api', now(), now(), 1, 1) RETURNING id`,
+    [kind, JSON.stringify(payload), requestedBy],
+  )
+  return row!.id
+}
+
+export function updateProgress(id: number, pct: number, note: string | null) {
+  return query(
+    `UPDATE jobs SET progress = $2, progress_note = coalesce($3, progress_note), heartbeat_at = now()
+      WHERE id = $1 AND state = 'running'`,
+    [id, Math.max(0, Math.min(100, Math.round(pct))), note],
+  )
+}
+
+export function markDone(id: number, result: unknown, note: string | null) {
+  return query(
+    `UPDATE jobs SET state = 'done', progress = 100, result = $2,
+                     progress_note = coalesce($3, progress_note), finished_at = now(), heartbeat_at = now()
+      WHERE id = $1`,
+    [id, JSON.stringify(result), note],
+  )
+}
+
+export function markFailed(id: number, message: string) {
+  return query(
+    `UPDATE jobs SET state = 'failed', error = $2, finished_at = now() WHERE id = $1`,
+    [id, message],
+  )
+}
