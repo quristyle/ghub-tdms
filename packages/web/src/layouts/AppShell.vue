@@ -2,8 +2,13 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSession } from '@/lib/session'
+import { useQuery } from '@tanstack/vue-query'
+import type { FavoriteCountResponse } from '@tdms/contracts'
 import NavIcon from '@/ui/NavIcon.vue'
 import TdmsLogo from '@/ui/TdmsLogo.vue'
+import FavoritesHost from '@/ui/FavoritesHost.vue'
+import { api } from '@/lib/api'
+import { countVersion, listOpen as favListOpen } from '@/lib/favorites'
 
 /**
  * 앱 셸 — 왼쪽 내비게이션 + 상단바.
@@ -177,6 +182,17 @@ function toggleTheme() {
   applyTheme()
 }
 
+// ── 사용자 보관 [보관 (N)] — 기존 favorites.js 의 상단 버튼 ─────────────
+// 건수만 따로 받는다(목록 전체를 받지 않는다). 보관·삭제하면 countVersion 이 올라 다시 받는다.
+const { data: favCount, refetch: refetchFavCount } = useQuery({
+  queryKey: ['favorites', 'summary'],
+  queryFn: () => api.get<FavoriteCountResponse>('/favorites/summary'),
+  enabled: computed(() => session.isLoggedIn),
+  staleTime: 60_000,
+})
+watch(countVersion, () => { void refetchFavCount() })
+function openFavorites() { favListOpen.value = true }
+
 const initials = computed(() => (session.me?.name ?? '').slice(0, 1))
 
 const userOpen = ref(false)
@@ -308,6 +324,14 @@ async function logout() {
         <span style="flex:1" />
 
         <button
+          class="btn btn-sm btn-ghost fav-btn"
+          title="미리보기에서 보관해 둔 자료 (사용자 보관 목록)"
+          @click.stop="openFavorites"
+        >
+          보관 <span class="fav-count">{{ favCount?.count ?? 0 }}</span>
+        </button>
+
+        <button
           class="btn btn-sm btn-ghost btn-icon"
           :title="dark ? '밝게 보기' : '어둡게 보기'"
           :aria-label="dark ? '밝게 보기' : '어둡게 보기'"
@@ -344,6 +368,7 @@ async function logout() {
       <div class="app-body">
         <RouterView />
       </div>
+      <FavoritesHost />
     </div>
   </div>
 </template>
@@ -613,5 +638,11 @@ async function logout() {
   .nav-backdrop {
     display: none !important;
   }
+}
+.fav-btn { gap: 5px; }
+.fav-count {
+  display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px;
+  font-size: 11px; line-height: 16px; text-align: center;
+  background: var(--accent-soft, var(--bg)); border: 1px solid var(--border-strong, var(--border));
 }
 </style>

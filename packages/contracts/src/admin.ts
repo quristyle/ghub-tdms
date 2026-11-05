@@ -15,13 +15,20 @@ import { PageQuery, SortDir, pageResult } from './common.js'
 export const AuditSort = z.enum(['occurredAt', 'userName', 'screen', 'action', 'target', 'clientIp'])
 export type AuditSort = z.infer<typeof AuditSort>
 
+/** 쿼리스트링의 같은 이름 여러 개(?a=1&a=2) — 하나만 오면 문자열이므로 배열로 맞춘다 */
+const MultiParam = z.preprocess(
+  (v) => (v === undefined || v === '' ? undefined : Array.isArray(v) ? v : [v]),
+  z.array(z.string().max(100)).max(100).optional(),
+)
+
 export const AuditQuery = PageQuery.extend({
   sort: AuditSort.default('occurredAt'),
   dir: SortDir.default('desc'),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
-  screen: z.string().max(100).optional(),
-  action: z.string().max(100).optional(),
+  /** 여러 개를 고를 수 있다 — ?screen=a&screen=b (하나면 문자열로 온다) */
+  screen: MultiParam.optional(),
+  action: MultiParam.optional(),
   /** 'screen.audit.viewer.other_user' 가 없으면 자기 것만 볼 수 있다 */
   userId: z.coerce.number().int().optional(),
   q: z.string().max(200).optional(),

@@ -6,6 +6,8 @@ import {
 import { AUTHENTICATED, defineRoute } from '../../core/route.js'
 import { Errors } from '../../core/errors.js'
 import { mimeFor, sendBlob } from '../../core/files.js'
+import { hasPermission } from '../../core/session.js'
+import type { TdmsRequest } from '../../core/route.js'
 import * as svc from './service.js'
 
 /**
@@ -20,6 +22,27 @@ import * as svc from './service.js'
 
 const IdParam = z.object({ id: z.coerce.number().int() })
 
+/**
+ * 전량 엑셀은 화면을 열 수 있는 사람만 — 목록 API 와 같은 경계를 지킨다.
+ * 시스템 로그는 '다른 사용자 보기' 권한이 없으면 자기 기록만 뽑는다(주소로 남의 id 를 넣어도).
+ */
+function guardExport(req: TdmsRequest, body: ExcelExportRequest): void {
+  const need: Record<string, Parameters<typeof hasPermission>[1]> = {
+    tdb_documents: 'screen.tdb_list.access',
+    mdb_files: 'screen.mdb_list.access',
+    audit_log: 'screen.audit.access',
+  }
+  const key = need[body.target]
+  if (key && !hasPermission(req.auth, key)) throw Errors.forbidden(key)
+  if (body.target === 'audit_log' && !hasPermission(req.auth, 'screen.audit.viewer.other_user')) {
+    const asked = body.filters.userId
+    if (asked !== undefined && asked !== null && asked !== '' && Number(asked) !== req.auth.user.id) {
+      throw Errors.forbidden('screen.audit.viewer.other_user')
+    }
+    body.filters.userId = req.auth.user.id
+  }
+}
+
 export function registerJobRoutes(app: FastifyInstance): void {
   defineRoute(app, {
     method: 'POST',
@@ -29,6 +52,7 @@ export function registerJobRoutes(app: FastifyInstance): void {
     schema: { body: ExcelExportRequest, response: { 202: JobCreated, 401: ErrorResponse } },
     handler: async (req, reply) => {
       const body = ExcelExportRequest.parse(req.body)
+      guardExport(req, body)
       const jobId = await svc.create('excel_export', body, req.auth.user.id)
       req.setAuditTarget(body.target, { jobId })
       return reply.code(202).send({ jobId })

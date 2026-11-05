@@ -22,8 +22,9 @@ function auditFilters(qp: AuditQuery, params: unknown[]): string[] {
   const where: string[] = []
   if (qp.dateFrom) { params.push(qp.dateFrom); where.push(`a.occurred_at >= $${params.length}::timestamptz`) }
   if (qp.dateTo)   { params.push(qp.dateTo);   where.push(`a.occurred_at < ($${params.length}::timestamptz + interval '1 day')`) }
-  if (qp.screen)   { params.push(qp.screen);   where.push(`a.screen = $${params.length}`) }
-  if (qp.action)   { params.push(qp.action);   where.push(`a.action = $${params.length}`) }
+  // 화면·동작은 여러 개를 고를 수 있다
+  if (qp.screen?.length) { params.push(qp.screen); where.push(`a.screen = ANY($${params.length}::text[])`) }
+  if (qp.action?.length) { params.push(qp.action); where.push(`a.action = ANY($${params.length}::text[])`) }
   if (qp.userId !== undefined) { params.push(qp.userId); where.push(`a.user_id = $${params.length}`) }
   if (qp.q) {
     params.push(`%${qp.q}%`)

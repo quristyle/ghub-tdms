@@ -378,7 +378,7 @@ async function setupForDms() {
   // ⑨ 보관 목록 — [»] 안의 [보관하기]·[다른 이름으로 보관]. 보관 팝업은 바깥 화면이 갖고
   //    있으므로 그 창을 넘겨준다(미리보기 주소만 따로 열어 본 경우에는 버튼이 생기지 않는다).
   if (USE_FAVORITE_TOOL) {
-    const { installFavoriteTool } = await import("./dms-favorite.js?v=64");
+    const { installFavoriteTool } = await import("./dms-favorite.js?v=65");
     installFavoriteTool(app, outerAppWindow());
   }
 }
