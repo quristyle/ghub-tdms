@@ -3,16 +3,21 @@ import type { FastifyInstance } from 'fastify'
 import {
   CreateDistributionRequest, CreateDistributionResult, DistributionListQuery,
   DistributionListResult, ErrorResponse, FilterOptions, ForImportQuery, ForImportResult,
-  OutstandingResult, ReturnRequest, ReturnResult, ZipExportListResult, ZipStatusResult,
+  OutstandingResult, ReturnRequest, ReturnResult, ZipExportListResult, ZipReturnRequest,
+  ZipReturnResult, ZipStatusResult,
 } from '@tdms/contracts'
-import { defineRoute, permission } from '../../core/route.js'
+import { AUTHENTICATED, defineRoute, permission } from '../../core/route.js'
 import { Errors } from '../../core/errors.js'
+import { MIME, sendBlob } from '../../core/files.js'
 import * as svc from './service.js'
 
 const SCREEN = 'TDB 반출이력'
 const ACCESS = 'screen.tdb_distributions.access'
 const OTHER_USER = 'screen.tdb_distributions.viewer.other_user'
 const MANUAL_RETURN = 'screen.tdb_distributions.confirm.manual_return'
+/** 수정용 반출 — 참조용·기타는 TDB 조회에 들어올 수 있으면 누구나 (기존 정책) */
+const DISTRIBUTE_MODIFY = 'screen.tdb_list.distribute.modify'
+const ZipNameQuery = z.object({ zipName: z.string().min(1).max(300) })
 
 export function registerDistributionRoutes(app: FastifyInstance): void {
   // ── 목록 (자료별) ────────────────────────────────────────────────────
@@ -59,6 +64,27 @@ export function registerDistributionRoutes(app: FastifyInstance): void {
       svc.zipStatus(z.object({ zipName: z.string().min(1).max(300) }).parse(req.query).zipName),
   })
 
+  // ── Zip 다시 받기 ────────────────────────────────────────────────────
+  // 반출이력 Zip별 보기의 [Zip 다운]. 자료가 다시 밖으로 나가는 일이라 감사에 남긴다.
+  defineRoute(app, {
+    method: 'GET',
+    url: '/distributions/zip-file',
+    access: permission(ACCESS),
+    audit: { screen: SCREEN, action: 'Zip 다운로드' },
+    schema: { querystring: ZipNameQuery, response: { 403: ErrorResponse, 404: ErrorResponse } },
+    handler: async (req, reply) => {
+      const { zipName } = ZipNameQuery.parse(req.query)
+      const f = await svc.zipFile(zipName)
+      req.setAuditTarget(zipName, { mode: 'download' })
+      return sendBlob(reply, {
+        sha256: f.sha256,
+        filename: `${zipName}.zip`,
+        contentType: MIME.zip!,
+        byteSize: f.byteSize,
+      })
+    },
+  })
+
   // ── 미입고 현황 ──────────────────────────────────────────────────────
   // "곧 바뀔 수 있는" 반출 건 — 미반납 + 돌아왔지만 검수 전.
   defineRoute(app, {
@@ -79,10 +105,12 @@ export function registerDistributionRoutes(app: FastifyInstance): void {
   })
 
   // ── 검색 보조 ────────────────────────────────────────────────────────
+  // TDB 조회의 [반출하기] 창도 업체·공사 목록을 여기서 받는다 — 반출이력 화면 권한이 없는
+  // 사람도 반출은 할 수 있으므로 로그인만 본다. 반출자 목록은 아래에서 권한대로 줄인다.
   defineRoute(app, {
     method: 'GET',
     url: '/distributions/filter-options',
-    access: permission(ACCESS),
+    access: AUTHENTICATED,
     schema: { response: { 200: FilterOptions, 403: ErrorResponse } },
     handler: async (req) =>
       svc.filterOptions(canOther(req), req.auth.user.id, req.auth.user.name),
@@ -112,12 +140,33 @@ export function registerDistributionRoutes(app: FastifyInstance): void {
     },
   })
 
+  // ── Zip 단위 수정없이 반납처리 ────────────────────────────────────────
+  defineRoute(app, {
+    method: 'POST',
+    url: '/distributions/zip-return',
+    access: permission(MANUAL_RETURN),
+    audit: { screen: SCREEN, action: 'Zip 수정없이 반납 처리' },
+    schema: {
+      body: ZipReturnRequest,
+      response: { 200: ZipReturnResult, 403: ErrorResponse, 422: ErrorResponse },
+    },
+    handler: async (req) => {
+      const b = ZipReturnRequest.parse(req.body)
+      const out = await svc.returnZips(b.zipNames)
+      req.setAuditTarget(b.zipNames.length === 1 ? b.zipNames[0]! : `Zip ${b.zipNames.length}개`, {
+        zipNames: b.zipNames, returned: out.returned, skipped: out.skipped.length,
+      })
+      return out
+    },
+  })
+
   // ── 반출 실행 ────────────────────────────────────────────────────────
   // TDB 조회 화면의 반출대기함에서 부른다.
+  // 기존처럼 '수정용' 만 권한을 본다 — 참조용·기타는 조회 화면에 들어올 수 있으면 누구나.
   defineRoute(app, {
     method: 'POST',
     url: '/distributions',
-    access: permission('screen.tdb_list.distribute.modify'),
+    access: permission('screen.tdb_list.access'),
     audit: { screen: 'TDB 조회', action: '반출 실행' },
     schema: {
       body: CreateDistributionRequest,
@@ -125,6 +174,7 @@ export function registerDistributionRoutes(app: FastifyInstance): void {
     },
     handler: async (req) => {
       const b = CreateDistributionRequest.parse(req.body)
+      if (b.purpose === 'MODIFY' && !has(req, DISTRIBUTE_MODIFY)) throw Errors.forbidden(DISTRIBUTE_MODIFY)
       const out = await svc.create(b, req.auth.user.id)
       req.setAuditTarget(`${b.vendorName} ${out.created}건`, {
         zipName: out.zipName, purpose: b.purpose,

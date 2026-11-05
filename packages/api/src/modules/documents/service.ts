@@ -1,7 +1,8 @@
-import type { DocumentListQuery } from '@tdms/contracts'
+import type { DocumentListQuery, DocumentNavQuery, FolderDocumentsQuery } from '@tdms/contracts'
 import { Errors } from '../../core/errors.js'
 import { encodeCursor } from '../../core/cursor.js'
 import * as folders from '../folders/service.js'
+import * as archive from '../archive/service.js'
 import * as q from './queries.js'
 
 export async function list(qp: DocumentListQuery) {
@@ -157,4 +158,72 @@ export async function setDistributionNote(distributionId: number, note: string |
 export async function neighbors(documentId: number) {
   const r = await q.neighborIds(documentId)
   return { prevId: r?.prevId ?? null, nextId: r?.nextId ?? null }
+}
+
+// ── 처음·이전·다음·끝 ───────────────────────────────────────────────────
+
+export async function nav(qp: DocumentNavQuery) {
+  const folderIds = await folders.scopeIds('TDB', qp.folderId, qp.recursive)
+  const r = await q.navigate(folderIds, qp, { id: qp.id, at: qp.at })
+  return {
+    currentId: r?.currentId ?? null,
+    position: r?.position ?? null,
+    total: r?.total ?? 0,
+    firstId: r?.firstId ?? null,
+    prevId: r?.prevId ?? null,
+    nextId: r?.nextId ?? null,
+    lastId: r?.lastId ?? null,
+  }
+}
+
+// ── 폴더 반출 ───────────────────────────────────────────────────────────
+
+export async function folderDocuments(qp: FolderDocumentsQuery) {
+  const folderIds = await folders.scopeIds('TDB', qp.folderId, qp.recursive)
+  const rows = await q.listFolderDocuments(folderIds, qp.includeIsometric)
+  // 반출 한 번에 5000건까지다 — 그보다 많으면 담아 봐야 반출에서 막힌다. 하위 폴더로 나눠 담게 한다.
+  if (rows.length > q.FOLDER_CART_MAX) {
+    throw Errors.invalid('TOO_MANY_DOCUMENTS',
+      `이 폴더의 자료가 ${q.FOLDER_CART_MAX}건을 넘습니다. 한 번에 ${q.FOLDER_CART_MAX}건까지 반출할 수 있으니 하위 폴더로 나눠 담으세요.`)
+  }
+  return { items: rows.map(toListItem) }
+}
+
+// ── 폐기 보관함 (보기 전용) ─────────────────────────────────────────────
+// 일반 사용자도 폐기 이력을 볼 수 있어야 한다 (기존 2026-08-30 CM 확정).
+// 복구·비고는 TDB 관리 화면의 권한으로만 한다 — 여기는 목록만 준다.
+
+export function retiredBox() {
+  return archive.listBox('TDB', 'RETIRE')
+}
+
+// ── TDB 수정 (최근수정본) ───────────────────────────────────────────────
+
+export async function recentChanges(days: number) {
+  const rows = await q.listRecentChanges(days)
+  const items = rows.map((r) => ({
+    id: r.id,
+    drawingNo: r.drawingNo,
+    title: r.title,
+    category: r.category,
+    path: r.path ?? '',
+    updatedAt: r.updatedAt.toISOString(),
+    currentRev: r.currentRev,
+    changeKind: (r.revTo !== null ? 'REVISION' : 'INFO') as 'REVISION' | 'INFO',
+    revFrom: r.revTo !== null ? Math.max(r.revTo - 1, 0) : null,
+    revTo: r.revTo,
+    vendorName: r.vendorName,
+    projectName: r.projectName,
+    changedBy: r.changedBy,
+  }))
+  return {
+    days,
+    total: items.length,
+    revisionCount: items.filter((i) => i.changeKind === 'REVISION').length,
+    items,
+  }
+}
+
+export async function recentChangesSummary(days: number) {
+  return { count: await q.countRecentChanges(days) }
 }

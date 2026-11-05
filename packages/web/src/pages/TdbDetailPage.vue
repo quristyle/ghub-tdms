@@ -3,16 +3,17 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type {
-  DistributionListResponse, DocumentDetail, RevisionListResponse, UploadResult,
+  DistributionListResponse, DocumentDetail, DocumentNav, RevisionListResponse, UploadResult,
 } from '@tdms/contracts'
 import DataTable, { type Column } from '@/ui/DataTable.vue'
 import Tabs from '@/ui/Tabs.vue'
 import PdfViewer from '@/ui/PdfViewer.vue'
 import DrawingPreview from '@/ui/DrawingPreview.vue'
-import { api } from '@/lib/api'
+import { api, ApiError, qs } from '@/lib/api'
 import { qk, staleTime } from '@/lib/queryKeys'
 import { useSession } from '@/lib/session'
 import { DOC_STATUS_LABEL, PURPOSE_LABEL } from '@/lib/labels'
+import { NAV_FROM_LIST, readListNav } from '@/lib/tdbListNav'
 
 /** TDB 자료 상세 — 기존 detail.html 의 4개 탭을 재현한다. */
 
@@ -54,11 +55,44 @@ const { data: distributions } = useQuery({
   staleTime: staleTime.detail,
 })
 
-const { data: neighbors } = useQuery({
-  queryKey: computed(() => [...qk.documents.detail(id.value), 'neighbors']),
-  queryFn: () => api.get<{ prevId: number | null; nextId: number | null }>(`/documents/${id.value}/neighbors`),
-  staleTime: staleTime.detail,
+// ── 처음·이전·다음·끝 ───────────────────────────────────────────────────
+// 기존 detail.js 처럼 **방금 다녀온 목록의 순서**를 따른다. 목록이 남겨 둔 검색조건·정렬로
+// 서버에 "몇 번째인가" 만 묻는다. 목록을 거치지 않고 바로 왔으면(주소 직접 입력·다른 화면의
+// 링크) 순서를 알 수 없어 버튼을 모두 끈다 — 엉뚱한 순서로 넘어가는 것보다 낫다.
+const fromList = computed(() => route.query.from === NAV_FROM_LIST)
+const listNav = computed(() => (fromList.value ? readListNav() : null))
+
+const { data: nav } = useQuery({
+  queryKey: computed(() => [...qk.documents.detail(id.value), 'nav', listNav.value]),
+  queryFn: () => api.get<DocumentNav>(`/documents/nav${qs({ ...listNav.value, id: id.value })}`),
+  enabled: computed(() => listNav.value !== null),
+  staleTime: staleTime.list,
 })
+const navPos = computed(() => (nav.value?.position ?? null))
+const navOn = computed(() => navPos.value !== null && (nav.value?.total ?? 0) > 1)
+
+function goDoc(docId: number | null | undefined) {
+  if (!docId || docId === id.value) return
+  void router.push({ path: `/documents/${docId}`, query: { from: NAV_FROM_LIST } })
+}
+
+/** "n / 전체" 칸 — 번호를 넣고 Enter. 범위를 넘으면 끝으로 붙인다 */
+const posInput = ref('')
+watch(navPos, (p) => (posInput.value = p === null ? '' : String(p)), { immediate: true })
+async function jumpTo() {
+  const n = Number(posInput.value)
+  if (!listNav.value || !Number.isInteger(n) || n < 1) {
+    posInput.value = navPos.value === null ? '' : String(navPos.value)
+    return
+  }
+  try {
+    const r = await api.get<DocumentNav>(`/documents/nav${qs({ ...listNav.value, at: n })}`)
+    goDoc(r.currentId)
+    if (r.currentId === id.value) posInput.value = String(navPos.value ?? '')
+  } catch {
+    posInput.value = navPos.value === null ? '' : String(navPos.value)
+  }
+}
 
 // 미리보기 대상: 현재 Rev 의 PDF 만.
 // 예전에는 현재본에 PDF 가 없으면 아무 PDF 나 띄웠다 — DWG 만 반입·승인한 자료가
@@ -82,6 +116,7 @@ const olderPdf = computed(() => olderPdfs.value.find((f) => f.id === olderPdfId.
 
 watch(id, () => {
   tab.value = 'info'
+  noteMsg.value = null
   olderPdfId.value = null
   previewSource.value = 'pdf'
   resetUpload()
@@ -149,6 +184,34 @@ async function submitUpload() {
   }
 }
 
+// ── 비고 작성 (Revision 이력 / 반출 이력) ─────────────────────────────
+// 칸을 벗어나면(change) 저장한다. 권한이 없으면 칸을 잠근다 — 서버도 같은 권한으로 막는다.
+const canRevNote = computed(() => session.can('common.note_edit.revision'))
+const canDistNote = computed(() => session.can('common.note_edit.distribution'))
+const noteMsg = ref<{ kind: 'ok' | 'err'; text: string } | null>(null)
+
+async function saveNote(path: string, body: Record<string, unknown>, which: 'revisions' | 'distributions') {
+  try {
+    await api.post(path, body)
+    noteMsg.value = { kind: 'ok', text: '비고를 저장했습니다.' }
+    void qc.invalidateQueries({ queryKey: [...qk.documents.detail(id.value), which] })
+  } catch (e) {
+    noteMsg.value = { kind: 'err', text: e instanceof ApiError ? e.message : '비고를 저장하지 못했습니다.' }
+  }
+}
+
+function saveRevNote(row: RevRow, value: string) {
+  const note = value.trim() || null
+  if (note === (row.note ?? null)) return
+  void saveNote(`/documents/${id.value}/revisions/${row.rev}/note`, { note, branch: row.branch }, 'revisions')
+}
+
+function saveDistNote(row: DistRow, value: string) {
+  const note = value.trim() || null
+  if (note === (row.note ?? null)) return
+  void saveNote(`/distributions/${row.id}/note`, { note }, 'distributions')
+}
+
 const STATUS_LABEL = DOC_STATUS_LABEL
 const DIST_STATE: Record<string, string> = {
   RETURNED: '반입완료', OUTSTANDING: '반입미완료',
@@ -186,9 +249,20 @@ const FILE_COLUMNS: Column<FileRow>[] = [
  * 목록이 통째로 다시 올 때만 바뀌어 줄이 섞일 일이 없다.
  */
 type RevRow = RevisionListResponse['items'][number] & { id: number }
+
+/**
+ * [승인만 보기] — 기본 켜짐(기존 detail.js). 끄면 반려·검수대기 리비전까지 전부 보인다.
+ * 리비전 하나의 파일이 모두 승인돼 있어야 승인된 리비전이다.
+ */
+const approvedOnly = ref(true)
+const isApproved = (r: RevisionListResponse['items'][number]) =>
+  r.files.every((f) => f.reviewStatus === 'APPROVED')
 const revRows = computed<RevRow[]>(() =>
-  (revisions.value?.items ?? []).map((r, i) => ({ ...r, id: i + 1 })),
+  (revisions.value?.items ?? [])
+    .filter((r) => !approvedOnly.value || isApproved(r))
+    .map((r, i) => ({ ...r, id: i + 1 })),
 )
+const revAll = computed(() => revisions.value?.items.length ?? 0)
 
 const REV_COLUMNS: Column<RevRow>[] = [
   // 엑셀에도 "최신본"이 나가야 화면과 같은 뜻이 된다
@@ -230,10 +304,22 @@ const DIST_COLUMNS: Column<DistRow>[] = [
       <div class="panel head">
         <h1>TDB 자료 상세 보기</h1>
         <span style="flex:1" />
-        <button class="btn btn-sm" :disabled="!neighbors?.prevId"
-                @click="router.push(`/documents/${neighbors!.prevId}`)">◀ 이전</button>
-        <button class="btn btn-sm" :disabled="!neighbors?.nextId"
-                @click="router.push(`/documents/${neighbors!.nextId}`)">다음 ▶</button>
+        <span class="nav" :title="navOn ? '' : '목록에서 들어왔을 때만 넘겨볼 수 있습니다'">
+          <button class="btn btn-sm" title="맨 처음 자료" :disabled="!navOn || navPos === 1"
+                  @click="goDoc(nav?.firstId)">◀◀ 처음</button>
+          <button class="btn btn-sm" title="이전 자료" :disabled="!navOn || !nav?.prevId"
+                  @click="goDoc(nav?.prevId)">◀ 이전</button>
+          <span v-if="navOn" class="nav-count">
+            <input v-model="posInput" type="text" inputmode="numeric" class="nav-pos"
+                   title="번호를 입력하고 Enter" @keydown.enter="jumpTo"
+                   @blur="posInput = navPos === null ? '' : String(navPos)" />
+            / {{ nav?.total }}
+          </span>
+          <button class="btn btn-sm" title="다음 자료" :disabled="!navOn || !nav?.nextId"
+                  @click="goDoc(nav?.nextId)">다음 ▶</button>
+          <button class="btn btn-sm" title="맨 끝 자료" :disabled="!navOn || navPos === nav?.total"
+                  @click="goDoc(nav?.lastId)">끝 ▶▶</button>
+        </span>
         <button class="btn btn-sm" @click="router.push('/')">목록으로</button>
       </div>
 
@@ -350,11 +436,21 @@ const DIST_COLUMNS: Column<DistRow>[] = [
 
         <!-- Revision 이력 -->
         <section v-else-if="tab === 'revisions'" class="pad grid-tab">
+          <div class="tab-bar">
+            <label class="chk">
+              <input v-model="approvedOnly" type="checkbox" /> 승인만 보기
+            </label>
+            <span v-if="approvedOnly && revAll > revRows.length" class="muted small">
+              (전체 {{ revAll }}건 중 승인 {{ revRows.length }}건)
+            </span>
+            <span style="flex:1" />
+            <span v-if="noteMsg" class="note-msg" :class="noteMsg.kind">{{ noteMsg.text }}</span>
+          </div>
           <DataTable
             :columns="REV_COLUMNS" :rows="revRows" :total="revRows.length"
             :row-class="(r) => (r.isCurrent ? 'cur' : '')"
             storage-key="detail-revisions" :excel-name="`${doc.drawingNo} Revision 이력`"
-            empty-text="Revision 이력이 없습니다."
+            :empty-text="approvedOnly && revAll ? '승인된 Revision 이 없습니다. [승인만 보기] 를 끄면 전부 보입니다.' : 'Revision 이력이 없습니다.'"
           >
             <template #cell:label="{ row }">
               <span>{{ row.label }}</span>
@@ -362,15 +458,20 @@ const DIST_COLUMNS: Column<DistRow>[] = [
             </template>
 
             <template #cell:note="{ row }">
-              <span v-if="!session.can('common.note_edit.revision')">{{ row.note ?? '-' }}</span>
-              <input v-else type="text" :value="row.note ?? ''" placeholder="비고"
-                     style="width:100%" @click.stop />
+              <input type="text" :value="row.note ?? ''" :placeholder="canRevNote ? '비고' : ''"
+                     :disabled="!canRevNote" :title="canRevNote ? '' : '비고 작성 권한이 없습니다'"
+                     style="width:100%" @click.stop
+                     @change="saveRevNote(row, ($event.target as HTMLInputElement).value)" />
             </template>
           </DataTable>
         </section>
 
         <!-- 반출 이력 -->
         <section v-else class="pad grid-tab">
+          <div v-if="noteMsg" class="tab-bar">
+            <span style="flex:1" />
+            <span class="note-msg" :class="noteMsg.kind">{{ noteMsg.text }}</span>
+          </div>
           <DataTable
             :columns="DIST_COLUMNS" :rows="distributions?.items ?? []"
             :total="distributions?.items.length ?? 0"
@@ -379,9 +480,10 @@ const DIST_COLUMNS: Column<DistRow>[] = [
             empty-text="반출 이력이 없습니다."
           >
             <template #cell:note="{ row }">
-              <span v-if="!session.can('common.note_edit.distribution')">{{ row.note ?? '-' }}</span>
-              <input v-else type="text" :value="row.note ?? ''" placeholder="비고"
-                     style="width:100%" @click.stop />
+              <input type="text" :value="row.note ?? ''" :placeholder="canDistNote ? '비고' : ''"
+                     :disabled="!canDistNote" :title="canDistNote ? '' : '비고 작성 권한이 없습니다'"
+                     style="width:100%" @click.stop
+                     @change="saveDistNote(row, ($event.target as HTMLInputElement).value)" />
             </template>
           </DataTable>
         </section>
@@ -423,6 +525,15 @@ h2 { font-size: var(--fs-base); margin: 20px 0 8px; }
 .upload { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .upload-msg { margin-top: 8px; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border); }
 .upload-msg.err { color: var(--danger, #c0392b); }
+
+.nav { display: flex; align-items: center; gap: 4px; margin-right: 8px; }
+.nav-count { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-sm); margin: 0 4px; }
+.nav-pos { width: 56px; text-align: right; padding: 2px 4px; }
+.tab-bar { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.chk { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.small { font-size: var(--fs-sm); }
+.note-msg { font-size: var(--fs-sm); }
+.note-msg.err { color: var(--danger, #c0392b); }
 
 .tag {
   font-size: 10px; padding: 1px 5px; border-radius: 8px; margin-left: 4px;

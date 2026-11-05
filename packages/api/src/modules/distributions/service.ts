@@ -3,7 +3,7 @@ import type {
 } from '@tdms/contracts'
 import { tx } from '../../core/db.js'
 import { encodeCursor } from '../../core/cursor.js'
-import { Errors } from '../../core/errors.js'
+import { AppError, Errors } from '../../core/errors.js'
 import * as jobs from '../jobs/service.js'
 import * as q from './queries.js'
 
@@ -80,6 +80,7 @@ export async function zipExports(qp: DistributionListQuery) {
       itemCount: z.itemCount,
       returnedCount: z.returnedCount,
       complete: z.returnedCount >= z.itemCount,
+      hasFile: z.hasFile,
     })),
   }
 }
@@ -137,6 +138,51 @@ export async function markReturned(ids: number[], manual: boolean, note: string 
     const returned = targets.length ? await q.markReturned(c, targets, manual, note) : 0
     return { returned, skipped }
   })
+}
+
+/**
+ * Zip 단위 '수정없이 반납처리' (기존 distributions.py zip-return).
+ *
+ * Zip 하나에 이미 반납된 수정용 자료가 섞여 있으면 그 Zip 은 건드리지 않고 사유를 돌려준다
+ * (기존 CM 확정 — 일부만 수정본이 들어온 묶음을 통째로 '수정없음' 으로 닫으면 안 된다).
+ * 참조용·기타는 애초에 반입 대상이 아니라 건드리지 않는다.
+ */
+export async function returnZips(zipNames: string[]) {
+  return tx(async (c) => {
+    let returned = 0
+    const skipped: { zipName: string; reason: string }[] = []
+    for (const zipName of zipNames) {
+      const rows = await q.findZipForReturn(c, zipName)
+      if (!rows.length) { skipped.push({ zipName, reason: '해당 Zip 을 찾을 수 없습니다.' }); continue }
+      const modify = rows.filter((r) => r.purpose === 'MODIFY')
+      if (!modify.length) {
+        skipped.push({ zipName, reason: '이 Zip 에는 반입 대상(수정용) 자료가 없습니다.' })
+        continue
+      }
+      const already = modify.filter((r) => r.returned_at !== null)
+      if (already.length) {
+        skipped.push({
+          zipName,
+          reason: `이미 반입 처리된 자료가 있어 처리할 수 없습니다 — ${already.slice(0, 5).map((r) => r.label).join(', ')}`
+            + (already.length > 5 ? ` 외 ${already.length - 5}건` : ''),
+        })
+        continue
+      }
+      returned += await q.markReturned(c, modify.map((r) => r.id), true, '수정 없이 반입 처리(Zip 일괄)')
+    }
+    return { returned, skipped }
+  })
+}
+
+/** Zip 다시 받기 — 만든 적이 없으면(워커 미완료·실패) 분명히 알린다 */
+export async function zipFile(zipName: string) {
+  const r = await q.findZipBlob(zipName)
+  if (!r || r.rowCount === 0) throw Errors.notFound('Zip 묶음')
+  if (!r.blobSha256) {
+    throw new AppError('ZIP_NOT_BUILT', 404,
+      'Zip 파일이 아직 만들어지지 않았습니다. 반출 직후라면 잠시 뒤 다시 받으세요. 계속 안 되면 반출 작업이 실패한 것입니다.')
+  }
+  return { sha256: r.blobSha256, byteSize: r.byteSize ?? undefined }
 }
 
 // ── 반출 실행 ───────────────────────────────────────────────────────────
