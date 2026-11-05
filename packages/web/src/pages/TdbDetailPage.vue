@@ -59,14 +59,21 @@ const { data: neighbors } = useQuery({
   staleTime: staleTime.detail,
 })
 
-// 미리보기 대상: 현재 Rev 의 PDF
-const previewFile = computed(() =>
-  doc.value?.files.find((f) => f.isCurrent && f.fileExt.toLowerCase() === 'pdf')
-  ?? doc.value?.files.find((f) => f.fileExt.toLowerCase() === 'pdf'),
-)
+// 미리보기 대상: 현재 Rev 의 PDF 만.
+// 예전에는 현재본에 PDF 가 없으면 아무 PDF 나 띄웠다 — DWG 만 반입·승인한 자료가
+// 옛 Rev(반려본 포함) 도면을 최신인 양 보여 줬다. 옛 PDF 는 이제 '이전 Rev' 라고
+// 밝히고 사용자가 고를 때만 연다.
+const isPdf = (f: FileRow) => f.fileExt.toLowerCase() === 'pdf'
+const currentFiles = computed(() => doc.value?.files.filter((f) => f.isCurrent) ?? [])
+const previewFile = computed(() => currentFiles.value.find(isPdf))
+/** 현재본에 PDF 가 없을 때 고를 수 있는 옛 PDF (최신 Rev 먼저 — 서버가 rev DESC 로 준다) */
+const olderPdfs = computed(() => doc.value?.files.filter((f) => !f.isCurrent && isPdf(f)) ?? [])
+const olderPdfId = ref<number | null>(null)
+const olderPdf = computed(() => olderPdfs.value.find((f) => f.id === olderPdfId.value))
 
 watch(id, () => {
   tab.value = 'info'
+  olderPdfId.value = null
   resetUpload()
 })
 
@@ -282,13 +289,34 @@ const DIST_COLUMNS: Column<DistRow>[] = [
         <!-- 미리보기 -->
         <section v-else-if="tab === 'preview'" class="preview">
           <PdfViewer v-if="previewFile" :file-id="previewFile.id" :document-id="doc.id" />
+          <template v-else-if="olderPdf">
+            <div class="old-pdf-bar">
+              <b>이전 Rev 도면입니다</b> —
+              Rev{{ olderPdf.rev }}{{ olderPdf.branch ? `-${olderPdf.branch}` : '' }}
+              ({{ olderPdf.reviewStatus === 'APPROVED' ? '승인' : olderPdf.reviewStatus }}).
+              현재 Rev{{ doc.currentRev }} 과 다를 수 있습니다.
+              <button class="btn btn-sm" @click="olderPdfId = null">닫기</button>
+            </div>
+            <PdfViewer :file-id="olderPdf.id" :document-id="doc.id" />
+          </template>
           <div v-else class="pad muted tc">
-            PDF 미보유 — 원본(DWG)만 있는 자료입니다.
+            현재 Rev{{ doc.currentRev }} 에는 PDF 가 없습니다 — 원본을 받아 CAD 에서 여세요.
             <div style="margin-top:12px">
-              <a v-for="f in doc.files" :key="f.id" class="btn btn-sm"
+              <a v-for="f in currentFiles" :key="f.id" class="btn btn-sm btn-primary"
                  :href="`/api/files/${f.id}/download`" style="margin:0 4px">
-                {{ f.fileExt.toUpperCase() }} 받기
+                Rev{{ f.rev }} {{ f.fileExt.toUpperCase() }} 받기
               </a>
+            </div>
+            <div v-if="canRegister" style="margin-top:8px">
+              미리보기가 필요하면 '자료내용' 탭 반입등록에서 DWG 와 PDF 를 함께 올리세요.
+            </div>
+            <div v-if="olderPdfs.length" style="margin-top:16px">
+              이전 Rev PDF 보기:
+              <button v-for="f in olderPdfs" :key="f.id" class="btn btn-sm" style="margin:0 4px"
+                      @click="olderPdfId = f.id">
+                Rev{{ f.rev }}{{ f.branch ? `-${f.branch}` : '' }}
+                ({{ f.reviewStatus === 'APPROVED' ? '승인' : f.reviewStatus }})
+              </button>
             </div>
           </div>
         </section>
@@ -352,6 +380,10 @@ const DIST_COLUMNS: Column<DistRow>[] = [
 }
 .grid-tab > :deep(.dt) { flex: 1; min-height: 0; }
 .preview { display: flex; flex-direction: column; }
+.old-pdf-bar {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding: 6px 12px;
+  background: var(--warn-bg, #fff4d6); border-bottom: 1px solid var(--border);
+}
 h2 { font-size: var(--fs-base); margin: 20px 0 8px; }
 
 .kv { border: 1px solid var(--border); }
