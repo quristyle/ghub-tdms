@@ -93,6 +93,10 @@ export function updateProgress(id: number, pct: number, note: string | null) {
   )
 }
 
+export function heartbeat(id: number) {
+  return query(`UPDATE jobs SET heartbeat_at = now() WHERE id = $1 AND state = 'running'`, [id])
+}
+
 export function markDone(id: number, result: unknown, note: string | null) {
   return query(
     `UPDATE jobs SET state = 'done', progress = 100, result = $2,

@@ -1,50 +1,63 @@
 import { z } from 'zod'
 import type { FastifyInstance } from 'fastify'
 import {
-  BranchMergeResult, BulkReviewRequest, BulkReviewResult, DiscardIssueRequest,
-  DuplicateDistributionResponse, ErrorResponse, ImportIssueResponse,
-  PendingReviewResponse, RecheckIssueResult, ResolveIssueRequest,
-  ReviewRequest, ReviewResult, UploadResult, ZipImportAccepted,
+  baseName, BranchMergeResult, BulkReviewRequest, BulkReviewResult, DiscardIssueRequest,
+  DuplicateDistributionResponse, ErrorResponse, fileExtOf, ImportIssueResponse, ImportOptions,
+  ImportTargetQuery, ImportTargetResponse, PendingReviewResponse, ReattachIssueResult,
+  RecheckIssueResult, RegisterNewResult, ResolveIssueRequest, ResolveIssueResult,
+  ReviewRequest, ReviewResult, revName, UploadResult, ZipImportAccepted,
 } from '@tdms/contracts'
-import { AUTHENTICATED, defineRoute, permission } from '../../core/route.js'
+import { AUTHENTICATED, defineRoute, permission, type TdmsRequest } from '../../core/route.js'
 import { Errors } from '../../core/errors.js'
-import { registerBlob, storeStream } from '../../core/blob.js'
+import { registerBlob, storeStream, type StoredBlob } from '../../core/blob.js'
 import { tx } from '../../core/db.js'
+import { sendBlob } from '../../core/files.js'
 import * as jobs from '../jobs/service.js'
+import * as engine from './engine.js'
+import * as q from './queries.js'
 import * as svc from './service.js'
+import { ALLOWED, contentProblem, MAX_UPLOAD } from './upload.js'
 
 const SCREEN = 'TDB 반입·검수'
 const IdParam = z.object({ id: z.coerce.number().int() })
 
-/** 업로드 상한. nginx 의 client_max_body_size 와 맞춘다. */
-const MAX_UPLOAD = 2 * 1024 * 1024 * 1024
-
-/** 확장자만 믿지 않는다 — 앞머리 바이트로 한 번 더 본다. */
-const MAGIC: Record<string, (b: Buffer) => boolean> = {
-  pdf: (b) => b.subarray(0, 5).toString('latin1') === '%PDF-',
-  zip: (b) => b[0] === 0x50 && b[1] === 0x4b,
-  xlsx: (b) => b[0] === 0x50 && b[1] === 0x4b,
-  docx: (b) => b[0] === 0x50 && b[1] === 0x4b,
-  pptx: (b) => b[0] === 0x50 && b[1] === 0x4b,
-  dwg: (b) => b.subarray(0, 2).toString('latin1') === 'AC',
+function assertUsable(stored: { byteSize: number; head: Buffer }, ext: string, filename: string): void {
+  const problem = contentProblem(stored, ext, filename)
+  if (problem) throw Errors.invalid(problem.code, problem.message)
 }
 
-const ALLOWED = new Set(['pdf', 'dwg', 'dxf', 'xlsx', 'xls', 'docx', 'pptx', 'zip'])
+interface UploadedFile {
+  stored: StoredBlob
+  filename: string
+  ext: string
+}
 
 /**
- * 올라온 파일이 쓸 만한지 본다.
- *   · 비어 있지 않은가 — 0바이트는 업로드가 끊겼거나 스트림을 잘못 읽은 것이다
- *   · 앞머리 바이트가 확장자와 맞는가 — 확장자만 바꿔 올린 파일을 막는다
+ * multipart 를 읽어 파일은 blob 으로 넣고 글자 칸은 모아 돌려준다.
+ * 스트림에 곁다리 리스너를 붙이지 않는다 — storeStream 이 파이프라인 안에서
+ * 해시·크기·앞머리를 한 번에 뽑아 준다 (core/blob.ts 주석 참조).
  */
-function assertUsable(stored: { byteSize: number; head: Buffer }, ext: string, filename: string): void {
-  if (stored.byteSize === 0) {
-    throw Errors.invalid('EMPTY_FILE', `내용이 비어 있습니다: ${filename}`)
+async function readMultipart(req: TdmsRequest, allowed: ReadonlySet<string> = ALLOWED) {
+  const fields: Record<string, string> = {}
+  const files: UploadedFile[] = []
+  for await (const part of req.parts()) {
+    if (part.type === 'field') {
+      fields[part.fieldname] = String(part.value)
+      continue
+    }
+    const filename = baseName(part.filename)
+    const ext = fileExtOf(filename)
+    if (!allowed.has(ext)) throw Errors.invalid('EXT_NOT_ALLOWED', `받을 수 없는 형식입니다: .${ext}`)
+    const stored = await storeStream(part.file, MAX_UPLOAD)
+    assertUsable(stored, ext, filename)
+    await tx((c) => registerBlob(c, stored))
+    files.push({ stored, filename, ext })
   }
-  const check = MAGIC[ext]
-  if (check && !check(stored.head)) {
-    throw Errors.invalid('CONTENT_MISMATCH', `내용이 .${ext} 형식이 아닙니다: ${filename}`)
-  }
+  return { fields, files }
 }
+
+const optNum = (v: string | undefined) => (v && v.trim() ? Number(v) : null)
+const optStr = (v: string | undefined) => (v && v.trim() ? v.trim() : null)
 
 export function registerImportRoutes(app: FastifyInstance): void {
   // ── 반입 등록 (개별 자료) ────────────────────────────────────────────
@@ -60,39 +73,14 @@ export function registerImportRoutes(app: FastifyInstance): void {
     },
     handler: async (req) => {
       const { id } = IdParam.parse(req.params)
-      const parts = req.parts()
-
-      const files: svc.IncomingFile[] = []
-      let vendorName = ''
-      let vendorId: number | null = null
-      let projectId: number | null = null
-
-      for await (const part of parts) {
-        if (part.type === 'field') {
-          const v = String(part.value)
-          if (part.fieldname === 'vendorName') vendorName = v
-          if (part.fieldname === 'vendorId' && v) vendorId = Number(v)
-          if (part.fieldname === 'projectId' && v) projectId = Number(v)
-          continue
-        }
-
-        const ext = (part.filename.split('.').pop() ?? '').toLowerCase()
-        if (!ALLOWED.has(ext)) {
-          throw Errors.invalid('EXT_NOT_ALLOWED', `받을 수 없는 형식입니다: .${ext}`)
-        }
-
-        // 스트림에 곁다리 리스너를 붙이지 않는다 — storeStream 이 파이프라인 안에서
-        // 해시·크기·앞머리를 한 번에 뽑아 준다 (core/blob.ts 주석 참조).
-        const stored = await storeStream(part.file, MAX_UPLOAD)
-        assertUsable(stored, ext, part.filename)
-        await tx((c) => registerBlob(c, stored))
-        files.push({ sha256: stored.sha256, originalFilename: part.filename, fileExt: ext })
-      }
-
+      const { fields, files } = await readMultipart(req)
+      const vendorName = fields.vendorName ?? ''
       if (!vendorName) throw Errors.invalid('VENDOR_REQUIRED', '업체를 지정해 주세요.')
 
       const out = await svc.registerRevision(
-        id, files, { id: vendorId, name: vendorName }, projectId, req.auth.user.id,
+        id,
+        files.map((f) => ({ sha256: f.stored.sha256, originalFilename: f.filename, fileExt: f.ext })),
+        { id: optNum(fields.vendorId), name: vendorName }, optNum(fields.projectId), req.auth.user.id,
       )
       req.setAuditTarget(`${out.documentId} ${out.revLabel}`, {
         files: out.created, branched: out.branched, reason: out.reason,
@@ -101,7 +89,9 @@ export function registerImportRoutes(app: FastifyInstance): void {
     },
   })
 
-  // ── 반입 등록 (Zip 대량) — 워커로 넘긴다 ─────────────────────────────
+  // ── 반입 Zip — 반출 때 받은 Zip 을 그대로 올린다 ───────────────────────
+  // 업로드만 요청 안에서 받고, 풀기·진단·등록은 작업으로 돈다(진행률은 /jobs/:id/stream).
+  // 진단이 깨끗한 세트는 리비전 등록을 그대로 써야 해서 워커가 아니라 API 안에서 돈다.
   defineRoute(app, {
     method: 'POST',
     url: '/imports/zip',
@@ -111,28 +101,124 @@ export function registerImportRoutes(app: FastifyInstance): void {
     handler: async (req, reply) => {
       const part = await req.file()
       if (!part) throw Errors.invalid('NO_FILE', '올릴 Zip 파일이 없습니다.')
-      if (!part.filename.toLowerCase().endsWith('.zip')) {
+      if (fileExtOf(part.filename) !== 'zip') {
         throw Errors.invalid('EXT_NOT_ALLOWED', 'Zip 파일만 올릴 수 있습니다.')
       }
-
-      const fields = part.fields as Record<string, { value?: unknown } | undefined>
       const stored = await storeStream(part.file, MAX_UPLOAD)
       assertUsable(stored, 'zip', part.filename)
       await tx((c) => registerBlob(c, stored))
 
-      // 압축을 푸는 것은 워커가 한다 — 요청 스레드에서 수백 건을 처리하지 않는다
-      const jobId = await jobs.create(
+      const userId = req.auth.user.id
+      const jobId = await jobs.runInApi(
         'bulk_import',
-        {
-          sha256: stored.sha256.toString('hex'),
-          filename: part.filename,
-          vendorName: String(fields.vendorName?.value ?? ''),
-          projectId: fields.projectId?.value ? Number(fields.projectId.value) : null,
-        },
-        req.auth.user.id,
+        { mode: 'zip', sha256: stored.sha256.toString('hex'), filename: part.filename },
+        userId,
+        (job, progress) => engine.runZipImport(job, stored.sha256, userId, progress),
+        req.log,
       )
       req.setAuditTarget(part.filename, { jobId, byteSize: stored.byteSize })
       return reply.code(202).send({ jobId })
+    },
+  })
+
+  // ── 반입 자료 — 반출 건을 고르고 파일(또는 Zip)을 올린다 ───────────────
+  defineRoute(app, {
+    method: 'GET',
+    url: '/imports/targets',
+    access: permission('screen.tdb_import.access'),
+    schema: { querystring: ImportTargetQuery, response: { 200: ImportTargetResponse, 403: ErrorResponse } },
+    handler: async (req) => {
+      const rows = await q.listImportTargets(ImportTargetQuery.parse(req.query))
+      return {
+        items: rows.map((r) => ({
+          ...r,
+          displayName: revName(r.drawingNo, r.revAtDistribution),
+          folderPath: (r.folderNames ?? []).join(' > '),
+          distributedAt: r.distributedAt.toISOString(),
+        })),
+      }
+    },
+  })
+
+  defineRoute(app, {
+    method: 'GET',
+    url: '/imports/options',
+    access: permission('screen.tdb_import.access'),
+    schema: { response: { 200: ImportOptions, 403: ErrorResponse } },
+    handler: async () => {
+      const [vendors, projects] = await q.importOptions()
+      return { vendors, projects }
+    },
+  })
+
+  defineRoute(app, {
+    method: 'POST',
+    url: '/imports/by-selection',
+    access: permission('screen.tdb_import.register'),
+    audit: { screen: SCREEN, action: '반입등록 (반입 자료)' },
+    schema: { response: { 202: ZipImportAccepted, 403: ErrorResponse, 422: ErrorResponse } },
+    handler: async (req, reply) => {
+      const { fields, files } = await readMultipart(req)
+      const distributionIds = (fields.distributionIds ?? '')
+        .split(',').map((x) => Number(x.trim())).filter((n) => Number.isInteger(n) && n > 0)
+      const zipName = optStr(fields.zipName)
+      if (!distributionIds.length && !zipName) {
+        throw Errors.invalid('NO_TARGET', '대상 도면을 먼저 선택해주세요.')
+      }
+      if (!files.length) throw Errors.invalid('NO_FILES', '업로드할 파일을 선택해주세요.')
+
+      const payload: engine.SelectionPayload = {
+        distributionIds: distributionIds.slice(0, 5000),
+        zipName,
+        uploads: files.filter((f) => f.ext !== 'zip').map((f) => ({
+          sha256: f.stored.sha256.toString('hex'), filename: f.filename, byteSize: f.stored.byteSize,
+        })),
+        zips: files.filter((f) => f.ext === 'zip').map((f) => f.stored.sha256.toString('hex')),
+      }
+      const userId = req.auth.user.id
+      const jobId = await jobs.runInApi(
+        'bulk_import', { mode: 'selection', ...payload }, userId,
+        (job, progress) => engine.runSelectionImport(job, payload, userId, progress),
+        req.log,
+      )
+      req.setAuditTarget(zipName ?? `반출 ${distributionIds.length}건`, { jobId, files: files.length })
+      return reply.code(202).send({ jobId })
+    },
+  })
+
+  // ── 신규 자료 등록 ───────────────────────────────────────────────────
+  defineRoute(app, {
+    method: 'POST',
+    url: '/imports/register-new',
+    access: permission('screen.tdb_import.register'),
+    audit: { screen: SCREEN, action: '신규 자료 등록' },
+    schema: { response: { 200: RegisterNewResult, 403: ErrorResponse, 404: ErrorResponse, 409: ErrorResponse, 422: ErrorResponse } },
+    handler: async (req) => {
+      const allowed = new Set([...ALLOWED].filter((e) => e !== 'zip'))
+      const { fields, files } = await readMultipart(req, allowed)
+      const folderId = optNum(fields.folderId)
+      if (folderId === null || !Number.isInteger(folderId)) {
+        throw Errors.invalid('FOLDER_REQUIRED', '등록할 폴더를 골라 주세요.')
+      }
+      const out = await svc.registerNew(
+        {
+          folderId,
+          drawingNo: fields.drawingNo ?? '',
+          title: optStr(fields.title),
+          category: optStr(fields.category),
+          discipline: optStr(fields.discipline),
+          docType: optStr(fields.docType),
+          isblOsbl: optStr(fields.isblOsbl),
+          elevation: optStr(fields.elevation),
+          area: optStr(fields.area),
+          vendorName: optStr(fields.vendorName),
+          projectId: optNum(fields.projectId),
+        },
+        files.map((f) => ({ sha256: f.stored.sha256, originalFilename: f.filename, fileExt: f.ext })),
+        req.auth.user.id,
+      )
+      req.setAuditTarget(out.drawingNo, { documentId: out.documentId, files: out.fileCount })
+      return out
     },
   })
 
@@ -224,6 +310,25 @@ export function registerImportRoutes(app: FastifyInstance): void {
     handler: async () => svc.issues(),
   })
 
+  // 승인 전 파일이라 files 행이 없어 /files/:id/view 를 못 쓴다 — 항목이 가진 PDF 를 내준다
+  defineRoute(app, {
+    method: 'GET',
+    url: '/import-issues/:id/preview',
+    access: permission('screen.tdb_import.access'),
+    audit: { screen: SCREEN, action: '확인 필요 — PDF 미리보기' },
+    schema: { params: IdParam, response: { 404: ErrorResponse } },
+    handler: async (req, reply) => {
+      const { id } = IdParam.parse(req.params)
+      const pdf = await svc.issuePdf(id)
+      req.setAuditTarget(pdf.filename, { issueId: id, mode: 'inline' })
+      reply.header('Cache-Control', 'no-store')
+      return sendBlob(reply, {
+        sha256: pdf.sha256, filename: pdf.filename, contentType: 'application/pdf',
+        inline: true, byteSize: pdf.byteSize,
+      })
+    },
+  })
+
   defineRoute(app, {
     method: 'POST',
     url: '/import-issues/:id/resolve',
@@ -231,15 +336,34 @@ export function registerImportRoutes(app: FastifyInstance): void {
     audit: { screen: SCREEN, action: '확인 필요 — 경로 재선택' },
     schema: {
       params: IdParam, body: ResolveIssueRequest,
-      response: { 200: UploadResult, 403: ErrorResponse, 409: ErrorResponse, 422: ErrorResponse },
+      response: { 200: ResolveIssueResult, 403: ErrorResponse, 404: ErrorResponse, 409: ErrorResponse },
     },
     handler: async (req) => {
       const { id } = IdParam.parse(req.params)
       const body = ResolveIssueRequest.parse(req.body)
-      const out = await svc.resolveIssue(
-        id, body.documentId, { id: null, name: body.vendorName }, body.projectId, req.auth.user.id,
-      )
-      req.setAuditTarget(`확인필요 ${id} → 자료 ${body.documentId}`, { revLabel: out.revLabel })
+      const out = await svc.resolveIssue(id, body.documentId)
+      req.setAuditTarget(`확인필요 ${id} → ${out.drawingNo}`, { documentId: out.documentId })
+      return out
+    },
+  })
+
+  defineRoute(app, {
+    method: 'POST',
+    url: '/import-issues/:id/reattach',
+    access: permission('screen.tdb_import.issue.reattach'),
+    audit: { screen: SCREEN, action: '확인 필요 — 자료 재첨부' },
+    schema: {
+      params: IdParam,
+      response: { 200: ReattachIssueResult, 403: ErrorResponse, 404: ErrorResponse, 409: ErrorResponse, 422: ErrorResponse },
+    },
+    handler: async (req) => {
+      const { id } = IdParam.parse(req.params)
+      const allowed = new Set([...ALLOWED].filter((e) => e !== 'zip'))
+      const { files } = await readMultipart(req, allowed)
+      const out = await svc.reattachIssue(id, files.map((f) => svc.toIssueFile({
+        sha256: f.stored.sha256, filename: f.filename, ext: f.ext, byteSize: f.stored.byteSize, folder: null,
+      })))
+      req.setAuditTarget(`확인필요 ${id}`, { files: files.map((f) => f.filename) })
       return out
     },
   })
@@ -249,11 +373,14 @@ export function registerImportRoutes(app: FastifyInstance): void {
     url: '/import-issues/:id/recheck',
     access: permission('screen.tdb_import.issue.recheck'),
     audit: { screen: SCREEN, action: '확인 필요 — 재검수' },
-    schema: { params: IdParam, response: { 200: RecheckIssueResult, 403: ErrorResponse } },
+    schema: {
+      params: IdParam,
+      response: { 200: RecheckIssueResult, 403: ErrorResponse, 404: ErrorResponse, 409: ErrorResponse, 422: ErrorResponse },
+    },
     handler: async (req) => {
       const { id } = IdParam.parse(req.params)
       const out = await svc.recheckIssue(id, req.auth.user.id)
-      req.setAuditTarget(`확인필요 ${id}`, { message: out.message })
+      req.setAuditTarget(`확인필요 ${id}`, { resolved: out.resolved, message: out.message })
       return out
     },
   })
@@ -265,12 +392,12 @@ export function registerImportRoutes(app: FastifyInstance): void {
     audit: { screen: SCREEN, action: '확인 필요 — 반려' },
     schema: {
       params: IdParam, body: DiscardIssueRequest,
-      response: { 200: z.object({ ok: z.literal(true) }), 403: ErrorResponse },
+      response: { 200: z.object({ ok: z.literal(true) }), 403: ErrorResponse, 404: ErrorResponse, 409: ErrorResponse },
     },
     handler: async (req) => {
       const { id } = IdParam.parse(req.params)
-      const body = DiscardIssueRequest.parse(req.body)
-      await svc.discardIssue(id, req.auth.user.id)
+      const body = DiscardIssueRequest.parse(req.body ?? {})
+      await svc.discardIssue(id, body.note, req.auth.user.id)
       req.setAuditTarget(`확인필요 ${id}`, { note: body.note })
       return { ok: true as const }
     },
@@ -300,24 +427,13 @@ export function registerImportRoutes(app: FastifyInstance): void {
     },
     handler: async (req) => {
       const { id } = IdParam.parse(req.params)
-      const files: svc.IncomingFile[] = []
-      let projectId: number | null = null
-
-      for await (const part of req.parts()) {
-        if (part.type === 'field') {
-          if (part.fieldname === 'projectId' && part.value) projectId = Number(part.value)
-          continue
-        }
-        const ext = (part.filename.split('.').pop() ?? '').toLowerCase()
-        if (!ALLOWED.has(ext)) throw Errors.invalid('EXT_NOT_ALLOWED', `받을 수 없는 형식입니다: .${ext}`)
-        const stored = await storeStream(part.file, MAX_UPLOAD)
-        assertUsable(stored, ext, part.filename)
-        await tx((c) => registerBlob(c, stored))
-        files.push({ sha256: stored.sha256, originalFilename: part.filename, fileExt: ext })
-      }
-
+      const { fields, files } = await readMultipart(req)
       if (files.length === 0) throw Errors.invalid('NO_FILES', '통합본 파일을 첨부해 주세요.')
-      const out = await svc.branchMerge(id, files, projectId, req.auth.user.id)
+      const out = await svc.branchMerge(
+        id,
+        files.map((f) => ({ sha256: f.stored.sha256, originalFilename: f.filename, fileExt: f.ext })),
+        optNum(fields.projectId), req.auth.user.id,
+      )
       req.setAuditTarget(`자료 ${id} ${out.revLabel}`, { closedBranches: out.closedBranches })
       return out
     },

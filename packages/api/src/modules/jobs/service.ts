@@ -83,3 +83,45 @@ export async function finish(jobId: number, result: unknown): Promise<void> {
 export async function fail(jobId: number, message: string): Promise<void> {
   await q.markFailed(jobId, message)
 }
+
+export type ProgressFn = (percent: number, note?: string) => Promise<void>
+
+/**
+ * 작업 행을 running 으로 만들고, 응답을 보낸 뒤 fn 을 백그라운드에서 돌린다.
+ * 진행률은 jobs.progress 로 나가 화면(JobProgress)이 SSE 로 받는다. 하트비트는 30초마다 —
+ * 2분 넘게 끊기면 워커의 좀비 회수가 '실패'로 닫는다.
+ * fn 이 돌려준 {result, note} 로 끝내고(note 가 완료 안내문), 던지면 그 메시지로 실패 처리한다.
+ */
+export async function runInApi(
+  kind: string,
+  payload: unknown,
+  userId: number,
+  fn: (jobId: number, progress: ProgressFn) => Promise<{ result: unknown; note: string }>,
+  log?: { error: (obj: unknown, msg?: string) => void },
+): Promise<number> {
+  const jobId = await q.insertRunning(kind, payload, userId)
+
+  let last = -1
+  let lastAt = 0
+  const progress: ProgressFn = async (percent, note) => {
+    const p = Math.max(0, Math.min(99, Math.round(percent)))
+    const now = Date.now()
+    // 같은 값을 반복해서 쓰지 않는다 — 쓰기 증폭을 막는다
+    if (!note && (p === last || (now - lastAt < 300 && p - last < 5))) return
+    last = p
+    lastAt = now
+    await q.updateProgress(jobId, p, note ?? null)
+  }
+
+  setImmediate(() => {
+    const beat = setInterval(() => void q.heartbeat(jobId).catch(() => {}), 30_000)
+    fn(jobId, progress)
+      .then(({ result, note }) => q.markDone(jobId, result, note))
+      .catch(async (e: unknown) => {
+        log?.error({ err: e, jobId }, `${kind} 작업 실패`)
+        await q.markFailed(jobId, (e instanceof Error ? e.message : String(e)).slice(0, 4000)).catch(() => {})
+      })
+      .finally(() => clearInterval(beat))
+  })
+  return jobId
+}
