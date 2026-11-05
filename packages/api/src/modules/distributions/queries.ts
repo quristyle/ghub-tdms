@@ -124,6 +124,7 @@ export interface ZipRow {
   distributedAt: Date
   itemCount: number
   returnedCount: number
+  hasFile: boolean
 }
 
 export function listZipExports(qp: DistributionListQuery) {
@@ -139,7 +140,8 @@ export function listZipExports(qp: DistributionListQuery) {
             min(u.name)         AS "distributedBy",
             min(x.distributed_at) AS "distributedAt",
             count(*)::int       AS "itemCount",
-            count(x.returned_at)::int AS "returnedCount"
+            count(x.returned_at)::int AS "returnedCount",
+            bool_or(x.blob_sha256 IS NOT NULL) AS "hasFile"
        FROM distributions x
        LEFT JOIN documents d ON d.id = x.document_id
        LEFT JOIN projects  p ON p.id = x.project_id
@@ -158,6 +160,37 @@ export function listByZip(zipName: string) {
     [zipName],
     'dist_by_zip',
   )
+}
+
+/**
+ * Zip 다시 받기 — 워커(zip_build)가 다 만든 뒤 그 Zip 의 모든 줄에 같은 blob 을 적는다.
+ * 줄은 있는데 blob 이 없으면 아직 만들지 못한(또는 실패한) 것이다.
+ */
+export function findZipBlob(zipName: string) {
+  return one<{ rowCount: number; blobSha256: Buffer | null; byteSize: number | null }>(
+    `SELECT count(*)::int AS "rowCount",
+            (array_agg(x.blob_sha256) FILTER (WHERE x.blob_sha256 IS NOT NULL))[1] AS "blobSha256",
+            (array_agg(b.byte_size)   FILTER (WHERE x.blob_sha256 IS NOT NULL))[1]::bigint AS "byteSize"
+       FROM distributions x
+  LEFT JOIN blobs b ON b.sha256 = x.blob_sha256
+      WHERE x.zip_name = $1`,
+    [zipName],
+    'dist_zip_blob',
+  )
+}
+
+/** Zip 단위 반납 — 그 Zip 의 수정용 줄을 잠그고 읽는다 */
+export async function findZipForReturn(c: pg.PoolClient, zipName: string) {
+  const r = await c.query<{ id: number; label: string; returned_at: Date | null; purpose: string }>(
+    `SELECT x.id, coalesce(x.document_label, d.drawing_no, '(삭제된 자료)') AS label,
+            x.returned_at, x.purpose
+       FROM distributions x LEFT JOIN documents d ON d.id = x.document_id
+      WHERE x.zip_name = $1
+      ORDER BY x.id
+        FOR UPDATE OF x`,
+    [zipName],
+  )
+  return r.rows
 }
 
 // ── 미입고 ──────────────────────────────────────────────────────────────

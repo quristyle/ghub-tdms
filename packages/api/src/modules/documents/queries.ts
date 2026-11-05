@@ -62,12 +62,14 @@ const HOLD_SQL: Record<string, string> = {
   pdf_only: 'd.has_pdf AND NOT d.has_dwg',
 }
 
-export async function listDocuments(
-  folderIds: number[],
-  qp: DocumentListQuery,
-): Promise<DocumentListRow[]> {
-  const cur = decodeCursor(qp.cursor)
-  const params: unknown[] = [folderIds, qp.limit + 1]
+/** 목록·넘겨보기·건수가 함께 쓰는 거르개 — 셋이 어긋나면 "n / 전체" 가 목록과 다르다 */
+export type ListFilter = Pick<
+  DocumentListQuery,
+  'status' | 'hold' | 'includeIsometric' | 'q' | 'searchTarget' | 'projectId' | 'rev' | 'docType'
+>
+
+/** WHERE 조각들. params[0] 은 언제나 폴더 id 목록이다. */
+function buildListWhere(qp: ListFilter, params: unknown[]): string[] {
   const where: string[] = ['d.folder_id = ANY($1::bigint[])']
 
   where.push(STATUS_SQL[qp.status] ?? STATUS_SQL.all!)
@@ -76,13 +78,10 @@ export async function listDocuments(
   if (!qp.includeIsometric) where.push('NOT d.is_isometric')
 
   if (qp.q) {
-    if (qp.searchTarget === 'folder') {
-      params.push(`%${qp.q}%`)
-      where.push(`f.name ILIKE $${params.length}`)
-    } else {
-      params.push(`%${qp.q}%`)
-      where.push(`d.search_text ILIKE $${params.length}`)
-    }
+    params.push(`%${qp.q}%`)
+    where.push(qp.searchTarget === 'folder'
+      ? `f.name ILIKE $${params.length}`
+      : `d.search_text ILIKE $${params.length}`)
   }
   if (qp.projectId !== undefined) {
     params.push(qp.projectId)
@@ -96,49 +95,75 @@ export async function listDocuments(
     params.push(qp.docType)
     where.push(`d.doc_type = $${params.length}`)
   }
-  // 정렬 칸과 방향. 커서 비교도 같은 칸으로 한다 — 그래야 다음 쪽이 이어진다.
+  return where
+}
+
+/** 목록 한 줄의 선택부 — 목록과 폴더 반출이 같은 모양을 내려준다 */
+const LIST_SELECT = `
+  SELECT d.id,
+         d.drawing_no   AS "drawingNo",
+         d.title,
+         d.folder_id    AS "folderId",
+         f.name         AS "folderName",
+         d.doc_type     AS "docType",
+         d.current_rev  AS "currentRev",
+         d.status,
+         d.is_isometric AS "isIsometric",
+         d.has_dwg      AS "hasDwg",
+         d.has_pdf      AS "hasPdf",
+         d.has_xlsx     AS "hasXlsx",
+         d.has_etc      AS "hasEtc",
+         d.updated_at   AS "updatedAt",
+         lent.vendor_name    AS "lentTo",
+         lent.distributed_at AS "lentAt"
+    FROM documents d
+    JOIN folders f ON f.id = d.folder_id
+LEFT JOIN LATERAL (
+         SELECT vendor_name, distributed_at
+           FROM distributions
+          WHERE document_id = d.id AND returned_at IS NULL
+          ORDER BY distributed_at DESC
+          LIMIT 1
+    ) lent ON true`
+
+/** 정렬 칸·방향 → ORDER BY. 커서·넘겨보기도 같은 순서를 쓴다. */
+function orderOf(qp: Pick<DocumentListQuery, 'sort' | 'dir'>) {
   const sortCol = SORT_SQL[qp.sort] ?? SORT_SQL.updatedAt!
   const desc = qp.dir === 'desc'
-  const cmp = desc ? '<' : '>'
   // 정렬 칸이 비어 있는 줄이 섞여도 순서가 흔들리지 않게 NULL 자리를 고정한다
   const nulls = desc ? 'NULLS LAST' : 'NULLS FIRST'
+  return {
+    sortCol,
+    desc,
+    sql: `${sortCol} ${desc ? 'DESC' : 'ASC'} ${nulls}, d.id ${desc ? 'DESC' : 'ASC'}`,
+  }
+}
+
+export async function listDocuments(
+  folderIds: number[],
+  qp: DocumentListQuery,
+): Promise<DocumentListRow[]> {
+  const cur = decodeCursor(qp.cursor)
+  const params: unknown[] = [folderIds]
+  const where = buildListWhere(qp, params)
+
+  // 정렬 칸과 방향. 커서 비교도 같은 칸으로 한다 — 그래야 다음 쪽이 이어진다.
+  const order = orderOf(qp)
+  const cmp = order.desc ? '<' : '>'
 
   if (cur) {
     params.push(cur.sortValue, cur.id)
     where.push(
-      `(${sortCol}, d.id) ${cmp} ($${params.length - 1}::text::${sortCastOf(qp.sort)}, $${params.length}::bigint)`,
+      `(${order.sortCol}, d.id) ${cmp} ($${params.length - 1}::text::${sortCastOf(qp.sort)}, $${params.length}::bigint)`,
     )
   }
+  params.push(qp.limit + 1)
 
   return many<DocumentListRow>(
-    `SELECT d.id,
-            d.drawing_no   AS "drawingNo",
-            d.title,
-            d.folder_id    AS "folderId",
-            f.name         AS "folderName",
-            d.doc_type     AS "docType",
-            d.current_rev  AS "currentRev",
-            d.status,
-            d.is_isometric AS "isIsometric",
-            d.has_dwg      AS "hasDwg",
-            d.has_pdf      AS "hasPdf",
-            d.has_xlsx     AS "hasXlsx",
-            d.has_etc      AS "hasEtc",
-            d.updated_at   AS "updatedAt",
-            lent.vendor_name    AS "lentTo",
-            lent.distributed_at AS "lentAt"
-       FROM documents d
-       JOIN folders f ON f.id = d.folder_id
-  LEFT JOIN LATERAL (
-            SELECT vendor_name, distributed_at
-              FROM distributions
-             WHERE document_id = d.id AND returned_at IS NULL
-             ORDER BY distributed_at DESC
-             LIMIT 1
-       ) lent ON true
+    `${LIST_SELECT}
       WHERE ${where.join('\n        AND ')}
-      ORDER BY ${sortCol} ${desc ? 'DESC' : 'ASC'} ${nulls}, d.id ${desc ? 'DESC' : 'ASC'}
-      LIMIT $2`,
+      ORDER BY ${order.sql}
+      LIMIT $${params.length}`,
     params,
   )
 }
@@ -160,18 +185,9 @@ export function sortValueOf(row: DocumentListRow, sort: string): string {
 }
 
 /** 총 건수는 비싸다 — 첫 페이지에서만 센다. */
-export async function countDocuments(folderIds: number[], qp: DocumentListQuery): Promise<number> {
+export async function countDocuments(folderIds: number[], qp: ListFilter): Promise<number> {
   const params: unknown[] = [folderIds]
-  const where: string[] = ['d.folder_id = ANY($1::bigint[])']
-  where.push(STATUS_SQL[qp.status] ?? STATUS_SQL.all!)
-  where.push(HOLD_SQL[qp.hold] ?? 'TRUE')
-  if (!qp.includeIsometric) where.push('NOT d.is_isometric')
-  if (qp.q) {
-    params.push(`%${qp.q}%`)
-    where.push(qp.searchTarget === 'folder'
-      ? `f.name ILIKE $${params.length}`
-      : `d.search_text ILIKE $${params.length}`)
-  }
+  const where = buildListWhere(qp, params)
   const row = await one<{ n: number }>(
     `SELECT count(*)::int AS n
        FROM documents d JOIN folders f ON f.id = d.folder_id
@@ -380,4 +396,158 @@ export function neighborIds(documentId: number) {
     [documentId],
     'document_neighbors',
   )
+}
+
+/**
+ * 처음·이전·다음·끝과 "n / 전체" — 목록과 같은 거르개·같은 정렬로 번호를 매긴다.
+ *
+ * 기존 detail.js 는 목록 전체 id 를 브라우저에 쥐고 다녔다. 여기서는 번호만 묻는다 —
+ * 폴더 전체(수만 건)여도 응답은 숫자 몇 개다.
+ * 기준은 id(지금 자료) 또는 at(번호 칸에 넣은 자리) 중 하나다.
+ */
+export function navigate(
+  folderIds: number[],
+  qp: ListFilter & Pick<DocumentListQuery, 'sort' | 'dir'>,
+  by: { id?: number; at?: number },
+) {
+  const params: unknown[] = [folderIds]
+  const where = buildListWhere(qp, params)
+  let curCond = 'FALSE'
+  if (by.at !== undefined) {
+    params.push(by.at)
+    curCond = `s.rn = LEAST($${params.length}::int, (SELECT total FROM n))`
+  } else if (by.id !== undefined) {
+    params.push(by.id)
+    curCond = `s.id = $${params.length}::bigint`
+  }
+
+  return one<{
+    currentId: number | null; position: number | null; total: number
+    firstId: number | null; prevId: number | null; nextId: number | null; lastId: number | null
+  }>(
+    `WITH s AS (
+       SELECT d.id, row_number() OVER (ORDER BY ${orderOf(qp).sql})::int AS rn
+         FROM documents d JOIN folders f ON f.id = d.folder_id
+        WHERE ${where.join(' AND ')}
+     ),
+     n   AS (SELECT count(*)::int AS total FROM s),
+     cur AS (SELECT s.id, s.rn FROM s WHERE ${curCond} LIMIT 1)
+     SELECT (SELECT id FROM cur)                                AS "currentId",
+            (SELECT rn FROM cur)                                AS position,
+            (SELECT total FROM n)                               AS total,
+            (SELECT s.id FROM s WHERE s.rn = 1)                 AS "firstId",
+            (SELECT s.id FROM s, cur WHERE s.rn = cur.rn - 1)   AS "prevId",
+            (SELECT s.id FROM s, cur WHERE s.rn = cur.rn + 1)   AS "nextId",
+            (SELECT s.id FROM s, n WHERE s.rn = n.total)        AS "lastId"`,
+    params,
+  )
+}
+
+/** 반출 한 번에 담을 수 있는 자료 수 — CreateDistributionRequest.documentIds 의 상한과 같다 */
+export const FOLDER_CART_MAX = 5000
+
+/** 폴더 반출 — 그 폴더(하위 포함 여부는 recursive)의 자료 전부. 상한에서 하나 더 읽어 넘침을 안다. */
+export function listFolderDocuments(folderIds: number[], includeIsometric: boolean) {
+  const params: unknown[] = [folderIds]
+  const where = buildListWhere(
+    { status: 'all', hold: 'all', includeIsometric, searchTarget: 'title' },
+    params,
+  )
+  return many<DocumentListRow>(
+    `${LIST_SELECT}
+      WHERE ${where.join(' AND ')}
+      ORDER BY f.name, d.drawing_no, d.id
+      LIMIT ${FOLDER_CART_MAX + 1}`,
+    params,
+  )
+}
+
+// ── TDB 수정 (최근수정본) ───────────────────────────────────────────────
+
+/**
+ * "수정된 자료" 로 볼 것인가 — 기존 is_modified_condition 을 옮긴 것.
+ *
+ *   ① 등록된 뒤로 실제로 무언가 바뀐 것 (updated_at > created_at)
+ *   ② 초기 일괄적재 **이후**에 새로 등록된 것 — 등록 자체를 수정으로 본다
+ *
+ * 기존은 ② 의 기준일을 날짜로 박아 두었다(2026-08-14). 이 시스템은 이관 적재일이
+ * 따로 있으므로 "가장 먼저 등록된 날의 다음 날" 을 기준으로 삼는다 — 그래야 이관된
+ * 수만 건이 통째로 "최근 수정" 으로 물들지 않고, 이관을 다시 돌려도 저절로 맞는다.
+ */
+const MODIFIED_SQL = `
+  (d.updated_at > d.created_at
+   OR d.created_at >= (SELECT min(created_at) + interval '1 day' FROM documents))`
+
+const RECENT_WHERE = `
+  NOT d.is_archived AND d.status <> 'RETIRED'
+  AND ${MODIFIED_SQL}
+  AND d.updated_at >= now() - make_interval(days => $1::int)`
+
+export interface RecentChangeRow {
+  id: number
+  drawingNo: string
+  title: string
+  category: string | null
+  path: string | null
+  updatedAt: Date
+  currentRev: number
+  revTo: number | null
+  vendorName: string | null
+  projectName: string | null
+  changedBy: string | null
+}
+
+/**
+ * 기간 안에 승인된 리비전(rev 1 이상)이 있으면 "내용이 바뀐 것"(Rev a → b),
+ * 없으면 "일반 수정". 누가 바꿨는지는 그 리비전을 올린 사람이다 —
+ * 기존은 감사 로그에서 찾았는데 이 시스템의 감사 로그는 자료 id 를 따로 두지 않는다.
+ */
+export function listRecentChanges(days: number) {
+  return many<RecentChangeRow>(
+    `WITH docs AS (
+       SELECT d.id, d.drawing_no, d.title, d.category, d.folder_id, d.updated_at, d.current_rev
+         FROM documents d
+        WHERE ${RECENT_WHERE}
+     )
+     SELECT docs.id,
+            docs.drawing_no  AS "drawingNo",
+            docs.title,
+            docs.category,
+            fp.path,
+            docs.updated_at  AS "updatedAt",
+            docs.current_rev AS "currentRev",
+            rf.rev           AS "revTo",
+            rf.vendor_name   AS "vendorName",
+            p.name           AS "projectName",
+            u.name           AS "changedBy"
+       FROM docs
+       JOIN folders fo ON fo.id = docs.folder_id
+  LEFT JOIN LATERAL (
+            SELECT string_agg(a.name, ' / ' ORDER BY a.depth) AS path
+              FROM folders a WHERE a.path @> fo.path) fp ON true
+  LEFT JOIN LATERAL (
+            SELECT fl.rev, coalesce(fl.vendor_name, v.name) AS vendor_name,
+                   fl.project_id, fl.uploaded_by
+              FROM files fl LEFT JOIN vendors v ON v.id = fl.vendor_id
+             WHERE fl.document_id = docs.id
+               AND fl.rev >= 1 AND fl.review_status = 'APPROVED'
+               AND fl.uploaded_at >= now() - make_interval(days => $1::int)
+             ORDER BY fl.rev DESC, fl.id DESC
+             LIMIT 1) rf ON true
+  LEFT JOIN projects p ON p.id = rf.project_id
+  LEFT JOIN users    u ON u.id = rf.uploaded_by
+      ORDER BY docs.updated_at DESC, docs.id`,
+    [days],
+    'document_recent_changes',
+  )
+}
+
+/** 상단 [TDB 수정] 단추의 건수 — 권한과 무관하게 누구나 같은 숫자를 본다 (기존 CM 확정) */
+export async function countRecentChanges(days: number): Promise<number> {
+  const row = await one<{ n: number }>(
+    `SELECT count(*)::int AS n FROM documents d WHERE ${RECENT_WHERE}`,
+    [days],
+    'document_recent_count',
+  )
+  return row?.n ?? 0
 }

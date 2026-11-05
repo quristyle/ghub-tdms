@@ -9,7 +9,8 @@ export async function create(kind: string, payload: unknown, userId: number): Pr
     if (p.target === 'tdb_documents' && p.filters) {
       const folderId = p.filters.folderId
       if (folderId && !p.filters.folderIds) {
-        const folderIds = await folders.scopeIds('TDB', Number(folderId), true)
+        // 화면의 [하위폴더 전체보기] 를 따른다 — 안 보냈으면 예전처럼 하위 포함
+        const folderIds = await folders.scopeIds('TDB', Number(folderId), p.filters.recursive !== false)
         enrichedPayload = {
           ...p,
           filters: {

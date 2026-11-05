@@ -81,6 +81,8 @@ export const ZipExportRow = z.object({
   returnedCount: z.number().int(),
   /** 전부 돌아왔는가 */
   complete: z.boolean(),
+  /** Zip 을 다시 받을 수 있는가 — 워커가 다 만들어 blob 을 적어 둔 뒤에만 true */
+  hasFile: z.boolean(),
 })
 export type ZipExportRow = z.infer<typeof ZipExportRow>
 
@@ -154,6 +156,23 @@ export const ReturnResult = z.object({
   skipped: z.array(z.object({ id: z.number().int(), reason: z.string() })),
 })
 export type ReturnResult = z.infer<typeof ReturnResult>
+
+/**
+ * Zip 단위 '수정없이 반납처리' (기존 distributions.py zip-return).
+ *
+ * 그 Zip 안에 이미 반납된 자료가 하나라도 있으면 섞인 상태이므로 그 Zip 은 처리하지 않고
+ * 사유를 돌려준다(기존 CM 확정). 하나도 반납 안 됐을 때만 수정용 자료를 한꺼번에 닫는다.
+ */
+export const ZipReturnRequest = z.object({
+  zipNames: z.array(z.string().min(1).max(300)).min(1).max(200),
+})
+export type ZipReturnRequest = z.infer<typeof ZipReturnRequest>
+
+export const ZipReturnResult = z.object({
+  returned: z.number().int(),
+  skipped: z.array(z.object({ zipName: z.string(), reason: z.string() })),
+})
+export type ZipReturnResult = z.infer<typeof ZipReturnResult>
 
 // ── 반출 실행 ───────────────────────────────────────────────────────────
 

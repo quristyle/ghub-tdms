@@ -94,3 +94,88 @@ export const DocumentDetail = DocumentListItem.extend({
   files: z.array(DocumentFile),
 })
 export type DocumentDetail = z.infer<typeof DocumentDetail>
+
+// ── 상세 화면의 처음·이전·다음·끝 ───────────────────────────────────────
+// 기존 detail.js 는 "방금 다녀온 목록의 순서" 를 따라간다. 목록 화면이 지금 검색조건을
+// sessionStorage 에 남기고, 상세 화면이 그 조건 그대로 여기에 묻는다.
+
+export const DocumentNavQuery = DocumentListQuery.omit({ cursor: true, limit: true }).extend({
+  /** 지금 보고 있는 자료 */
+  id: z.coerce.number().int().optional(),
+  /** "n / 전체" 칸에 번호를 넣었을 때 — 1부터. 주면 id 대신 이 자리를 기준으로 삼는다 */
+  at: z.coerce.number().int().min(1).optional(),
+})
+export type DocumentNavQuery = z.infer<typeof DocumentNavQuery>
+
+export const DocumentNav = z.object({
+  /** 기준 자료 — at 으로 물었으면 그 자리의 자료 */
+  currentId: z.number().int().nullable(),
+  /** 1부터. 목록에 없으면(직접 접근·조건 밖) null — 화면은 버튼을 끈다 */
+  position: z.number().int().nullable(),
+  total: z.number().int(),
+  firstId: z.number().int().nullable(),
+  prevId: z.number().int().nullable(),
+  nextId: z.number().int().nullable(),
+  lastId: z.number().int().nullable(),
+})
+export type DocumentNav = z.infer<typeof DocumentNav>
+
+// ── 폴더 반출 ────────────────────────────────────────────────────────────
+// 체크와 무관하게, 고른 폴더(하위 포함)의 자료 전부를 반출대기함에 담는다 (기존 ids-by-path).
+// 대기함 표(자료명·분류·경로)를 그리려면 id 만으로는 모자라 목록 줄 그대로 준다.
+
+export const FolderDocumentsQuery = z.object({
+  folderId: z.coerce.number().int(),
+  recursive: BoolParam.default(true),
+  includeIsometric: BoolParam.default(false),
+})
+export type FolderDocumentsQuery = z.infer<typeof FolderDocumentsQuery>
+
+export const FolderDocumentsResponse = z.object({ items: z.array(DocumentListItem) })
+export type FolderDocumentsResponse = z.infer<typeof FolderDocumentsResponse>
+
+// ── TDB 수정 (최근수정본) ────────────────────────────────────────────────
+// 기존 documents.py recent-changes. "요즘 뭐가 바뀌었나" 를 한 번에 본다.
+// 수정 판단은 documents.updated_at 하나로 한다 — 목록의 "최종수정" 과 같은 값이라
+// 화면과 팝업이 어긋나지 않는다.
+
+/** 기존 화면의 기준일 — 오늘~30일(진한 색) / 31~90일(연한 색) */
+export const RECENT_STRONG_DAYS = 30
+export const RECENT_SOFT_DAYS = 90
+
+export const RecentChangesQuery = z.object({
+  days: z.coerce.number().int().min(1).max(3650).default(RECENT_SOFT_DAYS),
+})
+export type RecentChangesQuery = z.infer<typeof RecentChangesQuery>
+
+/** 화면 라벨: Rev a → b / 일반 수정 */
+export const RecentChangeKind = z.enum(['REVISION', 'INFO'])
+
+export const RecentChangeItem = z.object({
+  /** 그리드 열쇠 — 자료 id */
+  id: z.number().int(),
+  drawingNo: z.string(),
+  title: z.string(),
+  category: z.string().nullable(),
+  path: z.string(),
+  updatedAt: z.string(),
+  currentRev: z.number().int(),
+  changeKind: RecentChangeKind,
+  revFrom: z.number().int().nullable(),
+  revTo: z.number().int().nullable(),
+  vendorName: z.string().nullable(),
+  projectName: z.string().nullable(),
+  changedBy: z.string().nullable(),
+})
+export type RecentChangeItem = z.infer<typeof RecentChangeItem>
+
+export const RecentChangesResponse = z.object({
+  days: z.number().int(),
+  total: z.number().int(),
+  revisionCount: z.number().int(),
+  items: z.array(RecentChangeItem),
+})
+export type RecentChangesResponse = z.infer<typeof RecentChangesResponse>
+
+export const RecentChangesSummary = z.object({ count: z.number().int() })
+export type RecentChangesSummary = z.infer<typeof RecentChangesSummary>

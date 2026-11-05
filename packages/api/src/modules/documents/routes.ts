@@ -1,8 +1,10 @@
 import { z } from 'zod'
 import type { FastifyInstance } from 'fastify'
 import {
-  DistributionListResponse, DocumentDetail, DocumentListQuery, DocumentListResponse,
-  ErrorResponse, NoteRequest, NoteResult, RevisionListResponse,
+  ArchiveListResponse, DistributionListResponse, DocumentDetail, DocumentListQuery,
+  DocumentListResponse, DocumentNav, DocumentNavQuery, ErrorResponse, FolderDocumentsQuery,
+  FolderDocumentsResponse, NoteRequest, NoteResult, RECENT_SOFT_DAYS, RecentChangesQuery,
+  RecentChangesResponse, RecentChangesSummary, RevisionListResponse,
 } from '@tdms/contracts'
 import { AUTHENTICATED, defineRoute, permission } from '../../core/route.js'
 import * as svc from './service.js'
@@ -23,6 +25,53 @@ export function registerDocumentRoutes(app: FastifyInstance): void {
       response: { 200: DocumentListResponse, 401: ErrorResponse },
     },
     handler: async (req) => svc.list(DocumentListQuery.parse(req.query)),
+  })
+
+  // ── 상세 화면의 처음·이전·다음·끝 — 방금 다녀온 목록의 조건·정렬 그대로 ──
+  defineRoute(app, {
+    method: 'GET',
+    url: '/documents/nav',
+    access: AUTHENTICATED,
+    schema: { querystring: DocumentNavQuery, response: { 200: DocumentNav, 404: ErrorResponse } },
+    handler: async (req) => svc.nav(DocumentNavQuery.parse(req.query)),
+  })
+
+  // ── 폴더 반출 — 고른 폴더의 자료 전부를 반출대기함에 담는다 ──────────────
+  defineRoute(app, {
+    method: 'GET',
+    url: '/documents/by-folder',
+    access: permission('screen.tdb_list.access'),
+    schema: {
+      querystring: FolderDocumentsQuery,
+      response: { 200: FolderDocumentsResponse, 403: ErrorResponse, 404: ErrorResponse, 422: ErrorResponse },
+    },
+    handler: async (req) => svc.folderDocuments(FolderDocumentsQuery.parse(req.query)),
+  })
+
+  // ── 폐기 보관함 (TDB 조회에서 보기 전용) ─────────────────────────────────
+  defineRoute(app, {
+    method: 'GET',
+    url: '/documents/retired',
+    access: permission('screen.tdb_list.access'),
+    schema: { response: { 200: ArchiveListResponse, 403: ErrorResponse } },
+    handler: async () => svc.retiredBox(),
+  })
+
+  // ── TDB 수정 (최근수정본) ────────────────────────────────────────────────
+  defineRoute(app, {
+    method: 'GET',
+    url: '/documents/recent-changes',
+    access: AUTHENTICATED,
+    schema: { querystring: RecentChangesQuery, response: { 200: RecentChangesResponse } },
+    handler: async (req) => svc.recentChanges(RecentChangesQuery.parse(req.query).days),
+  })
+
+  defineRoute(app, {
+    method: 'GET',
+    url: '/documents/recent-changes/summary',
+    access: AUTHENTICATED,
+    schema: { response: { 200: RecentChangesSummary } },
+    handler: async () => svc.recentChangesSummary(RECENT_SOFT_DAYS),
   })
 
   defineRoute(app, {

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type {
   DistributionListResult, DistributionRow, FilterOptions,
-  ForImportResult, OutstandingResult, ZipExportListResult, ZipExportRow, ZipStatusResult,
+  ForImportResult, OutstandingResult, ZipExportListResult, ZipExportRow, ZipReturnResult,
+  ZipStatusResult,
 } from '@tdms/contracts'
 import DataTable, { type Column } from '@/ui/DataTable.vue'
 import Modal from '@/ui/Modal.vue'
@@ -93,6 +94,42 @@ async function doReturn(manual: boolean) {
   } catch (e) { fail(e) }
 }
 
+// ── Zip별: 수정없이 반납처리 (Zip 단위) ───────────────────────────────
+// 기존 distributions.js returnZip. Zip 안에 이미 반입된 자료가 섞여 있으면 서버가 그 Zip 을
+// 건너뛰고 사유를 돌려준다. 체크한 여러 Zip 을 한 번에 처리할 수도 있다.
+const zipPicked = ref(new Set<number>())
+function toggleZip(id: number) {
+  const next = new Set(zipPicked.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  zipPicked.value = next
+}
+const pickedZipNames = computed(() =>
+  zipRows.value.filter((z) => zipPicked.value.has(z.id) && !z.complete).map((z) => z.zipName))
+
+// Zip 목록의 줄 id 는 목록 안 위치라 조건이 바뀌면 다른 Zip 을 가리킨다 — 체크를 푼다
+watch(params, () => (zipPicked.value = new Set()))
+
+const zipReturnTarget = ref<string[] | null>(null)
+
+async function doZipReturn() {
+  const names = zipReturnTarget.value
+  if (!names?.length) return
+  zipReturnTarget.value = null
+  try {
+    const r = await api.post<ZipReturnResult>('/distributions/zip-return', { zipNames: names })
+    say(r.skipped.length ? 'err' : 'ok',
+      r.skipped.length
+        ? `${r.returned}건 처리, Zip ${r.skipped.length}개 건너뜀 — ${r.skipped[0]!.zipName}: ${r.skipped[0]!.reason}`
+        : `${r.returned}건을 수정 없이 반납 처리했습니다.`)
+    zipPicked.value = new Set()
+    refresh()
+  } catch (e) { fail(e) }
+}
+
+/** Zip 다시 받기 — 워커가 다 만든 것만 받을 수 있다 */
+const zipHref = (zipName: string) => `/api/distributions/zip-file${qs({ zipName })}`
+
 function refresh() {
   void qc.invalidateQueries({ queryKey: ['distributions'] })
   void qc.invalidateQueries({ queryKey: ['dist-zips'] })
@@ -177,6 +214,47 @@ const COLUMNS: Column<DistributionRow>[] = [
   { key: 'note', label: '비고', width: '180px', render: (r) => r.note ?? '' },
 ]
 
+/** 미입고 현황 창 — 오래 나가 있는 순 */
+const OUTSTANDING_COLUMNS: Column<DistributionRow>[] = [
+  { key: 'documentLabel', label: '자료명', width: '220px' },
+  { key: 'revAtDistribution', label: '반출Rev', width: '76px', align: 'center',
+    render: (r) => `Rev${r.revAtDistribution}` },
+  { key: 'vendorName', label: '업체', width: '140px' },
+  { key: 'projectName', label: '공사', width: '120px', render: (r) => r.projectName ?? '' },
+  { key: 'distributedAt', label: '반출일시', width: '104px', align: 'center', render: (r) => day(r.distributedAt) },
+  { key: 'daysOut', label: '나간 일수', width: '84px', align: 'right',
+    render: (r) => (r.daysOut === null ? '' : String(r.daysOut)) },
+  { key: 'state', label: '상태', width: '100px', align: 'center',
+    render: (r) => DISTRIBUTION_STATE_LABEL[r.state] ?? r.state },
+]
+
+/** 반입 대상 창 */
+const FOR_IMPORT_COLUMNS: Column<DistributionRow>[] = [
+  { key: 'documentLabel', label: '자료명', width: '220px' },
+  { key: 'revAtDistribution', label: '반출Rev', width: '76px', align: 'center',
+    render: (r) => `Rev${r.revAtDistribution}` },
+  { key: 'vendorName', label: '업체', width: '140px' },
+  { key: 'projectName', label: '공사', width: '120px', render: (r) => r.projectName ?? '' },
+  { key: 'distributedAt', label: '반출일시', width: '104px', align: 'center', render: (r) => day(r.distributedAt) },
+  { key: 'state', label: '상태', width: '100px', align: 'center',
+    render: (r) => DISTRIBUTION_STATE_LABEL[r.state] ?? r.state },
+]
+
+/** Zip 상세 현황 창 */
+const ZIP_STATUS_COLUMNS: Column<DistributionRow>[] = [
+  { key: 'documentLabel', label: '자료명', width: '220px' },
+  { key: 'title', label: '내용', render: (r) => r.title ?? '' },
+  { key: 'revAtDistribution', label: '반출Rev', width: '76px', align: 'center',
+    render: (r) => `Rev${r.revAtDistribution}` },
+  { key: 'purpose', label: '목적', width: '84px', align: 'center',
+    render: (r) => PURPOSE_LABEL[r.purpose] ?? r.purpose },
+  { key: 'returnedAt', label: '반입일시', width: '104px', align: 'center',
+    render: (r) => (r.returnedAt ? day(r.returnedAt) : '') },
+  { key: 'state', label: '상태', width: '120px', align: 'center',
+    render: (r) => [DISTRIBUTION_STATE_LABEL[r.state], r.manualReturn ? '수정없음' : '']
+      .filter(Boolean).join(' ') },
+]
+
 const ZIP_COLUMNS: Column<ZipExportRow & { id: number }>[] = [
   { key: 'zipName', label: 'Zip', width: '240px' },
   { key: 'vendorName', label: '업체', width: '140px' },
@@ -189,7 +267,8 @@ const ZIP_COLUMNS: Column<ZipExportRow & { id: number }>[] = [
   { key: 'returnedCount', label: '반입', width: '70px', align: 'right', render: (z) => String(z.returnedCount) },
   { key: 'complete', label: '상태', width: '100px', align: 'center',
     render: (z) => (z.complete ? '반입완료' : '반입미완료') },
-  { key: 'act', label: '조치', width: '92px', align: 'center', sortable: false, filterable: false, render: () => '' },
+  { key: 'act', label: '조치', width: '268px', align: 'center', sortable: false, filterable: false,
+    exportable: false, render: () => '' },
 ]
 
 /**
@@ -252,10 +331,17 @@ const zipRows = computed(() => zips.value.map((z, i) => ({ ...z, id: i + 1 })))
         <!-- 건수·선택수는 그리드 아래쪽이 적는다. 두 군데 적으면 서로 어긋난다. -->
         <span v-if="isFetching" class="muted">조회 중…</span>
         <span style="flex:1" />
-        <button class="btn btn-sm" :disabled="!openPicked" @click="doReturn(false)">선택 반납처리</button>
-        <button class="btn btn-sm" :disabled="!openPicked || !canManualReturn"
-                :title="canManualReturn ? '' : '권한이 없습니다'"
-                @click="doReturn(true)">수정없이 반납처리</button>
+        <template v-if="!byZip">
+          <button class="btn btn-sm" :disabled="!openPicked" @click="doReturn(false)">선택 반납처리</button>
+          <button class="btn btn-sm" :disabled="!openPicked || !canManualReturn"
+                  :title="canManualReturn ? '' : '권한이 없습니다'"
+                  @click="doReturn(true)">수정없이 반납처리</button>
+        </template>
+        <button v-else class="btn btn-sm" :disabled="!pickedZipNames.length || !canManualReturn"
+                :title="canManualReturn ? '체크한 Zip 의 수정용 자료를 모두 수정 없이 반납 처리합니다' : '권한이 없습니다'"
+                @click="zipReturnTarget = pickedZipNames">
+          선택 Zip 수정없이 반납처리{{ pickedZipNames.length ? ` (${pickedZipNames.length})` : '' }}
+        </button>
         <button class="btn btn-sm" title="조건에 맞는 전체를 워커가 만든다 — 수만 건도 받을 수 있다"
                 @click="exportExcel">전체 엑셀 내보내기</button>
       </div>
@@ -307,13 +393,22 @@ const zipRows = computed(() => zips.value.map((z, i) => ({ ...z, id: i + 1 })))
       <DataTable
         v-else
         :columns="ZIP_COLUMNS" :rows="zipRows" :total="zipRows.length"
+        selectable :selected="zipPicked"
         :row-class="(z) => (z.complete ? '' : 'warn')"
         storage-key="dist-zips" excel-name="TDB 반출이력 (Zip별)"
         empty-text="Zip 반출 기록이 없습니다."
         @row-click="(z) => (zipDetail = z.zipName)"
+        @toggle="toggleZip"
+        @toggle-all="(on) => { zipPicked = on ? new Set(zipRows.map((z) => z.id)) : new Set() }"
       >
         <template #cell:act="{ row }">
           <button class="btn btn-sm" @click.stop="zipDetail = row.zipName">상세 현황</button>
+          <a v-if="row.hasFile" class="btn btn-sm" :href="zipHref(row.zipName)" @click.stop>Zip 다운</a>
+          <button v-else class="btn btn-sm" disabled
+                  title="Zip 파일이 아직 만들어지지 않았습니다 (만드는 중이거나 실패)">Zip 다운</button>
+          <button class="btn btn-sm" :disabled="row.complete || !canManualReturn"
+                  :title="!canManualReturn ? '권한이 없습니다' : row.complete ? '모두 반입되었습니다' : '이 Zip 의 수정용 자료를 모두 수정 없이 반납 처리합니다'"
+                  @click.stop="zipReturnTarget = [row.zipName]">수정없이 반납</button>
         </template>
       </DataTable>
     </div>
@@ -337,19 +432,15 @@ const zipRows = computed(() => zips.value.map((z, i) => ({ ...z, id: i + 1 })))
           {{ v.vendorName }} {{ v.count }}
         </span>
       </div>
-      <table class="grid">
-        <thead><tr><th>자료명</th><th>업체</th><th>반출일시</th><th>나간 일수</th><th>상태</th></tr></thead>
-        <tbody>
-          <tr v-for="r in outstanding?.items ?? []" :key="r.id" :class="stateClass(r.state)">
-            <td>{{ r.documentLabel }}</td>
-            <td>{{ r.vendorName }}</td>
-            <td class="tc">{{ r.distributedAt.slice(0, 10) }}</td>
-            <td class="tc">{{ r.daysOut ?? '-' }}</td>
-            <td class="tc">{{ DISTRIBUTION_STATE_LABEL[r.state] }}</td>
-          </tr>
-          <tr v-if="!outstanding?.items.length"><td colspan="5" class="tc muted">미입고 건이 없습니다.</td></tr>
-        </tbody>
-      </table>
+      <div class="modal-grid">
+        <DataTable
+          :columns="OUTSTANDING_COLUMNS" :rows="outstanding?.items ?? []"
+          :total="outstanding?.items.length ?? 0"
+          :row-class="(r) => stateClass(r.state)"
+          storage-key="dist-outstanding" excel-name="TDB 반출이력_미입고 현황"
+          empty-text="미입고 건이 없습니다."
+        />
+      </div>
     </Modal>
 
     <!-- 반입 대상 -->
@@ -361,19 +452,15 @@ const zipRows = computed(() => zips.value.map((z, i) => ({ ...z, id: i + 1 })))
           <option v-for="v in opts?.vendors ?? []" :key="v.id" :value="v.name">{{ v.name }}</option>
         </select>
       </div>
-      <table class="grid">
-        <thead><tr><th>자료명</th><th>반출Rev</th><th>공사</th><th>반출일시</th><th>상태</th></tr></thead>
-        <tbody>
-          <tr v-for="r in forImport?.items ?? []" :key="r.id" :class="stateClass(r.state)">
-            <td>{{ r.documentLabel }}</td>
-            <td class="tc">Rev{{ r.revAtDistribution }}</td>
-            <td class="tc">{{ r.projectName ?? '-' }}</td>
-            <td class="tc">{{ r.distributedAt.slice(0, 10) }}</td>
-            <td class="tc">{{ DISTRIBUTION_STATE_LABEL[r.state] }}</td>
-          </tr>
-          <tr v-if="!forImport?.items.length"><td colspan="5" class="tc muted">해당 자료가 없습니다.</td></tr>
-        </tbody>
-      </table>
+      <div class="modal-grid">
+        <DataTable
+          :columns="FOR_IMPORT_COLUMNS" :rows="forImport?.items ?? []"
+          :total="forImport?.items.length ?? 0"
+          :row-class="(r) => stateClass(r.state)"
+          storage-key="dist-for-import" excel-name="TDB 반출이력_반입 대상"
+          empty-text="해당 자료가 없습니다."
+        />
+      </div>
     </Modal>
 
     <!-- Zip 상세 현황 -->
@@ -382,17 +469,29 @@ const zipRows = computed(() => zips.value.map((z, i) => ({ ...z, id: i + 1 })))
         {{ zipStatus?.vendorName }} · {{ zipStatus?.itemCount }}건 중
         <strong>{{ zipStatus?.returnedCount }}</strong>건 반입
       </p>
-      <table class="grid">
-        <thead><tr><th>자료명</th><th>반출Rev</th><th>반입일시</th><th>상태</th></tr></thead>
-        <tbody>
-          <tr v-for="r in zipStatus?.items ?? []" :key="r.id" :class="stateClass(r.state)">
-            <td>{{ r.documentLabel }}</td>
-            <td class="tc">Rev{{ r.revAtDistribution }}</td>
-            <td class="tc">{{ r.returnedAt?.slice(0, 10) ?? '-' }}</td>
-            <td class="tc">{{ DISTRIBUTION_STATE_LABEL[r.state] }}</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="modal-grid">
+        <DataTable
+          :columns="ZIP_STATUS_COLUMNS" :rows="zipStatus?.items ?? []"
+          :total="zipStatus?.items.length ?? 0"
+          :row-class="(r) => stateClass(r.state)"
+          storage-key="dist-zip-status" :excel-name="`Zip 상세 현황_${zipDetail}`"
+          empty-text="이 Zip 에 담긴 자료가 없습니다."
+        />
+      </div>
+    </Modal>
+
+    <!-- Zip 수정없이 반납처리 확인 -->
+    <Modal v-if="zipReturnTarget" title="수정없이 반납처리" @close="zipReturnTarget = null">
+      <p>
+        <template v-if="zipReturnTarget.length === 1">이 Zip(<strong>{{ zipReturnTarget[0] }}</strong>)</template>
+        <template v-else>체크한 Zip {{ zipReturnTarget.length }}개</template>
+        에 담긴 수정용 자료를 모두 '수정 없이 반입 처리' 하시겠습니까?
+      </p>
+      <p class="muted">업체가 수정 없이 그대로 돌려준 경우에만 쓰세요. 이미 반입된 자료가 섞인 Zip 은 건너뜁니다.</p>
+      <template #footer>
+        <button class="btn" @click="zipReturnTarget = null">취소</button>
+        <button class="btn btn-primary" @click="doZipReturn">반납 처리</button>
+      </template>
     </Modal>
   </main>
 </template>
@@ -427,7 +526,9 @@ export default { components: { JobProgressSlot } }
 .table-panel > * { flex: 1; min-width: 0; }
 /* 자료명 칸의 보조 설명 — 줄 높이를 늘리지 않게 같은 줄에 잇는다 */
 .sub-inline { margin-left: 6px; }
-.grid tr.issue { background: var(--danger-soft); }
+/* 창 안의 그리드 — 스크롤은 DataTable 이 맡으므로 높이만 내준다 */
+.modal-grid { height: 55vh; min-height: 260px; display: flex; }
+.modal-grid > * { flex: 1; min-width: 0; }
 .sub { font-size: 11px; }
 .summary { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; font-size: var(--fs-sm); }
 .tag {
