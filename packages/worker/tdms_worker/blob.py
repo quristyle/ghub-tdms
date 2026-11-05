@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import os
+import shutil
 from pathlib import Path
 
 
@@ -30,5 +32,25 @@ def store_file(blobs_root: Path, src: Path) -> tuple[str, int]:
         return hex_digest, size
 
     dest.parent.mkdir(parents=True, exist_ok=True)
-    os.replace(src, dest)
+    _move_into(src, dest)
     return hex_digest, size
+
+
+def _move_into(src: Path, dest: Path) -> None:
+    """docker 에서는 tmp 와 blobs 가 따로 마운트되어 os.replace 가 EXDEV 로 실패한다.
+    그때는 최종 폴더 안 임시 이름으로 복사한 뒤 replace 한다 — 반쪽 파일이 최종 이름으로 보이지 않게.
+    """
+    try:
+        os.replace(src, dest)
+        return
+    except OSError as e:
+        if e.errno != errno.EXDEV:
+            raise
+    part = dest.with_name(f"{dest.name}.part-{os.getpid()}")
+    try:
+        shutil.copyfile(src, part)
+        os.replace(part, dest)
+    except BaseException:
+        part.unlink(missing_ok=True)
+        raise
+    src.unlink(missing_ok=True)

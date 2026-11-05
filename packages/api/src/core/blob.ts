@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { createWriteStream } from 'node:fs'
-import { mkdir, rename, unlink, stat } from 'node:fs/promises'
+import { copyFile, mkdir, rename, unlink, stat } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { Transform, type Readable } from 'node:stream'
@@ -17,6 +17,8 @@ import { blobAbsPath } from './files.js'
  * 쓰기 순서가 중요하다:
  *   ① 임시 파일로 받으면서 sha256 계산
  *   ② 최종 자리로 rename (같은 파일시스템이라 원자적)
+ *      — 단 docker 에서는 tmp 와 blobs 가 따로 bind mount 되어 rename 이 EXDEV 로
+ *        실패한다. 그때는 최종 폴더 안 임시 이름으로 복사한 뒤 rename 한다 (moveInto).
  *   ③ DB 에 blobs 행 등록
  * ③ 이 실패하면 파일만 남는데, 그건 refcount 0 인 고아라 야간 GC 가 수거한다.
  * 반대 순서로 하면 DB 에는 있는데 파일이 없는 상태가 생겨 복구가 어렵다.
@@ -96,10 +98,38 @@ export async function storeStream(source: Readable, maxBytes: number): Promise<S
     await unlink(tmpPath).catch(() => {})
     return { sha256, byteSize, deduped: true, head }
   } catch {
-    await mkdir(dirname(finalPath), { recursive: true })
-    await rename(tmpPath, finalPath)
+    try {
+      await mkdir(dirname(finalPath), { recursive: true })
+      await moveInto(tmpPath, finalPath)
+    } catch (e) {
+      await unlink(tmpPath).catch(() => {})
+      throw e
+    }
     return { sha256, byteSize, deduped: false, head }
   }
+}
+
+/**
+ * 임시 파일을 최종 자리로 옮긴다.
+ * 마운트가 다르면(EXDEV) 최종 폴더 안 임시 이름으로 복사한 뒤 rename 한다 —
+ * 복사 도중의 반쪽 파일이 최종 이름으로 보이지 않게 하기 위해서다.
+ */
+async function moveInto(src: string, dest: string): Promise<void> {
+  try {
+    await rename(src, dest)
+    return
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'EXDEV') throw e
+  }
+  const part = `${dest}.part-${process.pid}-${Date.now()}`
+  try {
+    await copyFile(src, part)
+    await rename(part, dest)
+  } catch (e) {
+    await unlink(part).catch(() => {})
+    throw e
+  }
+  await unlink(src).catch(() => {})
 }
 
 /** blobs 행 등록. 같은 sha256 이면 아무 일도 하지 않는다. */
