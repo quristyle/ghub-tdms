@@ -156,12 +156,20 @@ async function editorLayerFor(app, pageIndex) {
 // 반입·검수의 확인필요 미리보기(/import-issues/…)는 아직 등록 전 파일이라 여기서 안 걸린다
 // — 그런 자료는 보관할 수 없으므로 버튼도 생기지 않는다.
 // 원본(DWG·엑셀 등) 미리보기 창이면(/preview/original/…, D-102) 그 원본 파일 번호로 자료를 찾는다.
+//
+// [새 시스템] 주소 앞에 API 접두어(/api)가 붙는다 — 떼고 본다. 원본(DWG·DXF) 미리보기는
+// 서버가 바꿔 둔 PDF 주소(/files/{원본 id}/preview, /mdb/files/{원본 id}/preview)로 연다.
 function previewFileFromUrl() {
-  const file = new URLSearchParams(window.location.search).get("file") || "";
+  const raw = new URLSearchParams(window.location.search).get("file") || "";
+  const file = raw.replace(/^\/api(?=\/)/, "");
   let m = /^\/files\/(\d+)\/view/.exec(file);
   if (m) return { kind: "TDB", pdfFileId: Number(m[1]) };
+  m = /^\/files\/(\d+)\/preview/.exec(file);
+  if (m) return { kind: "TDB", originalFileId: Number(m[1]) };
   m = /^\/mdb\/files\/(\d+)\/view/.exec(file);
   if (m) return { kind: "MDB", pdfFileId: Number(m[1]) };
+  m = /^\/mdb\/files\/(\d+)\/preview/.exec(file);
+  if (m) return { kind: "MDB", originalFileId: Number(m[1]) };
   m = /^\/preview\/original\/(TDB|MDB)\/(\d+)\/view/.exec(file);
   if (m) return { kind: m[1], originalFileId: Number(m[2]) };
   return null;
@@ -348,7 +356,7 @@ export function installFavoriteTool(app, outerWindow) {
       if (!res.ok) return;
       const body = await res.json();
       // 원본 미리보기 창이면 원본에 그려 둔 것을, 사본 창이면 사본에 그려 둔 것을 되살린다(D-102).
-      const onOriginal = /^\/preview\/original\//.test(new URLSearchParams(window.location.search).get("file") || "");
+      const onOriginal = !!previewFileFromUrl()?.originalFileId;
       const count = await restoreMarkup(app, onOriginal ? body.original_markup : body.markup);
       if (count) console.info(`[DMS] 보관해 둔 편집 내용 ${count}개를 되살렸습니다.`);
     } catch (e) {

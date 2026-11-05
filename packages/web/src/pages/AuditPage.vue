@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useInfiniteQuery, useQuery } from '@tanstack/vue-query'
-import type { AuditEntry, AuditListResponse, AuditMeta, AuditSort } from '@tdms/contracts'
+import type { AuditEntry, AuditListResponse, AuditMeta, AuditSort, JobCreated } from '@tdms/contracts'
 import DataTable, { type Column, type SortDir } from '@/ui/DataTable.vue'
 import Modal from '@/ui/Modal.vue'
-import { api, qs } from '@/lib/api'
+import JobProgress from '@/ui/JobProgress.vue'
+import { api, ApiError } from '@/lib/api'
 import { staleTime } from '@/lib/queryKeys'
 
 /** 시스템 로그 — 기존 audit.html 구성을 재현한다. 기록은 수정·삭제할 수 없다. */
@@ -30,11 +31,24 @@ const { dateFrom: initDateFrom, dateTo: initDateTo } = defaultDates()
 const f = ref({
   dateFrom: initDateFrom,
   dateTo: initDateTo,
-  screen: '',
-  action: '',
+  /** 화면·동작은 여러 개를 고를 수 있다 (비우면 전체) */
+  screen: [] as string[],
+  action: [] as string[],
   userId: '',
   q: '',
 })
+
+// 화면·동작 고르기 창 — 드롭다운 안에 체크칸 목록
+const picker = ref<'screen' | 'action' | null>(null)
+function togglePick(kind: 'screen' | 'action', v: string) {
+  const list = f.value[kind]
+  f.value[kind] = list.includes(v) ? list.filter((x) => x !== v) : [...list, v]
+}
+const pickLabel = (kind: 'screen' | 'action') => {
+  const list = f.value[kind]
+  const name = kind === 'screen' ? '화면' : '동작'
+  return !list.length ? `${name} 전체` : list.length === 1 ? list[0]! : `${name} ${list.length}개`
+}
 
 // 정렬은 서버가 한다 — 300건만 정렬하면 "가장 오래된 기록"이 실제로는 아닐 수 있다.
 const sort = ref<AuditSort>('occurredAt')
@@ -49,12 +63,24 @@ const params = computed(() => ({
   dir: dir.value,
   dateFrom: f.value.dateFrom || undefined,
   dateTo: f.value.dateTo || undefined,
-  screen: f.value.screen || undefined,
-  action: f.value.action || undefined,
+  screen: f.value.screen.length ? f.value.screen : undefined,
+  action: f.value.action.length ? f.value.action : undefined,
   userId: f.value.userId || undefined,
   q: f.value.q || undefined,
   limit: 300,
 }))
+
+/** 쿼리스트링 — 화면·동작은 같은 이름을 여러 번 적는다 (?screen=a&screen=b) */
+function query(p: Record<string, unknown>): string {
+  const sp = new URLSearchParams()
+  for (const [k, v] of Object.entries(p)) {
+    if (v === undefined || v === null || v === '') continue
+    if (Array.isArray(v)) v.forEach((x) => sp.append(k, String(x)))
+    else sp.set(k, String(v))
+  }
+  const out = sp.toString()
+  return out ? `?${out}` : ''
+}
 
 const { data: meta } = useQuery({
   queryKey: ['audit-meta'],
@@ -71,7 +97,7 @@ const {
 } = useInfiniteQuery({
   queryKey: computed(() => ['audit', params.value]),
   queryFn: ({ pageParam }) =>
-    api.get<AuditListResponse>(`/audit-log${qs({ ...params.value, cursor: pageParam ?? undefined })}`),
+    api.get<AuditListResponse>(`/audit-log${query({ ...params.value, cursor: pageParam ?? undefined })}`),
   initialPageParam: null as string | null,
   getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   staleTime: staleTime.list,
@@ -101,10 +127,33 @@ function reset() {
   f.value = {
     dateFrom: d.dateFrom,
     dateTo: d.dateTo,
-    screen: '',
-    action: '',
+    screen: [],
+    action: [],
     userId: '',
     q: '',
+  }
+}
+
+// ── 전체 엑셀 (서버 작업) — 지금 조건의 전량. 화면에는 300건씩만 불러온다. ──
+const exportJobId = ref<number | null>(null)
+const exporting = ref(false)
+const exportErr = ref('')
+async function startServerExport() {
+  if (exporting.value) return
+  exporting.value = true
+  exportErr.value = ''
+  try {
+    const { limit: _limit, ...filters } = params.value
+    const r = await api.post<JobCreated>('/jobs/excel-export', {
+      target: 'audit_log',
+      filters,
+      filename: `시스템 로그_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    })
+    exportJobId.value = r.jobId
+  } catch (e) {
+    exportErr.value = e instanceof ApiError ? e.message : '엑셀 내보내기 요청에 실패했습니다.'
+  } finally {
+    exporting.value = false
   }
 }
 </script>
@@ -121,14 +170,20 @@ function reset() {
         <input v-model="f.dateFrom" type="date" title="시작일" />
         <span class="muted">~</span>
         <input v-model="f.dateTo" type="date" title="종료일" />
-        <select v-model="f.screen">
-          <option value="">화면 전체</option>
-          <option v-for="s in meta?.screens ?? []" :key="s" :value="s">{{ s }}</option>
-        </select>
-        <select v-model="f.action">
-          <option value="">동작 전체</option>
-          <option v-for="a in meta?.actions ?? []" :key="a" :value="a">{{ a }}</option>
-        </select>
+        <span v-for="kind in (['screen', 'action'] as const)" :key="kind" class="multi" @mouseleave="picker = null">
+          <button type="button" class="btn btn-sm multi-btn" :class="{ on: f[kind].length }"
+                  :aria-expanded="picker === kind" @click="picker = picker === kind ? null : kind">
+            {{ pickLabel(kind) }} ▾
+          </button>
+          <div v-if="picker === kind" class="multi-pop" role="listbox" aria-multiselectable="true">
+            <div class="multi-tools">
+              <button type="button" class="btn btn-sm btn-ghost" @click="f[kind] = []">전체</button>
+            </div>
+            <label v-for="v in (kind === 'screen' ? meta?.screens : meta?.actions) ?? []" :key="v" class="multi-item">
+              <input type="checkbox" :checked="f[kind].includes(v)" @change="togglePick(kind, v)" /> {{ v }}
+            </label>
+          </div>
+        </span>
         <select v-model="f.userId"
                 :title="meta?.canSelectOtherUser ? '사용자' : '다른 사용자를 고를 권한이 없습니다'">
           <option value="">사용자 전체</option>
@@ -151,6 +206,9 @@ function reset() {
         :sort-dir="dir"
         storage-key="audit"
         excel-name="시스템 로그"
+        server-excel
+        :server-exporting="exporting"
+        @export-server="startServerExport"
         empty-text="기록이 없습니다."
         @sort="onSort"
         @load-more="() => { if (hasNextPage && !isFetchingNextPage) fetchNextPage() }"
@@ -186,6 +244,19 @@ function reset() {
           </span>
         </template>
       </DataTable>
+    </div>
+
+    <div v-if="exportErr" class="panel msg err">
+      {{ exportErr }}<span style="flex:1" />
+      <button class="btn btn-sm" @click="exportErr = ''">닫기</button>
+    </div>
+
+    <div v-if="exportJobId !== null" class="panel">
+      <div class="job-head">
+        <span>전체 엑셀 다운로드 (서버 작업)</span><span style="flex:1" />
+        <button class="btn btn-sm" @click="exportJobId = null">닫기</button>
+      </div>
+      <JobProgress :job-id="exportJobId" />
     </div>
 
     <Modal v-if="detail" title="상세 내용" @close="detail = null">
@@ -236,4 +307,17 @@ function reset() {
   margin: 12px 0 0; padding: 10px; background: var(--bg); border: 1px solid var(--border);
   border-radius: var(--radius-sm); font-size: 11px; overflow: auto; max-height: 240px;
 }
+.multi { position: relative; }
+.multi-btn.on { border-color: var(--primary); color: var(--primary); }
+.multi-pop {
+  position: absolute; top: 100%; left: 0; z-index: 20; margin-top: 2px;
+  min-width: 200px; max-height: 300px; overflow: auto; padding: 4px 0;
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+}
+.multi-tools { padding: 2px 6px 4px; border-bottom: 1px solid var(--border); }
+.multi-item { display: flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: var(--fs-sm); white-space: nowrap; cursor: pointer; }
+.multi-item:hover { background: var(--accent-soft); }
+.msg { display: flex; align-items: center; gap: 8px; padding: 9px 12px; flex: 0 0 auto; }
+.job-head { display: flex; align-items: center; padding: 8px 12px; font-size: var(--fs-sm); font-weight: 600; }
 </style>

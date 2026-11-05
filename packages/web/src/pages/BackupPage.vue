@@ -7,6 +7,7 @@ import Modal from '@/ui/Modal.vue'
 import { api, ApiError } from '@/lib/api'
 import { staleTime } from '@/lib/queryKeys'
 import { useSession } from '@/lib/session'
+import { downloadXlsx } from '@/lib/xlsx'
 
 /** 백업 관리 — 기존 backup.html 구성을 재현한다. */
 
@@ -99,6 +100,20 @@ function size(b: number | null): string {
 const STATE_LABEL: Record<string, string> = {
   PREPARING: '준비 중', READY: '받을 수 있음', FAILED: '실패', FILE_DELETED: '파일 삭제됨',
 }
+
+/** 백업 이력 엑셀 — 표에 보이는 칸 그대로(조치 칸만 뺀다) */
+function exportRuns() {
+  void downloadXlsx('백업 이력', {
+    sheetName: '백업 이력',
+    headers: ['회차', '종류', '담은 항목', '저장 위치', '묶음 크기', '파일 수', '만든 시각', '만든 사람', '받은 횟수', '상태', '비고'],
+    rows: (runs.value?.items ?? []).map((r) => [
+      String(r.seq), r.kind === 'FULL' ? '전체' : '변경분', r.scope.join(', '),
+      r.storagePath ?? '기본 위치', size(r.byteSize), r.fileCount === null ? '-' : String(r.fileCount),
+      r.createdAt.slice(0, 16).replace('T', ' '), r.createdBy ?? '-', String(r.downloadCount),
+      STATE_LABEL[r.state] ?? r.state, r.note ?? '',
+    ]),
+  })
+}
 </script>
 
 <template>
@@ -164,6 +179,8 @@ const STATE_LABEL: Record<string, string> = {
       <div class="panel-head">
         백업 이력
         <span class="muted sub">이력 줄은 어떤 경우에도 지워지지 않습니다.</span>
+        <span style="flex:1" />
+        <button class="btn btn-sm" :disabled="!runs?.items.length" @click="exportRuns">엑셀 내보내기</button>
       </div>
       <table class="grid">
         <thead>

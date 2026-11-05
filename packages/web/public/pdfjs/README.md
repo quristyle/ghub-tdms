@@ -22,6 +22,8 @@ API 경로에 `/api` 접두어를 붙였다. 그 외에는 한 줄도 고치지 
 |---|---|
 | `dms-favorite.js:235` | `/favorites/resolve/target` → `/api/favorites/resolve/target` |
 | `dms-favorite.js:347` | `/favorites/{id}/markup` → `/api/favorites/{id}/markup` |
+| `dms-favorite.js` `previewFileFromUrl()` | file= 주소 앞의 `/api` 를 떼고 본다. 원본 미리보기 주소 `/files/{id}/preview` · `/mdb/files/{id}/preview` 를 원본으로 알아본다 (보관하기 버튼이 새 주소에서도 켜지게) |
+| `dms-viewer.js` | `dms-favorite.js?v=64` → `?v=65` (브라우저 캐시 갱신) |
 
 ## 호스트(Vue) 가 제공해야 하는 것
 
@@ -44,10 +46,12 @@ API 경로에 `/api` 접두어를 붙였다. 그 외에는 한 줄도 고치지 
 ## 주소 파라미터
 
 ```
-viewer.html?file=<PDF 주소(encodeURIComponent)>&fav=<보관 번호>
+viewer.html?file=<PDF 주소(encodeURIComponent)>&fav=<보관 번호>&dmsView=pdf|original&dmsAlt=1&dmsLabel=DWG
 ```
 
 `fav` 가 있으면 자료를 연 뒤 보관해 둔 마크업을 되살린다.
+`dmsView` 가 있으면 도구모음에 원본/사본 전환 버튼이 생긴다(`dmsAlt=1` 이면 반대쪽이 눌린다).
+버튼을 누르면 `postMessage({type:'dms-preview-switch', to})` 로 PdfViewer 에 알린다.
 
 ## 업스트림 갱신 절차
 
