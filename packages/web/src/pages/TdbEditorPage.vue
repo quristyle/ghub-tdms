@@ -206,16 +206,8 @@ async function mergePair(p: { parentId: number; dwgFolderId: number; pdfFolderId
 }
 
 // ── 파일 올리기 공통 ──────────────────────────────────────────────────
-// multipart 라 api 클라이언트 대신 fetch 를 쓴다. 오류 모양은 api 와 같게 맞춘다.
 async function postForm<T>(path: string, fd: FormData): Promise<{ status: number; body: T }> {
-  const res = await fetch(`/api${path}`, { method: 'POST', body: fd, credentials: 'same-origin' })
-  let body: unknown = null
-  try { body = await res.json() } catch { /* 빈 응답 */ }
-  if (!res.ok) {
-    const b = body as { code?: string; message?: string } | null
-    throw new ApiError(res.status, b?.code ?? 'NETWORK', b?.message ?? `요청에 실패했습니다 (${res.status})`)
-  }
-  return { status: res.status, body: body as T }
+  return api.upload<T>(path, fd)
 }
 
 function filesOf(ev: Event): File[] {

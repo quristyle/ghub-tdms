@@ -52,20 +52,9 @@ function refreshAll() {
   void qc.invalidateQueries({ queryKey: ['documents'] })
 }
 
-/** multipart 올리기 — api 클라이언트는 JSON 만 다루므로 fetch 를 직접 쓴다 */
+/** multipart 올리기 */
 async function postForm<T>(path: string, fd: FormData): Promise<T> {
-  const r = await fetch(`/api${path}`, { method: 'POST', body: fd, credentials: 'same-origin' })
-  let body: unknown = null
-  try {
-    body = await r.json()
-  } catch {
-    body = null
-  }
-  if (!r.ok) {
-    const b = (body ?? {}) as { code?: string; message?: string }
-    throw new ApiError(r.status, b.code ?? 'HTTP', b.message ?? `올리지 못했습니다 (${r.status})`)
-  }
-  return body as T
+  return (await api.upload<T>(path, fd)).body
 }
 
 // ── 검수 대기 ─────────────────────────────────────────────────────────

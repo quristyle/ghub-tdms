@@ -263,10 +263,7 @@ function registerMessage(r: { created: number; attached: number; skipped: string
 }
 
 async function postForm<T>(path: string, fd: FormData): Promise<{ status: number; body: T }> {
-  const r = await fetch(`/api${path}`, { method: 'POST', body: fd, credentials: 'same-origin' })
-  const body = await r.json().catch(() => ({}))
-  if (!r.ok) throw new ApiError(r.status, body.code ?? 'ERROR', body.message ?? '처리하지 못했습니다.')
-  return { status: r.status, body: body as T }
+  return api.upload<T>(path, fd)
 }
 
 async function submitRegister() {

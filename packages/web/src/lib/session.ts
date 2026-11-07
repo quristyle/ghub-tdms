@@ -59,6 +59,10 @@ export const useSession = defineStore('session', () => {
     }
   }
 
+  function clear() {
+    me.value = null
+  }
+
   /** 미루기 — 서버 세션에 기록한다. 이 세션 동안만 건너뛴다. */
   async function deferPasswordChange() {
     await api.post('/auth/password/defer')
@@ -70,6 +74,6 @@ export const useSession = defineStore('session', () => {
 
   return {
     me, loading, isLoggedIn, isAdmin, menu, can, load, login, logout,
-    firstAllowedPath, needsPasswordChange, deferPasswordChange,
+    firstAllowedPath, needsPasswordChange, deferPasswordChange, clear,
   }
 })

@@ -223,24 +223,21 @@ async function submitUpload() {
   uploading.value = true
   uploadMsg.value = null
   try {
-    const r = await fetch(`/api/documents/${id.value}/revisions`, { method: 'POST', body: fd })
-    const body = await r.json().catch(() => ({}))
-    if (r.ok) {
-      const out = body as UploadResult
-      uploadMsg.value = {
-        kind: out.warning || out.branched ? 'err' : 'ok',
-        text: `${out.created}개 파일을 ${out.revLabel} 로 반입했습니다. 검수 대기로 넘어갑니다.`
-          + (out.branched ? ' (중복반출로 분기됨)' : '')
-          + (out.warning ? ' — 파일명의 업체 표기 Rev 가 다릅니다. 검수 때 확인하세요.' : ''),
-      }
-      resetUpload()
-      void qc.invalidateQueries({ queryKey: qk.documents.detail(id.value) })
-      void qc.invalidateQueries({ queryKey: ['pending-review'] })
-    } else {
-      uploadMsg.value = { kind: 'err', text: body.message ?? `올리지 못했습니다 (${r.status})` }
+    const out = (await api.upload<UploadResult>(`/documents/${id.value}/revisions`, fd)).body
+    uploadMsg.value = {
+      kind: out.warning || out.branched ? 'err' : 'ok',
+      text: `${out.created}개 파일을 ${out.revLabel} 로 반입했습니다. 검수 대기로 넘어갑니다.`
+        + (out.branched ? ' (중복반출로 분기됨)' : '')
+        + (out.warning ? ' — 파일명의 업체 표기 Rev 가 다릅니다. 검수 때 확인하세요.' : ''),
     }
-  } catch {
-    uploadMsg.value = { kind: 'err', text: '올리지 못했습니다. 연결을 확인하세요.' }
+    resetUpload()
+    void qc.invalidateQueries({ queryKey: qk.documents.detail(id.value) })
+    void qc.invalidateQueries({ queryKey: ['pending-review'] })
+  } catch (e) {
+    uploadMsg.value = {
+      kind: 'err',
+      text: e instanceof ApiError ? e.message : '올리지 못했습니다. 연결을 확인하세요.',
+    }
   } finally {
     uploading.value = false
   }
