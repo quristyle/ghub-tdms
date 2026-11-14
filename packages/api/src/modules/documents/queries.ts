@@ -134,9 +134,16 @@ function buildListWhere(qp: ListFilter, params: unknown[]): string[] {
   return where
 }
 
-/** 목록 한 줄의 선택부 — 목록과 폴더 반출이 같은 모양을 내려준다 */
-const LIST_SELECT = `
-  SELECT d.id,
+/**
+ * 목록 한 줄의 **칸 목록**.
+ *
+ * 상세(findDocument)도 이 목록을 그대로 쓴다 — 계약이 `DocumentDetail = DocumentListItem.extend(…)`
+ * 라서 목록에 칸을 더하면 상세도 같이 내려줘야 하는데, 두 곳에 따로 적어 두면 한쪽만
+ * 고치고 넘어가기 쉽다. 그러면 상세 화면이 통째로 500 이 된다(응답 스키마 검증 실패).
+ * 여기 한 곳만 고치면 둘 다 따라오게 묶어 둔다.
+ */
+const LIST_COLUMNS = `
+         d.id,
          d.drawing_no   AS "drawingNo",
          d.title,
          d.folder_id    AS "folderId",
@@ -154,7 +161,10 @@ const LIST_SELECT = `
          -- 손댄 적 없는 자료는 그 날짜가 '등록한 날' 이라 색을 칠하지 않는다.
          ${MODIFIED_SQL} AS "isModified",
          lent.vendor_name    AS "lentTo",
-         lent.distributed_at AS "lentAt"
+         lent.distributed_at AS "lentAt"`
+
+/** 목록·상세가 함께 쓰는 FROM 절 */
+const LIST_FROM = `
     FROM documents d
     JOIN folders f ON f.id = d.folder_id
 LEFT JOIN LATERAL (
@@ -164,6 +174,9 @@ LEFT JOIN LATERAL (
           ORDER BY distributed_at DESC
           LIMIT 1
     ) lent ON true`
+
+/** 목록 한 줄의 선택부 — 목록과 폴더 반출이 같은 모양을 내려준다 */
+const LIST_SELECT = `SELECT ${LIST_COLUMNS} ${LIST_FROM}`
 
 /** 정렬 칸·방향 → ORDER BY. 커서·넘겨보기도 같은 순서를 쓴다. */
 function orderOf(qp: Pick<DocumentListQuery, 'sort' | 'dir'>) {
@@ -248,27 +261,15 @@ export interface DocumentDetailRow extends DocumentListRow {
 }
 
 export function findDocument(id: number) {
+  // 목록 칸(LIST_COLUMNS)을 그대로 쓰고 상세에만 있는 칸을 덧붙인다 —
+  // 목록에 칸이 늘어도 상세가 따라오게 하기 위함이다(위 LIST_COLUMNS 주석 참고).
   return one<DocumentDetailRow>(
-    `SELECT d.id, d.drawing_no AS "drawingNo", d.title,
-            d.folder_id AS "folderId", f.name AS "folderName",
-            d.doc_type AS "docType", d.current_rev AS "currentRev", d.status,
-            d.is_isometric AS "isIsometric",
-            d.has_dwg AS "hasDwg", d.has_pdf AS "hasPdf",
-            d.has_xlsx AS "hasXlsx", d.has_etc AS "hasEtc",
-            d.updated_at AS "updatedAt",
-            -- 목록과 같은 기준 (상세도 DocumentListItem 을 그대로 늘린 모양이다)
-            ${MODIFIED_SQL} AS "isModified",
+    `SELECT ${LIST_COLUMNS},
             d.category, d.discipline, d.isbl_osbl AS "isblOsbl",
             d.elevation, d.area, d.equipment_tag AS "equipmentTag",
-            p.name AS "projectName", d.note,
-            lent.vendor_name AS "lentTo", lent.distributed_at AS "lentAt"
-       FROM documents d
-       JOIN folders f  ON f.id = d.folder_id
+            p.name AS "projectName", d.note
+       ${LIST_FROM}
   LEFT JOIN projects p ON p.id = d.project_id
-  LEFT JOIN LATERAL (
-            SELECT vendor_name, distributed_at FROM distributions
-             WHERE document_id = d.id AND returned_at IS NULL
-             ORDER BY distributed_at DESC LIMIT 1) lent ON true
       WHERE d.id = $1`,
     [id],
     'document_detail',

@@ -90,8 +90,15 @@ const HOLD_SQL: Record<string, string> = {
   pdf_only: `${HAS_PDF} AND NOT ${HAS_ORIGINAL}`,
 }
 
-const SELECT_MDB = `
-  SELECT m.id, m.title,
+/**
+ * 목록 한 줄의 **칸 목록**.
+ *
+ * 상세(findMdb)도 이 목록을 그대로 쓴다 — 계약이 `MdbDetail = MdbListItem.extend(…)` 라서
+ * 목록에 칸을 더하면 상세도 같이 내려줘야 하는데, 두 곳에 따로 적어 두면 한쪽만 고치고
+ * 넘어가기 쉽다. 그러면 상세 화면이 통째로 500 이 된다(응답 스키마 검증 실패).
+ */
+const MDB_COLUMNS = `
+         m.id, m.title,
          m.display_name   AS "displayName",
          m.folder_id      AS "folderId",
          f.name           AS "folderName",
@@ -109,11 +116,15 @@ const SELECT_MDB = `
          ${HAS_XLSX} AS "hasXlsx",
          ${HAS_ETC}  AS "hasEtc",
          ${HAS_PDF}  AS "hasPdf",
-         m.updated_at     AS "updatedAt"
+         m.updated_at     AS "updatedAt"`
+
+/** 목록·상세가 함께 쓰는 FROM 절 */
+const MDB_FROM = `
     FROM mdb_files m
     JOIN folders f  ON f.id = m.folder_id
-    JOIN blobs b    ON b.sha256 = m.blob_sha256
     LEFT JOIN projects p ON p.id = m.project_id`
+
+const SELECT_MDB = `SELECT ${MDB_COLUMNS} ${MDB_FROM}`
 
 /** 정렬 키 → SQL 식. 여기 적힌 것만 쓴다 (요청 문자열을 ORDER BY 에 끼우지 않는다). */
 const SORT_SQL: Record<string, string> = {
@@ -212,36 +223,16 @@ export interface MdbDetailRow extends MdbRow {
 }
 
 export function findMdb(id: number) {
+  // 목록 칸(MDB_COLUMNS)을 그대로 쓰고 상세에만 있는 칸을 덧붙인다 —
+  // 목록에 칸이 늘어도 상세가 따라오게 하기 위함이다(위 MDB_COLUMNS 주석 참고).
   return one<MdbDetailRow>(
-    `SELECT m.id, m.title,
-            m.display_name      AS "displayName",
-            m.folder_id         AS "folderId",
-            f.name              AS "folderName",
-            m.file_ext          AS "fileExt",
-            ${SIBLING_BYTES}    AS "byteSize",
-            m.equipment_type    AS "equipmentType",
-            m.doc_type          AS "docType",
-            p.name              AS "projectName",
-            m.year,
-            m.is_shared         AS "isShared",
-            m.needs_check       AS "needsCheck",
-            -- 상세도 MdbListItem 을 그대로 늘린 모양이라 자료 단위 값을 함께 내려준다
-            ${SIBLING_TAGS}     AS "tagCount",
-            ${SIBLING_FILES}    AS "files",
-            ${HAS_DWG}          AS "hasDwg",
-            ${HAS_XLSX}         AS "hasXlsx",
-            ${HAS_ETC}          AS "hasEtc",
-            ${HAS_PDF}          AS "hasPdf",
-            m.updated_at        AS "updatedAt",
+    `SELECT ${MDB_COLUMNS},
             m.original_filename AS "originalFilename",
             m.note,
             u.name              AS "uploadedBy",
             m.created_at        AS "createdAt"
-       FROM mdb_files m
-       JOIN folders f  ON f.id = m.folder_id
-       JOIN blobs b    ON b.sha256 = m.blob_sha256
-  LEFT JOIN projects p ON p.id = m.project_id
-  LEFT JOIN users u    ON u.id = m.uploaded_by
+       ${MDB_FROM}
+  LEFT JOIN users u ON u.id = m.uploaded_by
       WHERE m.id = $1`,
     [id],
     'mdb_detail',
