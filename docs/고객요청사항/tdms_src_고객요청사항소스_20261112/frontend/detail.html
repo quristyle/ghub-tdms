@@ -1,0 +1,155 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>TDMS 기술자료 관리 시스템</title>
+  <link rel="icon" href="assets/favicon.ico?v=1" />
+  <link rel="stylesheet" href="style.css?v=36" />
+  <link rel="stylesheet" href="detail.css?v=20" />
+  <script src="auth-guard.js?v=13"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="app-header-inner">
+      <a class="app-brand" href="index.html">
+        <img class="app-brand-logo" src="assets/skgas-logo.png" alt="SK gas" />
+        <span class="app-brand-text"><strong>TDMS</strong> 기술자료 관리 시스템</span>
+      </a>
+      <nav class="app-nav">
+        <a href="index.html">TDB 조회</a>
+        <a href="import.html">TDB 반입·검수</a>
+        <a href="editor.html">TDB 관리</a>
+        <a href="distributions.html">TDB 반출이력</a>
+        <a href="mdb.html">MDB 조회</a>
+        <a href="mdb-editor.html">MDB 관리</a>
+        <a href="audit.html">시스템 로그</a>
+        <a href="users.html">사용자 관리</a>
+      </nav>
+      <div id="user-slot" class="app-user"></div>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="page-head">
+      <div>
+        <h1 class="page-title" id="doc-title">TDB 자료 상세 보기</h1>
+      </div>
+    </div>
+
+    <div class="detail-toolbar">
+      <div class="detail-toolbar-left">
+        <a href="index.html" id="detail-back" class="back-btn detail-back-btn">목록으로</a>
+        <span class="detail-nav">
+          <span class="nav-btn-pair">
+            <button type="button" class="nav-step-btn" id="detail-first-btn" title="맨 처음 자료"><span class="nav-arrow dbl-arrow">◀◀</span> 처음</button>
+            <button type="button" class="nav-step-btn" id="detail-prev-btn" title="이전 자료"><span class="nav-arrow">◀</span> 이전</button>
+          </span>
+          <span class="detail-nav-count">
+            <input type="text" inputmode="numeric" id="detail-nav-pos-input" class="nav-pos-input" title="번호를 입력하고 Enter" />
+            <span>/ <span id="detail-nav-total"></span></span>
+          </span>
+          <span class="nav-btn-pair">
+            <button type="button" class="nav-step-btn" id="detail-next-btn" title="다음 자료">다음 <span class="nav-arrow">▶</span></button>
+            <button type="button" class="nav-step-btn" id="detail-last-btn" title="맨 끝 자료">끝 <span class="nav-arrow dbl-arrow">▶▶</span></button>
+          </span>
+        </span>
+      </div>
+      <div class="page-actions" id="detail-actions"></div>
+    </div>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>자료내용</h2>
+      </div>
+      <div class="card-pad detail-card">
+        <div class="detail-row">
+          <div><span class="dt">자료명</span><span class="dd" id="f-drawing_no"></span></div>
+          <div class="detail-spacer" aria-hidden="true"></div>
+          <div><span class="dt">현재 Rev</span><span class="dd" id="f-current_rev"></span></div>
+          <div><span class="dt">상태</span><span class="dd" id="f-status"></span></div>
+          <div><span class="dt">보유</span><span class="dd" id="f-holding"></span></div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-path"><span class="dt">경로</span><span class="dd" id="f-source_path"></span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>미리보기</h2>
+      </div>
+      <div id="pdf-area"></div>
+    </section>
+
+    <section class="card">
+      <div class="section-head section-head-btn">
+        <h2>Revision 이력</h2>
+        <div class="section-head-right">
+          <label class="check-inline field-check">
+            <input type="checkbox" id="rev-approved-only" checked /> 승인만 보기
+          </label>
+          <button id="rev-export-btn" class="cart-btn" type="button">엑셀 내보내기</button>
+        </div>
+      </div>
+      <div class="table-scroll flat">
+        <table id="rev-table">
+          <colgroup>
+            <col style="width:56px" />
+            <col style="width:80px" />
+            <col />
+            <col style="width:230px" />
+            <col style="width:120px" />
+            <col style="width:120px" />
+            <col style="width:140px" />
+            <col style="width:140px" />
+            <col style="width:340px" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>No</th><th>Rev</th><th>자료명</th><th>공사</th><th>업체</th>
+              <th>검수상태</th><th>업로드일시</th><th>최신본</th><th data-sort="off">비고</th>
+            </tr>
+          </thead>
+          <tbody id="rev-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-head section-head-btn">
+        <h2>반출 이력</h2>
+        <button id="detail-dist-export-btn" class="cart-btn" type="button">엑셀 내보내기</button>
+      </div>
+      <div class="table-scroll flat">
+        <table id="detail-dist-table">
+          <colgroup>
+            <col style="width:56px" />
+            <col style="width:90px" />
+            <col />
+            <col style="width:230px" />
+            <col style="width:120px" />
+            <col style="width:120px" />
+            <col style="width:140px" />
+            <col style="width:140px" />
+            <col style="width:340px" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>No</th><th>반출Rev</th><th>자료명</th><th>공사</th><th>업체</th><th>목적</th>
+              <th>반출일시</th><th>반입일시</th><th data-sort="off">비고</th>
+            </tr>
+          </thead>
+          <tbody id="dist-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- 자료명 옆 돋보기 아이콘 → PDF 미리보기 팝업은 ui.js가 화면에 공용으로 하나만 만들어 붙인다. -->
+
+  <script src="ui.js?v=41"></script>
+  <script src="favorites.js?v=9"></script>
+  <script src="detail.js?v=24"></script>
+</body>
+</html>

@@ -1,0 +1,234 @@
+/* 도면관리시스템이 덧붙인 "도형" 도구의 모양 — 원래 PDF.js에는 없다 (2026-09-02).
+   도구 모음의 다른 버튼과 같은 모양이 되도록 PDF.js가 이미 쓰고 있는 class를 그대로 쓰고,
+   여기에는 이 도구에만 필요한 것(아이콘, 모양 고르는 칸, 끌어 그리는 중의 미리보기)만 적는다.
+   창의 너비·색 칸·두께 줄은 네 도구가 함께 쓰는 dms-tools.css에 있다. */
+
+#dmsShapeButton::before {
+  -webkit-mask-image: url(images/toolbarButton-dmsShape.svg);
+          mask-image: url(images/toolbarButton-dmsShape.svg);
+}
+
+/* 모양 고르는 칸 */
+.dmsShapeChoiceBox {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dmsShapeChoices {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+}
+
+/* LOTO·CLOSE·OPEN — 글자가 들어가야 해서 셋으로 나눈다 */
+.dmsShapeChoices.dmsShapeWords {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.dmsShapeChoice {
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--separator-color);
+  border-radius: 4px;
+  background-color: transparent;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dmsShapeChoice:hover {
+  background-color: var(--doorhanger-hover-bg-color);
+}
+
+.dmsShapeChoice.chosen {
+  border-color: var(--toggled-btn-color, highlight);
+  border-width: 2px;
+  background-color: var(--toggled-btn-bg-color, transparent);
+}
+
+/* 버튼 안 작은 그림 — 색을 따로 주지 않고 글자색을 따라가게 한다 */
+.dmsShapeIcon {
+  display: block;
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+          mask-position: center;
+}
+
+.dmsShapeIcon.rect {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Crect x='1.6' y='2.6' width='10.8' height='8.8' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E");
+          mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Crect x='1.6' y='2.6' width='10.8' height='8.8' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E");
+}
+
+.dmsShapeIcon.ellipse {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cellipse cx='7' cy='7' rx='5.4' ry='4.4' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E");
+          mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cellipse cx='7' cy='7' rx='5.4' ry='4.4' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E");
+}
+
+.dmsShapeIcon.triangle {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M7 2.2 12.4 11.6H1.6Z' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E");
+          mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M7 2.2 12.4 11.6H1.6Z' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* 밸브 — 세모 둘이 꼭지점에서 만나는 나비넥타이 모양 */
+.dmsShapeIcon.bowtie {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M1.8 2.8 7 7 12.2 2.8 12.2 11.2 7 7 1.8 11.2Z' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E");
+          mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M1.8 2.8 7 7 12.2 2.8 12.2 11.2 7 7 1.8 11.2Z' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* 블라인드 — 위에 동그라미, 아래로 자루가 내려오는 모양 */
+.dmsShapeIcon.blind {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Ccircle cx='7' cy='4.1' r='2.6' fill='none' stroke='black' stroke-width='1.6'/%3E%3Cpath d='M7 6.7 L7 12.4' stroke='black' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+          mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Ccircle cx='7' cy='4.1' r='2.6' fill='none' stroke='black' stroke-width='1.6'/%3E%3Cpath d='M7 6.7 L7 12.4' stroke='black' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+/* 스펙타클 블라인드 — 동그라미 둘(위는 색이 차 있다)과 그 밑의 자루 */
+.dmsShapeIcon.spectacle {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Ccircle cx='7' cy='3.2' r='2.2' fill='black'/%3E%3Ccircle cx='7' cy='7.6' r='2.2' fill='none' stroke='black' stroke-width='1.5'/%3E%3Cpath d='M7 9.8 L7 12.8' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+          mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Ccircle cx='7' cy='3.2' r='2.2' fill='black'/%3E%3Ccircle cx='7' cy='7.6' r='2.2' fill='none' stroke='black' stroke-width='1.5'/%3E%3Cpath d='M7 9.8 L7 12.8' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+.dmsShapeIcon.line {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M2 12 L12 2' stroke='black' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+          mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M2 12 L12 2' stroke='black' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+.dmsShapeIcon.arrow {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M2 12 L12 2 M12 2 L7.4 3 M12 2 L11 6.6' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+          mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M2 12 L12 2 M12 2 L7.4 3 M12 2 L11 6.6' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+/* 치수선 — 양쪽 끝에 화살표가 달린 선 */
+.dmsShapeIcon.dim {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M2.6 7H11.4M2.6 7 5.2 4.9M2.6 7 5.2 9.1M11.4 7 8.8 4.9M11.4 7 8.8 9.1' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+          mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M2.6 7H11.4M2.6 7 5.2 4.9M2.6 7 5.2 9.1M11.4 7 8.8 4.9M11.4 7 8.8 9.1' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* 별 */
+.dmsShapeIcon.star {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M7 1.4 8.26 5.27 12.33 5.27 9.03 7.66 10.29 11.53 7 9.14 3.71 11.53 4.97 7.66 1.67 5.27 5.74 5.27Z' fill='none' stroke='black' stroke-width='1.4' stroke-linejoin='round'/%3E%3C/svg%3E");
+          mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M7 1.4 8.26 5.27 12.33 5.27 9.03 7.66 10.29 11.53 7 9.14 3.71 11.53 4.97 7.66 1.67 5.27 5.74 5.27Z' fill='none' stroke='black' stroke-width='1.4' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* 폭발 */
+.dmsShapeIcon.burst {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M7 1.2 8 4.6 11.1 2.9 9.4 6 12.8 7 9.4 8 11.1 11.1 8 9.4 7 12.8 6 9.4 2.9 11.1 4.6 8 1.2 7 4.6 6 2.9 2.9 6 4.6Z' fill='none' stroke='black' stroke-width='1.3' stroke-linejoin='round'/%3E%3C/svg%3E");
+          mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M7 1.2 8 4.6 11.1 2.9 9.4 6 12.8 7 9.4 8 11.1 11.1 8 9.4 7 12.8 6 9.4 2.9 11.1 4.6 8 1.2 7 4.6 6 2.9 2.9 6 4.6Z' fill='none' stroke='black' stroke-width='1.3' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* 구름 — 도면 수정 부분에 두르는 Revision 표시로도 쓴다 */
+.dmsShapeIcon.cloud {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M7 3A1.74 1.74 0 0110.13 4.51A1.74 1.74 0 0110.9 7.89A1.74 1.74 0 018.73 10.6A1.74 1.74 0 015.27 10.6A1.74 1.74 0 013.1 7.89A1.74 1.74 0 013.88 4.51A1.74 1.74 0 017 3Z' fill='none' stroke='black' stroke-width='1.3'/%3E%3C/svg%3E");
+          mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M7 3A1.74 1.74 0 0110.13 4.51A1.74 1.74 0 0110.9 7.89A1.74 1.74 0 018.73 10.6A1.74 1.74 0 015.27 10.6A1.74 1.74 0 013.1 7.89A1.74 1.74 0 013.88 4.51A1.74 1.74 0 017 3Z' fill='none' stroke='black' stroke-width='1.3'/%3E%3C/svg%3E");
+}
+
+/* LOTO·CLOSE·OPEN — 글자 그대로 보여주는 버튼 */
+.dmsShapeChoice.dmsShapeWord {
+  height: 24px;
+  padding: 0 4px;
+  font: menu;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+/* 블라인드·스펙타클 블라인드·밸브를 골랐을 때 잠기는 [도형 채우기] 칸 (2026-09-04 CM 지시,
+   밸브는 2026-09-18). 그 셋은 그려 놓은 뒤 표시 옆 [채움 전환]으로 칠했다 비웠다 한다. */
+.dmsOptionBox.dmsOptionLocked {
+  opacity: 0.45;
+}
+
+.dmsOptionBox.dmsOptionLocked .dmsCheckLabel {
+  cursor: default;
+}
+
+/* 도형 도구가 켜져 있는 동안.
+   PDF.js의 그리기 편집 상태를 빌려 쓰기 때문에(dms-shapes.js activate 참고) 그쪽이 지정한
+   연필 모양 커서를 덮어써야 해서 !important를 쓴다. */
+#viewerContainer.dmsShapeMode .page,
+#viewerContainer.dmsShapeMode .annotationEditorLayer {
+  cursor: crosshair !important;
+}
+
+#viewerContainer.dmsShapeDragging {
+  user-select: none;
+}
+
+/* 끌고 있는 동안 보여주는 미리보기 (마우스는 통과시킨다) */
+.dmsShapePreview {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  overflow: visible;
+}
+
+/* 색 고르는 칸이 둘이라 길어질 수 있어 창 안에서 스크롤한다 */
+.dmsShapePanel {
+  max-height: min(72vh, 620px);
+  overflow-y: auto;
+}
+
+/* ------------------------------------------------------- 스탬프 (2026-09-04 CM 지시)
+   버튼 그림과 "스탬프 선택" 칸만 여기 둔다 — 색 칸·두께 줄·채우기 칸은 도형과 똑같은
+   모양이라 위에 있는 것을 그대로 쓴다. */
+#dmsStampButton::before {
+  -webkit-mask-image: url(images/toolbarButton-dmsStamp.svg);
+          mask-image: url(images/toolbarButton-dmsStamp.svg);
+}
+
+.dmsStampChoiceBox {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dmsStampChoices {
+  display: grid;
+  gap: 4px;
+}
+
+/* 도장 그림 + 이름 — 어떤 도장인지 눌러 보지 않아도 알 수 있게 (2026-09-04 CM 지시) */
+.dmsStampChoice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 6px;
+  border: 1px solid var(--separator-color);
+  border-radius: 4px;
+  background-color: transparent;
+  color: inherit;
+  font: menu;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+/* 버튼 안에 넣은 도장 그림 — 흰 바탕이 함께 그려져 있어 어두운 화면에서도 그대로 보인다 */
+.dmsStampThumb {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--separator-color);
+  border-radius: 2px;
+}
+
+.dmsStampChoice:hover {
+  background-color: var(--doorhanger-hover-bg-color);
+}
+
+.dmsStampChoice.chosen {
+  border-color: var(--toggled-btn-color, highlight);
+  border-width: 2px;
+  background-color: var(--toggled-btn-bg-color, transparent);
+}
+
+/* 스탬프를 찍을 자리를 끌 때 — 도형과 같은 십자 커서 */
+#viewerContainer.dmsStampMode .page,
+#viewerContainer.dmsStampMode .annotationEditorLayer {
+  cursor: crosshair;
+}

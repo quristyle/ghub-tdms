@@ -1,0 +1,119 @@
+/* 로그인 화면 */
+
+body.login-body {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(160deg, #eef2f7 0%, #f6f8fa 60%, #eaeef4 100%);
+  padding: 20px;
+}
+
+.login-box {
+  width: 340px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 30px 28px;
+  box-shadow: 0 8px 30px rgba(16, 24, 40, 0.1);
+}
+
+.login-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.login-brand-logo {
+  height: 36px;
+  width: auto;
+}
+
+/* 제목(TDMS)과 부제(기술자료 관리 시스템) 사이만 따로 묶어서, 로고와의 간격(login-brand의
+   gap)보다 둘 사이 간격을 훨씬 좁게 준다. */
+.login-brand-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.login-title {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.login-sub {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.login-box label {
+  display: block;
+  margin-top: 14px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.login-box input {
+  width: 100%;
+  height: 36px;
+  margin-top: 5px;
+}
+
+.login-box button {
+  width: 100%;
+  height: 38px;
+  margin-top: 22px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.login-error {
+  margin-top: 14px;
+  padding: 8px 10px;
+  background: var(--danger-soft);
+  border: 1px solid #f3c9c7;
+  border-radius: var(--radius);
+  color: var(--danger);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+/* 처음 로그인(임시 비밀번호) 시 새 비밀번호 정하기 (2026-09-17) */
+.login-change-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.login-change-desc {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  text-align: center;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+.login-rule {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+.login-box button.login-secondary-btn {
+  height: 32px;
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 400;
+}

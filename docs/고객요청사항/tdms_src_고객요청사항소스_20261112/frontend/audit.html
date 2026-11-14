@@ -1,0 +1,111 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>TDMS 기술자료 관리 시스템</title>
+  <link rel="icon" href="assets/favicon.ico?v=1" />
+  <link rel="stylesheet" href="style.css?v=36" />
+  <script src="auth-guard.js?v=13"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="app-header-inner">
+      <a class="app-brand" href="index.html">
+        <img class="app-brand-logo" src="assets/skgas-logo.png" alt="SK gas" />
+        <span class="app-brand-text"><strong>TDMS</strong> 기술자료 관리 시스템</span>
+      </a>
+      <nav class="app-nav">
+        <a href="index.html">TDB 조회</a>
+        <a href="import.html">TDB 반입·검수</a>
+        <a href="editor.html">TDB 관리</a>
+        <a href="distributions.html">TDB 반출이력</a>
+        <a href="mdb.html">MDB 조회</a>
+        <a href="mdb-editor.html">MDB 관리</a>
+        <a href="audit.html" class="active">시스템 로그</a>
+        <a href="users.html">사용자 관리</a>
+      </nav>
+      <div id="user-slot" class="app-user"></div>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="page-head">
+      <div>
+        <h1 class="page-title"><a class="page-title-link" href="audit.html">시스템 로그</a><span class="page-title-sub">이벤트 및 작업 이력 기록</span></h1>
+      </div>
+    </div>
+
+    <div class="filter-bar">
+      <div class="filter-row">
+        <div class="filter-fields">
+          <div class="field">
+            <label for="screen-toggle">로그화면</label>
+            <div class="hideable-dropdown ms-dropdown" id="screen-dropdown">
+              <button type="button" class="dropdown-toggle" id="screen-toggle">전체</button>
+              <div class="dropdown-list hidden" id="screen-list"></div>
+            </div>
+          </div>
+          <div class="field">
+            <label for="action-toggle">로그동작</label>
+            <div class="hideable-dropdown ms-dropdown" id="action-dropdown">
+              <button type="button" class="dropdown-toggle" id="action-toggle">전체</button>
+              <div class="dropdown-list hidden" id="action-list"></div>
+            </div>
+          </div>
+          <div class="field">
+            <label for="user-toggle">사용자</label>
+            <div class="hideable-dropdown" id="user-dropdown">
+              <button type="button" class="dropdown-toggle" id="user-toggle">전체</button>
+              <div class="dropdown-list hidden" id="user-list"></div>
+            </div>
+          </div>
+          <div class="field">
+            <label for="from-filter">기간</label>
+            <input type="date" id="from-filter" />
+          </div>
+          <div class="field">
+            <label for="to-filter">~</label>
+            <input type="date" id="to-filter" />
+          </div>
+          <input type="text" id="q" class="filter-search" placeholder="자료명·상세 내용 검색" />
+          <button id="search-btn" class="primary">검색</button>
+        </div>
+        <div class="filter-actions">
+          <button id="reset-btn" type="button">조건 초기화</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="status-bar">
+      <span id="total-count"></span>
+      <button id="export-btn" type="button">엑셀 내보내기</button>
+    </div>
+
+    <div class="table-scroll">
+      <table id="audit-table">
+        <colgroup>
+          <col style="width:54px" />
+          <col style="width:140px" />
+          <col style="width:110px" />
+          <col style="width:110px" />
+          <col style="width:90px" />
+          <col style="width:195px" />
+          <col style="width:195px" />
+          <col style="width:180px" />
+          <col />
+        </colgroup>
+        <thead>
+          <tr>
+            <th>No</th><th>시각</th><th>화면</th><th>동작</th><th>사용자</th><th>자료명</th><th>Zip 파일명</th><th>확인</th><th>상세 내용</th>
+          </tr>
+        </thead>
+        <tbody id="audit-tbody"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <script src="ui.js?v=41"></script>
+  <script src="favorites.js?v=9"></script>
+  <script src="audit.js?v=8"></script>
+</body>
+</html>

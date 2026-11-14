@@ -1,0 +1,243 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>TDMS 기술자료 관리 시스템</title>
+  <link rel="icon" href="assets/favicon.ico?v=1" />
+  <link rel="stylesheet" href="style.css?v=36" />
+  <link rel="stylesheet" href="tree.css?v=10" />
+  <link rel="stylesheet" href="import.css?v=13" />
+  <link rel="stylesheet" href="editor.css?v=27" />
+  <link rel="stylesheet" href="mdb.css?v=21" />
+  <script src="auth-guard.js?v=13"></script>
+</head>
+<body id="mdb-editor-page">
+  <header class="app-header">
+    <div class="app-header-inner">
+      <a class="app-brand" href="index.html">
+        <img class="app-brand-logo" src="assets/skgas-logo.png" alt="SK gas" />
+        <span class="app-brand-text"><strong>TDMS</strong> 기술자료 관리 시스템</span>
+      </a>
+      <nav class="app-nav">
+        <a href="index.html">TDB 조회</a>
+        <a href="import.html">TDB 반입·검수</a>
+        <a href="editor.html">TDB 관리</a>
+        <a href="distributions.html">TDB 반출이력</a>
+        <a href="mdb.html">MDB 조회</a>
+        <a href="mdb-editor.html" class="active">MDB 관리</a>
+        <a href="audit.html">시스템 로그</a>
+        <a href="users.html">사용자 관리</a>
+      </nav>
+      <div id="user-slot" class="app-user"></div>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="page-head">
+      <div>
+        <h1 class="page-title"><a class="page-title-link" href="mdb-editor.html">MDB 관리</a><span class="page-title-sub">MDB 폴더 및 디렉토리 구조 관리</span></h1>
+      </div>
+      <div class="page-actions">
+        <button id="retired-open-btn" type="button">폐기 보관함 <span id="retired-count" class="tree-count"></span></button>
+        <button id="trash-open-btn" type="button">삭제 보관함 <span id="trash-count" class="tree-count"></span></button>
+      </div>
+    </div>
+
+    <!-- 검색·필터 — TDB 관리 화면과 같은 자리·구성. 내용은 MDB 데이터에 맞춘다
+         (MDB 조회 화면의 확인필요 목록 필터: 분류·설비유형·공사·자료명 검색과 같은 항목). -->
+    <div class="filter-bar">
+      <div class="filter-row">
+        <div class="filter-fields">
+          <div class="field">
+            <label for="category">분류</label>
+            <select id="category">
+              <option value="">전체</option>
+              <option value="전용">전용</option>
+              <option value="공용">공용</option>
+              <option value="확인필요">확인필요</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="equipment_type">설비유형</label>
+            <select id="equipment_type">
+              <option value="">전체</option>
+            </select>
+          </div>
+
+          <!-- 자료유형(2026-08-28 신설) — 자료 1건에 여러 개가 붙을 수 있어서, 고른 유형이
+               하나라도 붙어 있으면 검색된다(Pump로 찾으면 "Pump/Strainer"인 자료도 나온다). -->
+          <div class="field">
+            <label for="doc_type">자료유형</label>
+            <select id="doc_type">
+              <option value="">전체</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="project_id">공사</label>
+            <select id="project_id">
+              <option value="">전체</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="holding">원본/사본</label>
+            <select id="holding">
+              <option value="">전체</option>
+              <option value="BOTH">원본/사본 있음</option>
+              <option value="ORIGINAL_ONLY">원본만 있음</option>
+              <option value="COPY_ONLY">사본만 있음</option>
+            </select>
+          </div>
+
+          <label class="check-inline field-check">
+            <input type="checkbox" id="recursive_folder" /> 하위폴더 전체보기
+          </label>
+
+          <!-- 평소에는 감춰두는 DWG·PDF 폴더를 트리에 그대로 드러낸다. 켜면 원본·사본이
+               각각 실제로 들어있는 폴더 밑에 보이고, 괄호 숫자도 자료 수가 아닌 파일 수가 된다.
+               (TDB 관리와 같은 자리·같은 동작) -->
+          <label class="check-inline field-check">
+            <input type="checkbox" id="show_hidden_folders" /> 숨김 폴더 보기
+          </label>
+
+          <div class="field search-lead">
+            <label for="search-target">검색대상</label>
+            <select id="search-target">
+              <option value="ALL" selected>전체</option>
+              <option value="FILE">자료명</option>
+              <option value="TAG">Tag No</option>
+            </select>
+          </div>
+          <input type="text" id="q" class="filter-search" placeholder="자료명 검색" />
+          <button id="search-btn" class="primary">검색</button>
+        </div>
+
+        <div class="filter-actions">
+          <button id="reset-btn" type="button">조건 초기화</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 폴더 트리(좌, 폴더만) + 오른쪽 콘텐츠(편집 3단 → 폴더명/자료명 확인 → 결과 표) —
+         TDB 관리 화면과 동일한 레이아웃. -->
+    <div class="main-layout">
+      <aside class="tree-panel">
+        <div class="tree-head">
+          <b id="tree-collapse-all" title="눌러서 대분류만 보이게 접기">폴더</b>
+        </div>
+        <div id="folder-tree"></div>
+      </aside>
+
+      <div id="tree-resize-handle" class="tree-resize-handle"></div>
+
+      <div class="main-content">
+        <!-- 편집 3단: 폴더 편집 | 자료 편집 | Zip 폴더 업로드 (맨 위) -->
+        <div class="edit-cols">
+          <div id="folder-edit-block" class="edit-block bulk-block">
+            <div class="bulk-block-head">
+              <span class="bulk-block-title">폴더 편집</span>
+            </div>
+            <div id="folder-panel" class="bulk-block-body"></div>
+          </div>
+
+          <div id="doc-edit-block" class="edit-block bulk-block">
+            <div class="bulk-block-head">
+              <span class="bulk-block-title">자료 편집</span>
+            </div>
+            <div id="doc-panel" class="bulk-block-body"></div>
+          </div>
+
+          <div class="edit-block bulk-block zip-block" data-perm="screen.mdb_editor.zip_register">
+            <div class="bulk-block-head">
+              <span class="bulk-block-title">Zip 폴더 업로드</span>
+            </div>
+            <div class="bulk-block-body">
+              <div class="file-row">
+                <label class="file-label">
+                  <input type="file" id="zip-file" accept=".zip" />
+                </label>
+                <button id="zip-submit" class="primary" type="button">업로드</button>
+              </div>
+              <div id="zip-result" class="result-box hidden"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 폴더명·자료명 확인 — 결과 표 위 -->
+        <div class="info-cards">
+          <div id="folder-info-card" class="info-card"></div>
+          <div id="doc-info-card" class="info-card"></div>
+        </div>
+
+        <!-- 결과 표 -->
+        <div class="table-scroll">
+          <table id="doc-table">
+            <colgroup>
+              <col style="width:54px" />
+              <col style="width:34px" />
+              <col style="width:220px" />
+              <col style="width:60px" />
+              <col style="width:150px" />
+              <col />
+              <col style="width:110px" />
+              <col style="width:110px" />
+              <col style="width:58px" />
+              <col style="width:58px" />
+              <col style="width:58px" />
+              <col style="width:58px" />
+              <col style="width:134px" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th data-sort="off">No</th>
+                <th class="col-check"><input type="checkbox" id="doc-select-all" /></th>
+                <th data-sort-key="name">자료명</th>
+                <th data-sort-key="year">연도</th>
+                <th data-sort-key="project">공사</th>
+                <th data-sort-key="path">경로</th>
+                <th data-sort-key="equipment_type">설비유형</th>
+                <th data-sort-key="doc_type">자료유형</th>
+                <th data-sort-key="dwg">DWG</th>
+                <th data-sort-key="xlsx">XLSX</th>
+                <th data-sort-key="etc">ETC</th>
+                <th data-sort-key="pdf">PDF</th>
+                <th data-sort-key="updated_at">최종수정</th>
+              </tr>
+            </thead>
+            <tbody id="doc-tbody"></tbody>
+          </table>
+        </div>
+
+        <div class="pagination">
+          <span class="nav-btn-pair">
+            <button id="first-page" class="nav-step-btn" title="맨 처음 페이지"><span class="nav-arrow dbl-arrow">◀◀</span> 처음</button>
+            <button id="prev-page" class="nav-step-btn" title="이전 페이지"><span class="nav-arrow">◀</span> 이전</button>
+          </span>
+          <span id="page-pos-box" class="page-pos-box">
+            <input type="text" inputmode="numeric" id="page-pos-input" class="nav-pos-input" title="페이지 번호를 입력하고 Enter" />
+            <span>/ <span id="page-total"></span> 페이지</span>
+          </span>
+          <span class="nav-btn-pair">
+            <button id="next-page" class="nav-step-btn" title="다음 페이지">다음 <span class="nav-arrow">▶</span></button>
+            <button id="last-page" class="nav-step-btn" title="맨 끝 페이지">끝 <span class="nav-arrow dbl-arrow">▶▶</span></button>
+          </span>
+        </div>
+
+        <span id="selected-folder-name" class="selected-folder-name" hidden></span>
+        <span id="total-count" hidden></span>
+      </div>
+    </div>
+  </main>
+
+  <div id="modal-root"></div>
+  <div id="picker-modal-root"></div>
+
+  <script src="ui.js?v=41"></script>
+  <script src="favorites.js?v=9"></script>
+  <script src="mdb-types.js?v=6"></script>
+  <script src="mdb-tag-history.js?v=6"></script>
+  <script src="mdb-editor.js?v=32"></script>
+</body>
+</html>

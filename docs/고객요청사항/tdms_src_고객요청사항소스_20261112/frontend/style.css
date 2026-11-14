@@ -1,0 +1,1889 @@
+/* ===========================================================
+   G.Hub 도면관리시스템 - 공통 디자인 시스템
+   - 무채색 기반. 색은 '상태를 알려야 할 때'만 최소한으로 쓴다.
+   - 외부 폰트/CDN 없이 윈도우 기본 폰트만 사용 (오프라인 로컬 앱)
+   =========================================================== */
+
+:root {
+  /* 바탕 · 면 */
+  --bg: #f7f7f6;
+  --surface: #ffffff;
+  --surface-alt: #fbfbfa;
+  --surface-sunken: #f2f2f0;
+
+  /* 선 */
+  --border: #e8e8e5;
+  --border-strong: #d8d8d4;
+
+  /* 글자 */
+  --text: #1c1c1b;
+  --text-dark-gray: #3a3a35;
+  --text-muted: #77776f;
+  --text-faint: #a3a39b;
+
+  /* 주조색 = 먹색. 파란색 아님 */
+  --accent: #1c1c1b;
+  --accent-hover: #000000;
+  --accent-soft: #f0f0ed;
+
+  /* 상태색 — 채도를 낮춰 표에서 튀지 않게 */
+  --ok: #3f6b52;
+  --ok-soft: #eef3ef;
+  --warn: #8a6636;
+  --warn-soft: #f7f2e9;
+  --danger: #97453e;
+  --danger-soft: #f8eeed;
+  --info: #45607d;
+  --info-soft: #eef1f5;
+
+  /* 형태 */
+  --radius: 4px;
+  --radius-lg: 8px;
+  --shadow-sm: 0 1px 2px rgba(28, 28, 27, 0.04);
+  --shadow-lg: 0 16px 48px rgba(28, 28, 27, 0.16);
+
+  --header-h: 56px;
+
+  /* 권한 없음·비활성 상태의 커서 — 브라우저 기본 not-allowed는 OS에 따라 빨간색으로
+     보여서(2026-08-13 CM 지적), 무채색 디자인에 맞는 검정 금지표시로 바꿔 쓴다. */
+  --cursor-forbidden: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 22 22'%3E%3Ccircle cx='11' cy='11' r='8.5' fill='none' stroke='%23000' stroke-width='2'/%3E%3Cline x1='5' y1='17' x2='17' y2='5' stroke='%23000' stroke-width='2'/%3E%3C/svg%3E") 11 11, not-allowed;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  /* 화면마다 세로 스크롤바 유무가 달라서, 이걸 안 해두면 페이지 폭이
+     스크롤바 두께(15~17px)만큼 오락가락해 상단 바 버튼 위치가 화면마다 미세하게
+     달라 보였다(2026-08-17 CM 지적). 스크롤바 자리를 항상 미리 잡아둬서 고정한다. */
+  scrollbar-gutter: stable;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Malgun Gothic", "맑은 고딕", "Segoe UI", sans-serif;
+  font-size: 13.5px;
+  line-height: 1.55;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--text);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+a:hover {
+  border-bottom-color: var(--text-faint);
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* ---------- 권한이 없어 조작할 수 없는 항목 (2026-08-13 CM 확정) ----------
+   숨기지 않고 흐리게만 표시한다 — 사용자가 자기한테 없는 기능이 뭔지 알아야
+   관리자에게 권한을 요청할 수 있기 때문. 클릭·입력은 막는다. */
+.perm-disabled {
+  opacity: 0.4;
+  cursor: var(--cursor-forbidden) !important;
+}
+
+.perm-disabled * {
+  pointer-events: none !important;
+  cursor: var(--cursor-forbidden) !important;
+}
+
+/* ---------- 상단 앱 바 ---------- */
+.app-header {
+  height: var(--header-h);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.app-header-inner {
+  height: 100%;
+  padding: 0 28px;
+  display: flex;
+  align-items: center;
+  gap: 36px;
+}
+
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.app-brand:hover {
+  border-bottom-color: transparent;
+}
+
+.app-brand-logo {
+  height: 26px;
+  width: auto;
+}
+
+.app-brand-text {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-dark-gray);
+}
+
+.app-brand-text strong {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-dark-gray);
+  margin-right: 2px;
+}
+
+.app-nav {
+  display: flex;
+  gap: 3px;
+  flex: 1;
+  align-items: center;
+  height: 100%;
+}
+
+.app-nav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 34px;
+  min-width: 108px;
+  padding: 0 13px;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  border-bottom: none;
+  text-align: center;
+  background: transparent;
+  text-decoration: none;
+  text-underline-offset: 7px;
+  text-decoration-thickness: 2px;
+}
+
+.app-nav a:hover {
+  color: var(--text-dark-gray);
+  text-decoration-line: underline;
+  text-decoration-color: var(--text-dark-gray);
+}
+
+.app-nav a.active {
+  color: var(--text);
+  text-decoration-line: underline;
+  text-decoration-color: var(--accent);
+}
+
+.app-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ---------- 페이지 ---------- */
+.page {
+  padding: 28px;
+  max-width: 1680px;
+}
+
+.page-title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin: 0 0 5px;
+}
+
+.page-title-link {
+  color: inherit;
+  text-decoration: none;
+  border-bottom-color: transparent;
+}
+
+.page-title-link:hover {
+  border-bottom-color: transparent;
+  text-shadow: 0 0 0.5px currentColor, 0 0 0.5px currentColor;
+}
+
+.page-title-sub {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #64645d;
+  letter-spacing: normal;
+  margin-left: 14px;
+}
+
+.page-desc {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  margin: 0;
+  max-width: 760px;
+}
+
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+
+.page-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* 조건 초기화 · 엑셀 내보내기 — 나란히 있으니 너비·디자인을 맞춘다 */
+.page-actions button {
+  min-width: 112px;
+  text-align: center;
+}
+
+/* 뒤로가기 — 텍스트 링크가 아니라 누를 수 있게 생긴 버튼. 옆에 나란히 놓이는
+   다운로드 버튼(기본 button, 높이 32px)과 크기를 맞춘다. */
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.back-btn:hover {
+  background: var(--surface-alt);
+  border-color: var(--text-faint);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.back-btn::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-left: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  margin-left: 2px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.card-pad {
+  padding: 20px;
+}
+
+h2 {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 12px;
+}
+
+h3 {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 18px 0 6px;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+/* ---------- 폼 요소 ---------- */
+input[type="text"],
+input[type="password"],
+input[type="number"],
+input[type="date"],
+select {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  outline: none;
+  transition: border-color 0.12s;
+}
+
+select {
+  max-width: 260px;
+  cursor: pointer;
+}
+
+input::placeholder {
+  color: var(--text-faint);
+}
+
+input:focus,
+select:focus {
+  border-color: var(--text);
+}
+
+input:disabled,
+select:disabled {
+  background: var(--surface-sunken);
+  color: var(--text-faint);
+  cursor: var(--cursor-forbidden);
+}
+
+input[type="file"] {
+  font-size: 12px;
+  padding: 6px 0;
+  color: var(--text-muted);
+}
+
+/* 브라우저 기본 "파일 선택" 버튼 — 크기(높이·좌우 여백)만 일반 button과 맞추고,
+   색·테두리·모양은 브라우저 기본 그대로 둔다 */
+input[type="file"]::file-selector-button {
+  height: 32px;
+  padding: 0 14px;
+  margin-right: 10px;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--text-dark-gray);
+}
+
+label {
+  font-size: 12.5px;
+}
+
+fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px 12px;
+}
+
+legend {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  padding: 0 4px;
+}
+
+/* ---------- 버튼 ---------- */
+button {
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--text-faint);
+  background: var(--surface-alt);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: var(--cursor-forbidden);
+}
+
+button.primary {
+  background: var(--text-dark-gray);
+  border-color: var(--text-dark-gray);
+  color: #fff;
+}
+
+button.primary:hover:not(:disabled) {
+  background: var(--text);
+  border-color: var(--text);
+}
+
+button.small {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 11.5px;
+}
+
+button.link {
+  height: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+button.link:hover:not(:disabled) {
+  background: none;
+  color: var(--text);
+}
+
+/* ---------- 필터 바 ----------
+   규칙: 모든 입력 칸은 같은 너비(--field-w), 같은 높이. 라벨은 칸 위에 고정.
+   칸 폭이 제각각이면 지저분해 보이므로 예외를 두지 않는다. */
+.filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 14px;
+}
+
+/* 바깥 줄은 줄바꿈 안 함 — 필드 그룹만 안에서 줄바꿈되고, 우측 버튼은 늘 같은 줄 오른쪽 끝에 고정 */
+.filter-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.filter-fields {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.filter-search {
+  width: 220px;
+  height: 32px;
+  /* 필터 줄이 꽉 차면 flex-wrap으로 다음 줄로 넘어가고, 자리가 남으면 이 줄 오른쪽 끝에
+     붙는다(검색버튼도 바로 옆에 따라와 조건초기화 버튼과는 겹치지 않는다 — 서로 다른
+     flex 컨테이너라 항상 분리돼 있다). */
+  margin-left: auto;
+}
+
+/* MDB 조회·관리는 검색칸 왼쪽에 "검색대상"(자료명/Tag No) 드롭박스가 붙는다. 전역
+   .filter-search의 margin-left:auto를 그대로 두면 드롭박스와 검색칸 사이가 벌어지므로,
+   이 페이지들에서는 auto를 검색대상 필드(.search-lead)로 옮겨 [검색대상][검색칸][검색] 묶음이
+   통째로 오른쪽으로 밀리게 한다(둘 사이는 붙어 있게). */
+#mdb-search-page .filter-search,
+#mdb-editor-page .filter-search {
+  margin-left: 0;
+}
+#mdb-search-page .search-lead,
+#mdb-editor-page .search-lead {
+  margin-left: auto;
+}
+/* 검색대상(자료명/Tag No) 드롭박스는 다른 필터 칸(기본 128px)보다 좁게 — 지금 너비의 2/3 */
+#search-target {
+  width: 85px;
+}
+
+/* TDB 반출이력의 반출목적·반출상태·반출형태·반출자 — 네 칸을 같은 너비로 맞춘다.
+   반출목적·반출상태·반출형태는 <select>라 ".field > select"(width:128px) 규칙이 더 우선순위가
+   높아서 클래스 하나로는 못 이긴다. 반출자는 <select>가 아니라 체크박스 드롭다운
+   (.dropdown-toggle, 기본 100%, .ms-dropdown 쓰면 220px)이라 너비 규칙 자체가 다르다.
+   그래서 넷 다 id로 직접 걸어 확실히 같은 값을 준다.
+   #status는 TDB 조회·TDB 관리 화면에도 같은 id로 쓰여서, 여기서 그대로 걸면 그 두 화면의
+   "상태"도 110px로 좁아져 옆 "검색대상"(128px)과 안 맞게 된다. 그래서 이 페이지(distributions-page)로
+   범위를 좁혀 TDB 반출이력에만 적용한다(2026-08-24 CM 확정). */
+#distributions-page #purpose,
+#distributions-page #status,
+#distributions-page #export-kind,
+#distributions-page #dist-by-dropdown .dropdown-toggle {
+  width: 110px;
+}
+
+/* "공사" 드롭다운(TDB 반출이력 #project, MDB 조회·관리 #project_id, TDB 반입·검수 #imp-project) —
+   칸(닫혀 있을 때) 너비는 TDB 조회의 "검색대상"(kind_scope)과 같은 기본 필드 너비로 맞춘다
+   (2026-08-24 CM 확정). 한동안 이 셋만 220px로 넓혀뒀었는데, 다른 조건 칸들과 너비가 안 맞아
+   되돌린 것이다.
+   펼쳐지는 목록 너비는 따로 정하지 않는다 — 네이티브 <select>의 펼침 폭은 CSS로 못 정하고
+   브라우저가 "칸 너비"와 "가장 긴 항목 글자 너비" 중 큰 값으로 정하는데, 칸이 좁아지면
+   브라우저가 가장 긴 공사명에 맞춰 알아서 넓혀주므로 이름이 잘리지 않는다(CM이 원한 동작).
+   대신 화면마다 목록에 담기는 공사명이 달라 펼침 폭은 화면마다 다르다 — TDB 두 화면은 날짜가
+   붙은 원래 이름(약 290px), MDB 두 화면은 앞 날짜를 뗀 이름(약 220px). CM이 이 차이를 알고
+   "이름이 다 보이는 쪽"을 고른 것이므로 폭을 억지로 맞추지 말 것. */
+#project,
+#project_id,
+#imp-project {
+  width: var(--field-w, 128px);
+}
+
+/* 라벨 + 입력 한 벌 */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.field > label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+}
+
+.field > select,
+.field > input[type="text"],
+.field > input[type="date"] {
+  width: var(--field-w, 128px);
+  max-width: none;
+}
+
+.check-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+/* 체크박스 필드와 바로 옆 칸 사이 간격을 다른 필드 간격보다 조금 더 띄운다 */
+.field-check {
+  margin-right: 8px;
+}
+
+/* 조건초기화 · 엑셀내보내기 — 필터줄 오른쪽 끝. 아래 반출추가/반출대기함과 폭·간격·좌우 위치를 맞춘다.
+   filter-bar 카드 여백(16px)을 상쇄하되 10px은 남겨서, 버튼이 카드 테두리에 딱 붙지 않게 한다.
+   아래 상태바의 반출 버튼들도 같은 10px만큼 안쪽으로 넣어야 두 버튼 줄의 좌우가 정확히 맞는다. */
+.filter-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+  margin-right: -6px;
+}
+
+.filter-actions button,
+.cart-btn {
+  width: 132px;
+  text-align: center;
+}
+
+.filter-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+/* ---------- 상태 바 ---------- */
+.status-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 9px;
+  font-size: 12px;
+  color: var(--text-muted);
+  min-height: 26px;
+}
+
+.status-bar b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* 조회·검색 화면 전체 공통: 조회 조건 라벨(검색대상·상태·기간 등)은 굵게 표시한다.
+   모달 안의 입력 라벨(.field)은 필터 바 밖이라 영향 없다. */
+.filter-bar .field > label,
+.filter-bar .check-inline {
+  font-weight: 700;
+  color: var(--text-dark-gray);
+}
+
+#total-count {
+  font-weight: 700;
+}
+
+/* [선택 초기화] — 결과 표에서 체크해둔 것을 한 번에 푸는 작은 버튼(2026-08-28 CM 요청).
+   TDB/MDB 조회는 상태줄의 "(선택 N건)" 오른쪽, TDB/MDB 관리는 자료명 카드 안 "선택 N건"
+   오른쪽에 붙는다. 둘 다 글자 한 줄 높이(19px)에 맞춰둔 크기라, 이 버튼이 생겼다고 해서
+   상태줄·카드의 높이나 너비가 달라지지 않는다(기본 button 높이 32px를 여기서 덮어쓴다). */
+.clear-selection-btn {
+  height: 19px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.clear-selection-btn:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
+/* 조회 화면은 "전체 N건 (선택 M건)" 바로 옆에 농이므로 띄어쓰기만 조금 준다.
+   (관리 화면은 카드 안 flex gap이 이미 간격을 잡아준다) */
+#total-count + .clear-selection-btn {
+  margin-left: 6px;
+}
+
+/* 조회 화면 상태줄의 왼쪽 묶음(폴더명 · 전체 N건 · [선택 초기화]).
+   버튼을 글줄 안에 그냥 두면 글줄 높이가 밀려올라가 상태줄이 32px → 38px로 커졌다.
+   이 줄만 flex로 세로 가운데 정렬해 버튼이 생겨도 상태줄 높이가 예전 그대로게 한다.
+   항목 사이 간격은 원래부터 각 항목의 margin이 잡아주므로(tree.css의 구분선) 그대로 유지된다. */
+.status-bar > .status-bar-left {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+/* 창을 좀게 쓰면 이 줄이 두 줄로 접혀 상태줄이 높아질 수 있다. 건수와 버튼은 줄이지
+   않고, 자리가 모자라면 폴더명만 …로 줄여 보여준다(폴더명은 왼쪽 트리에도 그대로 있다). */
+.status-bar-left > .selected-folder-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-bar-left > #total-count,
+.status-bar-left > .clear-selection-btn {
+  flex-shrink: 0;
+}
+
+/* ---------- 검색창·검색버튼이 filter-fields 안에 있는 화면들 (TDB 조회, TDB 반출이력) ----------
+   그 두 화면은 검색 버튼이 filter-actions 밖(filter-fields 안)에 있어 폭이 따로 논다. */
+#tdb-search-page .filter-search {
+  width: 275px;
+}
+
+#tdb-search-page #search-btn,
+.filter-fields #search-btn {
+  width: 66px;
+  flex-shrink: 0;
+}
+
+/* ---------- 표 ---------- */
+.table-scroll {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: auto;
+  scrollbar-gutter: stable;
+  max-height: 68vh;
+}
+
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12.5px;
+}
+
+thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-strong);
+  padding: 10px 12px;
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
+/* 열 너비 조절 (표 헤더 오른쪽 끝을 드래그) */
+table.resizable {
+  table-layout: fixed;
+}
+
+table.resizable th,
+table.resizable td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 너비를 줄이면 넘치는 글자는 다음 칸을 가리지 않고 그만큼 잘려 보여야 한다 */
+table.resizable td {
+  white-space: nowrap;
+}
+
+/* 드래그를 잡는 영역(마우스 히트박스)만 담당. th에 overflow:hidden이 걸려있어서
+   th 경계 밖으로 나가는 부분은 클릭도 안 먹으므로, 히트박스 전체를 th 안쪽에 둔다.
+   눈에 보이는 구분선은 이 안이 아니라 th 자신에 따로 그린다(아래). */
+.col-resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  cursor: col-resize;
+  z-index: 3;
+  touch-action: none;
+}
+
+/* 컬럼 사이 구분선 — 헤더에서만 보이고(본문 행엔 없음), 헤더 높이의 80% 정도로 센터에 맞춰 항상 표시.
+   th 자신의 오른쪽 경계(overflow:hidden에 안 잘리는 안쪽)에 그린다. 마지막 열 뒤에는 안 그린다. */
+table.resizable thead th:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 10%;
+  bottom: 10%;
+  width: 1px;
+  background: var(--border-strong);
+}
+
+/* 체크박스 열 뒤에는 안 그린다 — 오른쪽 칸(자료명 등)과의 경계가 시각적으로 불필요하다는 피드백.
+   체크박스가 있는 표의 헤더 칸에는 전부 .col-check를 달아두므로 모든 표에 같은 규칙이 적용된다. */
+table.resizable thead th.col-check::after {
+  content: none;
+}
+
+/* 마우스를 올리면 리사이즈 손잡이라는 걸 알 수 있게 좀 더 진해진다 */
+table.resizable thead th:has(.col-resize-handle:hover)::after,
+table.resizable thead th:has(.col-resize-handle.resizing)::after {
+  background: var(--text-faint);
+  width: 2px;
+}
+
+/* 표 헤더 클릭 정렬 — 세모 아이콘 없이 글씨만 클릭. 지금 정렬 중인 열은 글씨를 진하게/강조색으로만 표시 */
+.sortable-th {
+  cursor: pointer;
+}
+
+.sortable-th:hover {
+  color: var(--text);
+}
+
+.sortable-th.sort-asc,
+.sortable-th.sort-desc {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+tbody td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  color: var(--text);
+}
+
+/* Rev / 상태 / DWG / XLSX / ETC / PDF 본문 내용도 칸 너비 중앙 정렬 (No 열이 추가되어 한 칸씩 밀림)
+   TDB 조회(tdb-search-page)·TDB 관리(tdb-editor-page)만 해당 — 이 두 화면의 표는 "경로" 칸이
+   5번째라 6~11번째가 정확히 Rev~PDF다. MDB 조회·관리는 "공사" 칸이 하나 더 있어 같은 id(#doc-table)를
+   써도 6번째가 "경로"가 되므로, 여기서 같이 걸리면 경로가 왼쪽 정렬 대신 가운데 정렬돼버린다. */
+#tdb-search-page #doc-table tbody td:nth-child(6),
+#tdb-search-page #doc-table tbody td:nth-child(7),
+#tdb-search-page #doc-table tbody td:nth-child(8),
+#tdb-search-page #doc-table tbody td:nth-child(9),
+#tdb-search-page #doc-table tbody td:nth-child(10),
+#tdb-search-page #doc-table tbody td:nth-child(11),
+#tdb-editor-page #doc-table tbody td:nth-child(6),
+#tdb-editor-page #doc-table tbody td:nth-child(7),
+#tdb-editor-page #doc-table tbody td:nth-child(8),
+#tdb-editor-page #doc-table tbody td:nth-child(9),
+#tdb-editor-page #doc-table tbody td:nth-child(10),
+#tdb-editor-page #doc-table tbody td:nth-child(11) {
+  text-align: center;
+}
+
+/* No 열 번호는 모든 표에서 칸 너비 중앙 정렬 */
+.col-no {
+  text-align: center;
+}
+
+/* 본문 셀을 가운데 정렬해야 할 때 (헤더는 이미 전역으로 가운데 정렬됨) */
+td.tc {
+  text-align: center;
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+tbody tr:hover td {
+  background: var(--surface-alt);
+}
+
+tbody tr.iso-row td {
+  color: var(--text-muted);
+}
+
+tbody tr.warning-row td {
+  background: var(--danger-soft);
+}
+
+tbody tr.warning-row:hover td {
+  background: #f5e6e4;
+}
+
+td.muted,
+.muted {
+  color: var(--text-faint);
+}
+
+/* 결과 표 "경로" 칸 — 누르면 좌측 폴더트리에서 그 경로를 선택한다(TDB·MDB 조회·관리 공용). */
+td.path-jump {
+  cursor: pointer;
+}
+td.path-jump:hover {
+  text-decoration: underline;
+  color: var(--text);
+}
+
+/* ---------- 상태 배지 ---------- */
+.badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.6;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.badge-neutral {
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+}
+
+.badge-success {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.badge-warning {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.badge-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.badge-info {
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+/* 보유 여부 — 있으면 진하게, 없으면 흐린 점 */
+.yn-y {
+  color: var(--text);
+}
+
+.yn-n {
+  color: var(--text-faint);
+}
+
+/* ---------- 최근 수정 표시 (2026-08-14 CM 확정) ----------
+   목록 "최종수정" 날짜에 최근일수록 눈에 띄는 색을 준다. 두 단계로 나눠 최근 30일은
+   진하게, 31~90일은 옅게 — 수정일 드롭다운의 구간과 정확히 같다. 등록만 되고 아직
+   손댄 적 없는 자료는(그 날짜는 '등록한 날'이라) 색을 칠하지 않는다(script.js에서 판단).
+   숫자 기준은 ui.js의 RECENT_STRONG_DAYS/RECENT_SOFT_DAYS 한 곳에서만 바꾸면 된다. */
+.recent-strong {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.recent-soft {
+  color: #b09468; /* --warn을 옅게 — 흐린 회색(--text-faint)과는 확실히 구분되게 */
+}
+
+/* ---------- 상단 알림 버튼 ([TDB 수정] · [TDB 반출]) ----------
+   모든 화면 상단 바에 늘 보인다(auth-guard.js가 붙이고 ui.js가 그린다).
+   건수가 0이면 평범하게, 1건이라도 있으면 색이 들어간다 — 두 버튼이 같은 규칙·같은 색이다.
+   너비도 둘이 같아야 해서(2026-08-14 CM 요청) ui.js가 둘 중 넓은 쪽에 맞춰 맞춰준다. */
+.notice-btns {
+  display: flex;
+  gap: 6px;
+  margin-right: 6px;
+}
+
+/* 이 두 버튼만 좌우 여백을 줄여 조금 좁게 쓴다(2026-09-07 CM 지시).
+   옆 [보관] 버튼은 같은 .notice-btn을 쓰지만 .fav-btn-box 안에 있어 여기 해당하지 않는다. */
+.notice-btns .notice-btn {
+  padding: 0 6px;
+}
+
+.notice-btn {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  cursor: pointer;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.notice-btn:hover {
+  background: var(--surface-sunken);
+}
+
+.notice-btn.is-strong {
+  color: var(--warn);
+  background: var(--warn-soft);
+  border-color: #e2cfa9;
+}
+
+/* 알림 버튼을 눌러 뜨는 목록 팝업 — 표가 들어가므로 기본 모달(400px)보다 넓게.
+   가로 스크롤이 생기지 않게(2026-08-14 CM 요청) 열이 늘어난 만큼 폭도 넓혔다. */
+.modal-box.notice-box {
+  width: 1420px;
+  max-width: 94vw;
+}
+
+/* 팝업 안 표 위의 조건 줄(수정 구분·수정일 드롭다운) — 필터 바와 같은 모양으로 맞춘다.
+   [엑셀 내보내기]는 TDB 조회와 똑같이 "표 바로 윗줄의 오른쪽 끝"에 같은 크기로 놓는다. */
+.notice-filters {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin: 10px 0 9px;
+}
+
+/* distribute.css의 ".modal-box label"이 팝업 안 <label>을 전부 12.5px·위여백 12px로 바꾼다.
+   조건 라벨은 TDB 조회의 검색대상·상태와 완전히 같아야 하므로(2026-08-14 CM 확정) 되돌린다.
+   ".modal-box label"보다 선택자가 하나 더 붙어 있어 이 규칙이 이긴다. */
+.notice-filters .field > label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dark-gray);
+  margin-top: 0;
+}
+
+.notice-filters .cart-status {
+  margin-left: auto;
+}
+
+/* 팝업 안 드롭다운 너비는 아래 "#modified-dropdown ..." 규칙에서 TDB 조회 것과 한꺼번에
+   지정한다. 여기(.notice-filters)에 써두면 뒤에 나오는 ".ms-dropdown .dropdown-toggle"(220px)과
+   우선순위가 같아서 뒤엣것에 밀려 220px이 돼버린다 — 실제로 그래서 팝업만 넓었다(2026-08-14). */
+
+.notice-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.notice-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.notice-list {
+  max-height: 56vh;
+}
+
+/* ---------- 페이지네이션 ---------- */
+.pagination {
+  margin-top: 14px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.page-pos-box {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* ---------- 처음/이전/다음/끝 버튼 (공통) ----------
+   자료를 하나씩 넘겨보는 곳(자료 상세보기·미리보기 팝업)과 표를 페이지로 넘기는 곳(페이지네이션)
+   전부 이 모양을 쓴다(2026-08-17 CM 확정) — 네 버튼 크기를 통일하고, 처음=◀◀·끝=▶▶로 이전(◀)·
+   다음(▶)과 방향을 맞춘다. width를 고정해 "끝"처럼 글자가 짧아도 다른 버튼과 폭이 같아진다. */
+.nav-step-btn {
+  width: 66px;
+  height: 28px;
+  padding: 0 4px;
+  font-size: 12px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* 세모 글자(◀·▶ 및 아래 겹친 ◀◀·▶▶)는 폰트 자체 기준선 때문에 버튼 세로 중앙보다 살짝
+   아래로 처져 보인다 — 위로 살짝 올려서 버튼 높이 중앙에 오게 맞춘다(2026-08-17 CM 확정). */
+.nav-arrow {
+  display: inline-block;
+  transform: translateY(-1px);
+}
+
+/* 처음/끝 버튼의 세모 2개(◀◀·▶▶) — 글자 사이 기본 간격을 좁혀 살짝 겹쳐 보이게 한다.
+   그만큼 옆의 이전/다음 버튼과 너비가 같아지게 위 .nav-step-btn 폭도 같이 줄여뒀다. */
+.dbl-arrow {
+  letter-spacing: -0.42em;
+}
+
+/* 처음-이전, 다음-끝은 한 쌍으로 보이도록 약간만 붙인다(완전히 붙이지는 않는다). */
+.nav-btn-pair {
+  display: flex;
+  gap: 4px;
+}
+
+/* ---------- 빈 상태 ---------- */
+.empty {
+  padding: 44px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 12.5px;
+}
+
+/* 감사로그 상세처럼 긴 내용은 줄바꿈 허용 */
+.detail-cell {
+  white-space: normal;
+  max-width: 460px;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+/* 표 칸에서 잘려 보이는 상세 내용을 누르면 팝업으로 전체를 보여준다(showDetailTextPopup). */
+.detail-cell-clickable {
+  cursor: pointer;
+}
+.detail-cell-clickable:hover {
+  text-decoration: underline;
+  color: var(--text);
+}
+
+/* ---------- 반출추가 / 반출대기함 버튼 ----------
+   건수 자리수가 늘어도(0~999건) 버튼 폭이 고정이라 옆 버튼이 밀리지 않는다.
+   .cart-status 컨테이너의 오른쪽 여백(10px)은 위쪽 filter-actions(-6px + 카드padding 16px)와
+   시각적으로 같은 오프셋이 되도록 맞춘 값 — 두 줄 버튼의 좌우 정렬이 어긋나지 않게 한다. */
+.cart-btn {
+  width: 132px;
+  text-align: center;
+}
+
+.cart-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 10px;
+}
+
+/* ---------- 업체명 자동완성 (datalist 대신 직접 그림 — select와 디자인 통일) ---------- */
+.autocomplete {
+  position: relative;
+}
+
+.autocomplete input {
+  width: 100%;
+}
+
+.autocomplete-list {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 0;
+  right: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  z-index: 20;
+}
+
+.autocomplete-item {
+  padding: 6px 10px;
+  font-size: 12.5px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.autocomplete-item:hover {
+  background: var(--surface-alt);
+}
+
+/* ---------- 삭제(X) 가능한 드롭다운 (공사/업체 — 네이티브 select는 옵션 안에 버튼을 못 넣어서) ---------- */
+.hideable-dropdown {
+  position: relative;
+}
+
+.dropdown-toggle {
+  width: 100%;
+  max-width: none;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dropdown-toggle::after {
+  content: "▾";
+  color: var(--text-faint);
+  margin-left: 8px;
+}
+
+.dropdown-toggle:hover {
+  border-color: var(--text-faint);
+}
+
+.dropdown-list {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 0;
+  right: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  z-index: 20;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+/* 드롭다운 목록의 항목도 <label>이라, 팝업 안에서는 distribute.css의 ".modal-box label"에
+   걸려 한 줄 배치(flex)가 풀리고 항목마다 위여백 12px이 붙어 간격이 벌어진다.
+   팝업 안이든 밖이든 드롭다운 모양은 같아야 하므로 원래 값으로 되돌린다 (2026-08-14 CM 확정).
+   최근수정본 팝업뿐 아니라 반출하기 팝업의 공사·업체 드롭다운에도 같이 적용된다. */
+.modal-box .dropdown-item {
+  display: flex;
+  margin-top: 0;
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+.dropdown-item:hover {
+  background: var(--surface-alt);
+}
+
+.dropdown-item-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-item-x {
+  height: auto;
+  border: none;
+  background: none;
+  color: var(--text-faint);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.dropdown-item-x:hover {
+  color: var(--danger);
+  background: none;
+}
+
+.dropdown-item-edit {
+  height: auto;
+  border: none;
+  background: none;
+  color: var(--text-faint);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.dropdown-item-edit:hover {
+  color: var(--accent);
+  background: none;
+}
+
+/* ---------- 체크박스 다중선택 드롭다운 (감사로그 로그화면 등) ---------- */
+.ms-dropdown .dropdown-toggle {
+  width: 220px;
+}
+
+/* TDB 조회의 Isometric처럼 항목이 몇 개 안 되는 ms-dropdown은 스크롤 없이 펼친 목록이 다
+   보이게 높이 제한을 없앤다. 시스템 로그의 세 드롭다운(로그화면·로그동작·사용자)은 항목 수가
+   서로 다르고 계속 늘어날 수 있어서, 아래에서 셋 다 같은 높이로 다시 덮어 스크롤을 쓴다. */
+.ms-dropdown .dropdown-list {
+  max-height: none;
+  overflow-y: visible;
+}
+
+/* 시스템 로그의 로그화면·로그동작·사용자 드롭다운, 사용자 관리의 권한·상태 드롭다운 —
+   버튼 너비를 TDB 조회의 "검색대상"(kind_scope, 기본 필드 너비 128px)과 같게 맞춘다
+   (2026-08-24 CM 확정). 펼쳐지는 목록은 항목명이 안 잘리게 원래 너비(220px)를 그대로 유지한다.
+   사용자는 계정이 늘어날 수 있어 ms-dropdown을 안 쓰고 기본 목록을 쓴다. */
+#screen-dropdown .dropdown-toggle,
+#action-dropdown .dropdown-toggle,
+#user-dropdown .dropdown-toggle,
+#role-dropdown .dropdown-toggle,
+#status-dropdown .dropdown-toggle {
+  width: var(--field-w, 128px);
+}
+
+/* 셋 다 펼침 높이를 똑같이 맞춘다(로그화면 11개 항목 기준 345px). 지금은 로그화면·사용자
+   항목이 적어 스크롤이 안 보이지만, 나중에 화면·사용자가 늘어도 이 높이에서 스크롤된다. */
+#screen-dropdown .dropdown-list,
+#action-dropdown .dropdown-list,
+#user-dropdown .dropdown-list {
+  left: 0;
+  right: auto;
+  width: 220px;
+  max-height: 345px;
+  overflow-y: auto;
+}
+
+/* TDB 조회의 수정일·Isometric 드롭다운은 옆 원본/사본 등 다른 필드(.field select)와 너비를 맞춘다.
+   최근수정본 팝업의 수정 구분·수정일도 "TDB 조회와 똑같이 보여야 한다"는 CM 확정(2026-08-14)에 따라
+   같은 줄에 넣어 한 값으로 묶는다 — 여기 한 곳만 고치면 네 개가 항상 같이 움직인다.
+   (id 선택자라 위쪽 ".ms-dropdown .dropdown-toggle" 220px보다 우선한다) */
+#modified-dropdown .dropdown-toggle,
+#iso-dropdown .dropdown-toggle,
+#recent-kind-dropdown .dropdown-toggle,
+#recent-modified-dropdown .dropdown-toggle {
+  width: var(--field-w, 128px);
+}
+
+/* 다만 펼쳐지는 목록은 "Revision 수정"처럼 긴 항목명이 잘리지 않게 조금 넓힌다.
+   (시스템 로그의 로그화면·로그동작 드롭다운에서 이미 쓰는 방식과 같다) */
+#recent-kind-dropdown .dropdown-list,
+#recent-modified-dropdown .dropdown-list {
+  left: 0;
+  right: auto;
+  width: 150px;
+}
+
+.dropdown-item-ms {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-start;
+  cursor: pointer;
+}
+
+.dropdown-item-ms input[type="checkbox"] {
+  flex-shrink: 0;
+}
+
+/* 시스템 로그 로그동작처럼 체크박스 목록을 그룹으로 나눌 때 쓰는 구분용 소제목(선택 불가) */
+.dropdown-group-label {
+  padding: 8px 10px 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+.dropdown-group-label:first-child {
+  padding-top: 6px;
+}
+
+/* ---------- 모달 공통 (반출하기, 알림·확인창 등 모든 화면에서 재사용) ---------- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 24, 40, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 20px;
+}
+
+.modal-box {
+  background: var(--surface);
+  padding: 22px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 400px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-actions {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* 팝업 제목 — [Tag No 이력관리]·[Tag No·유형 미분류 관리] 팝업과 같은 모양(2026-09-05 CM 지시).
+   editor.css·mdb.css·users.css에도 같은 규칙이 있지만 그 파일들은 일부 화면만 읽는다.
+   여기(모든 화면이 읽는 style.css)에 둬야 어느 화면에서 열든 제목이 굵게 나온다. */
+.modal-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 10px;
+}
+
+/* 팝업 위에 팝업(예: 마이페이지 안 알림창)이 뜨면, 뒤 팝업은 지우지 않고 그대로 유지하고
+   3단계 색감으로 앞뒤 순서를 보여준다 (2026-08-13 CM 확정, 전 화면 공통 규칙).
+     맨 앞 팝업 : 흰색 그대로
+     중간 팝업  : 회색 막이 한 겹 덮인 상태
+     맨 뒤 화면 : 회색 막이 두 겹 덮여 가장 어두운 상태
+
+   ## 뒤 팝업을 어떻게 흐리게 하는가 (2026-09-05 CM 지시로 아래 방식으로 고침)
+   팝업마다 화면 전체를 덮는 막(.modal-overlay)을 그대로 깔아, **위에 뜬 팝업의 막이 아래
+   팝업을 덮게** 한다. 그러면 상자 바탕·글씨·표·배지·버튼이 가리지 않고 **전부 같은 비율로
+   한꺼번에** 어두워진다.
+
+   예전에는 막을 맨 아래 팝업에만 깔고 뒤 팝업은 색 값(면·선 색)만 어둡게 바꿨는데, 그러면
+   그 값을 안 쓰는 것들(진한 버튼과 그 안의 흰 글씨, 옅은 색 배지, 체크박스·라디오 같은
+   윈도우 기본 칸)이 밝은 채로 남아 한 팝업 안에서 색이 따로 놀았다. CM이 그것을 보고
+   "일괄 색감이 변하는 것이 아니라 일부는 흰색·검은색이 그대로 남아있다"고 지적했다.
+   기준으로 삼은 모습은 MDB 관리 → [Tag No 이력관리] → [새 이력 등록]으로 창이 셋 겹칠 때이고,
+   그 화면이 바로 이 방식(막을 겹쳐 덮는 방식)으로 그려지고 있었다. */
+.dialog-layer .modal-overlay {
+  /* 앞뒤 순서는 ui.js가 레이어에 적어 둔 번호를 그대로 쓴다(팝업을 늦게 채워 넣는 화면도
+     같은 번호를 받도록 CSS에서 읽는다). 값이 없으면 팝업 기본값(100) 그대로. */
+  z-index: var(--dialog-z, 100);
+}
+
+/* 뒤 팝업은 위 팝업의 막이 덮어 주므로 색을 따로 손대지 않는다. 조작만 막는다
+   — 막이 이미 클릭을 가로채지만, 뒤 팝업이 눌리는 일이 없도록 한 번 더 못박는다. */
+.dialog-layer-dim {
+  pointer-events: none;
+}
+
+/* ---------- 마이페이지 팝업 ----------
+   계정 정보(아이디/이름/권한)는 값이 바뀌지 않는 조회 전용이라 옅은 배경 박스로 한 덩어리로
+   묶어 아래 비밀번호 변경 입력 폼과 시각적으로 분리한다. */
+.mypage-info {
+  margin-top: 4px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+}
+
+.mypage-info-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.mypage-info-row + .mypage-info-row {
+  margin-top: 8px;
+}
+
+.mypage-info-label {
+  flex: 0 0 40px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.mypage-info-value {
+  font-weight: 700;
+}
+
+.mypage-section-title {
+  margin: 20px 0 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.mypage-field-label {
+  display: block;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin: 10px 0 4px;
+}
+
+.mypage-box input[type="password"] {
+  width: 100%;
+}
+
+/* ---------- 파일 끌어다 놓기 영역 ----------
+   [파일 선택] 버튼은 그대로 두고, 그 위에 끌어다 놓을 수 있는 칸을 하나 더 얹는다.
+   탐색기에서 파일을 끌어와 이 칸에 놓으면 파일 선택과 똑같이 첨부된다. */
+.drop-zone {
+  margin-top: 6px;
+  padding: 14px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-faint);
+  font-size: 12px;
+  text-align: center;
+  line-height: 1.5;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+}
+
+.drop-zone.dragover {
+  border-color: var(--text);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+/* 파일이 담기면 파일명을 보여준다 */
+.drop-zone.filled {
+  border-style: solid;
+  color: var(--text);
+}
+
+/* ---------- 알림 · 확인 · 입력용 자체 대화상자 (네이티브 alert/confirm/prompt 대체) ----------
+   브라우저 기본 대화상자는 주소가 찍혀 나와서 CM이 싫어함. 어디서 띄우든 같은 디자인. */
+.confirm-box {
+  width: 560px;
+  max-width: 92vw;
+}
+
+.confirm-box p {
+  margin: 0 0 4px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.confirm-box input[type="text"] {
+  width: 100%;
+  margin-top: 10px;
+}
+
+/* 과거 Rev 폴더(P&ID·PFD) 안내창의 "띄우지 않기" 체크박스 줄 (2026-09-29 CM 지시) */
+.old-rev-skip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* ---------- 표 안 비고(메모) 칸 ----------
+   평소엔 읽기 전용, 연필(✎)을 눌러야 입력 가능해지고 그때만 [확인] 버튼이 나타난다.
+   실수로 스치듯 고치는 걸 막기 위함. 자료 상세보기(Revision 이력·반출 이력)와
+   TDB 관리 삭제 보관함이 공용으로 쓴다. */
+.note-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.note-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.note-input:disabled {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text);
+  padding-left: 0;
+}
+
+.note-edit-btn {
+  flex-shrink: 0;
+  height: auto;
+  padding: 2px 6px;
+  border: none;
+  background: none;
+  color: var(--text-faint);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.note-edit-btn:hover {
+  color: var(--text);
+  background: none;
+}
+
+.note-confirm-btn {
+  flex-shrink: 0;
+}
+
+/* ---------- 자료 미리보기 전용 모달 (화면을 거의 채워서 PDF를 최대한 크게 본다) ----------
+   폴더·자료 편집, 도면 목록 등 여러 화면에서 공용으로 쓴다. */
+
+/* 팝업 안 표(상단 [TDB 수정]·[TDB 반출] 등)에서도 돋보기를 누를 수 있으므로, 미리보기는
+   그때 열려 있는 팝업보다 위에 떠야 한다. 반대로 미리보기 안에서 여는 팝업([보관하기] 등)은
+   미리보기보다 위여야 하므로, 실제 순서는 ui.js가 열 때마다 번호를 매겨 정한다
+   (DIALOG_Z_BASE 참고). 여기 값은 그 번호가 아직 안 붙은 처음 한 번을 위한 것이다.
+   뒤 팝업은 지우지 않고 그대로 남아, 미리보기를 닫으면 보던 목록으로 그대로 돌아온다. */
+#doc-preview-modal,
+.modal-overlay.preview-overlay {
+  z-index: 201;
+}
+
+.modal-box.preview-modal {
+  width: 96vw;
+  max-width: 1600px;
+  height: 94vh;
+  max-height: 94vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 제목줄 [최대화]를 누른 상태 — 1600px 제한과 바깥 여백을 풀어 화면에 꽉 차게 한다
+   (2026-10-15 CM 지시. 한 번 더 누르면 위 기본 크기로 돌아온다 — ui.js의 setPreviewMaximized).
+   둥근 모서리와 그림자는 화면 끝에 딱 붙으면 어차피 안 보이므로 없앤다. */
+.modal-overlay.preview-overlay.is-max {
+  padding: 0;
+}
+
+.modal-overlay.preview-overlay.is-max .modal-box.preview-modal {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.preview-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+  margin-bottom: 10px;
+}
+
+/* 제목(자료명)과 경로를 두 줄로 나눠 담는다 — 한 줄에 같이 넣으면 경로가 길 때(특히 MDB)
+   자료명까지 통째로 잘려 보였다. 이 박스가 가운데서 남는 폭을 다 먹고, 좌우(넘겨보기·닫기
+   버튼)는 줄어들지 않는다. */
+.preview-modal-titlebox {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.preview-modal-head h2,
+.preview-modal-head .modal-title {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 미리보기 팝업 안 이전/다음 + "N / M" — 제목과 닫기 버튼 사이, 줄어들지 않게 */
+.preview-modal-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.preview-modal-count {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* 지금 보는 번호를 직접 입력하고 Enter를 치면 그 자료로 바로 이동한다(미리보기 팝업·자료
+   상세보기·MDB 공용 — 화면이 달라도 전부 같은 너비를 쓴다). 글씨 크기는 옆의 "전체 개수"
+   숫자와 맞춘다. input.nav-pos-input로 태그까지 걸어서 전역 input[type="text"] 규칙
+   (패딩·높이·글씨크기)보다 우선하게 한다. */
+input.nav-pos-input {
+  width: 6ch;
+  height: 22px;
+  padding: 0 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* 위 규칙만으로는 미리보기 팝업 쪽이 이상하게 더 넓게 보이는 문제가 반복돼서, 실제 쓰이는
+   자리에 직접(!important로) 못박아 자료 상세보기와 반드시 같은 너비가 되게 한다.
+   (.preview-pos는 두 겹째 미리보기 창의 같은 칸 — 그 창은 id를 달지 않는다.) */
+#doc-preview-pos-input,
+#detail-nav-pos-input,
+input.nav-pos-input.preview-pos {
+  width: 6ch !important;
+}
+
+/* 미리보기 제목의 "(경로)" 부분 — 자료명과 구분되게 옅게 */
+.preview-title-path {
+  color: var(--text-faint);
+  font-weight: 400;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.modal-box.preview-modal .preview-frame-box {
+  flex: 1;
+  min-height: 0;
+}
+
+.preview-frame-box {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface-sunken);
+}
+
+.preview-frame-box iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+/* 사본(PDF)·원본(DWG 등) 미리보기를 한 틀에 겹쳐 두고 보이는 쪽만 바꾼다(D-102, ui.js mountDocPreview).
+   감춘 쪽은 display:none이 아니라 visibility로 감춘다 — 뷰어(PDF.js)는 크기가 0이면 쪽을 그리지
+   않아, 사본에 그려 둔 표시를 되살리거나 보관할 때 필요한 자리를 잡지 못한다. */
+.preview-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.preview-stage > iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+.preview-stage > iframe.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+.preview-stage-msg {
+  position: absolute;
+  inset: 0;
+  background: var(--surface-sunken);
+}
+.preview-stage-msg .preview-empty {
+  min-height: 0;
+}
+.preview-stage-msg .btn {
+  margin: 12px 4px 0;
+}
+
+.preview-empty {
+  height: 100%;
+  min-height: 58vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+  color: var(--text-faint);
+}
+
+/* 목록 표 안의 미리보기(돋보기) 아이콘 버튼 */
+.preview-icon-btn {
+  height: auto;
+  padding: 0 2px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  line-height: 1;
+  vertical-align: middle;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+}
+
+.preview-icon-btn:hover:not(:disabled) {
+  background: none;
+  color: var(--text);
+}
+
+.preview-icon-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* PDF가 없는 자료의 돋보기 — 예전엔 눌리지 않는 비활성 버튼이었지만 이제 눌러진다(연속보기 중에
+   "이 자료는 PDF가 없구나"를 그 자리에서 보여주기 위함). 흐리게만 표시해 PDF 있는 자료와 구분한다. */
+.preview-icon-btn.is-empty {
+  opacity: 0.3;
+}
+
+/* ---------- 보관 목록 (2026-09-05 CM 지시) ----------
+   상단 [보관] 버튼은 옆의 알림 버튼([TDB 수정]·[TDB 반출])과 같은 .notice-btn을 그대로
+   써서 모양이 저절로 맞는다. 여기서는 보관 팝업·목록 팝업만 손본다.
+   (자료 상세보기·미리보기 팝업에 있던 하트는 CM 지시로 없앴다 — 보관하는 자리는 미리보기
+    도구모음의 [»] 안 [보관하기]·[다른 이름으로 보관] 하나뿐이다.) */
+.fav-btn-box {
+  display: inline-flex;
+  margin-right: 6px;
+}
+
+/* ---------- 보관 팝업 ----------
+   "보관 위치"가 드롭다운에서 표로 바뀌면서 넓어졌다(2026-09-05 CM 지시 — 보관해 둔 것을
+   전부 보여주고, 줄마다 지울 수 있어야 한다). 폭은 표의 칸 폭 합(favorites.js의 colgroup)에
+   맞춰 잡아 가로 스크롤이 생기지 않게 한 값이다. */
+.modal-box.fav-save-box {
+  width: 1000px;
+  max-width: 94vw;
+}
+
+.fav-field-label {
+  display: block;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin: 10px 0 4px;
+}
+
+/* 보관 이름·설명 칸은 아래 "보관 위치" 표와 같은 너비로 둔다(2026-09-05 CM 지시).
+   예전에는 560px로 좁게 잡아 표만 넓어 보였다. */
+.fav-save-box input[type="text"],
+.fav-save-box textarea {
+  width: 100%;
+}
+
+/* [보관하기]는 자료명 그대로 보관하므로 이름을 고칠 수 없다 — 고칠 수 없다는 것이 보이게
+   흐린 바탕. ([다른 이름으로 보관]에서는 readonly가 아니라 평소처럼 흰 바탕이 된다.) */
+.fav-save-box input[readonly] {
+  background: var(--surface-sunken);
+  color: var(--text);
+}
+
+.fav-save-box textarea {
+  resize: vertical;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+/* "보관 위치"의 "새로 보관" 줄 — [엑셀 내보내기]와 한 줄에 나란히 놓는다(.fav-slot-bar 안).
+   팝업 안 <label>은 distribute.css의 `.modal-box label`에 걸려 한 줄 전체를 차지하는 모양이
+   되므로(그 파일을 안 읽는 화면도 있어 값이 화면마다 다르다) 여기서 한 줄 배치로 못박는다
+   — 어느 화면에서 열어도 같은 모양이어야 한다. */
+.fav-save-box .fav-slot-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+/* 자리가 다 차면(50/50) "새로 보관"을 고를 수 없다 — 덮어쓰거나 표에서 하나를 지워야 한다. */
+.fav-save-box .fav-slot-new.is-disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.fav-save-box .fav-slot-bar {
+  margin-bottom: 8px;
+}
+
+/* 표는 팝업 안이라 낮게 잡는다(자리가 다 차도 여덟 줄쯤 보이고 나머지는 스크롤).
+   창이 아주 좁으면(팝업이 94vw로 줄어들면) 칸 폭 합이 표 폭보다 커지므로, 가로 스크롤은
+   막지 않는다 — 막으면 오른쪽 [지우기] 칸이 소리 없이 잘려 나간다. */
+.fav-slot-scroll {
+  max-height: 32vh;
+}
+
+/* 줄마다 [지우기] — TDB 관리 편집 칸의 .danger-line과 같은 색. 그 규칙은 editor.css에 있고
+   모든 화면이 그 파일을 읽지는 않으므로 여기에 따로 적는다. */
+.fav-save-box button.fav-slot-del {
+  color: var(--danger);
+  border-color: #eccecb;
+}
+
+.fav-save-box button.fav-slot-del:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: #e0b4b0;
+}
+
+/* ---------- 목록 팝업 ----------
+   표가 들어가므로 알림 팝업(.notice-box)의 폭 규칙을 그대로 쓰되, 칸이 아홉이라 좁혀도 된다.
+   좁은 화면에서도 가로 스크롤이 생기지 않게 칸 폭을 여기 맞춰 잡았다(favorites.js의 colgroup). */
+.modal-box.fav-list-box {
+  width: 1180px;
+}
+
+/* 경로는 남는 폭을 쓰는 칸이라 길면 잘리고, 마우스를 올리면 전체가 보인다(다른 표와 같은 방식). */
+.fav-list-box .path-cell {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-width: 0;
+}
+
+/* 설명 칸의 내용을 누르면 전체가 팝업으로 뜬다(2026-09-05 CM 지시). 칸 안이 입력칸(공용 비고
+   편집)이라 그냥 두면 눌러도 아무 일이 없다 — 브라우저가 잠긴 입력칸의 클릭을 아예 흘려버리기
+   때문이다. 그래서 잠겨 있는 동안에는 마우스를 안 받게 해 클릭이 칸(td)까지 닿게 한다.
+   연필을 눌러 고치는 중에는(잠김이 풀리면) 평소처럼 글자를 만질 수 있다. */
+.fav-list-box .fav-desc-cell .note-input:disabled {
+  pointer-events: none;
+}
+
+.fav-list-box .fav-desc-cell.is-clickable {
+  cursor: pointer;
+}
+
+.fav-list-box .fav-desc-cell.is-clickable:hover .note-input:disabled {
+  text-decoration: underline;
+}
+
+/* 자료명이 그 사이에 바뀌었을 때만 자료명 밑에 한 줄 더 붙는 "현재: …".
+   보관 이름은 보관할 때의 것을 그대로 두므로(그래야 설명과 어긋나지 않는다) 지금 이름은 여기 적는다. */
+.fav-list-box .fav-current-name {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-faint);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

@@ -1,0 +1,216 @@
+/* 도면 상세 화면 */
+
+/* 제목과 바로 아래 카드 사이 간격을 다른 화면보다 좁게 */
+.page-head {
+  margin-bottom: 10px;
+}
+
+/* 목록으로 버튼(왼쪽)과 원본·PDF 다운로드 버튼(오른쪽)을 한 줄에 배치 */
+.detail-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.detail-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 이전/다음 자료 이동 — 목록에서 들어온 순서가 없으면(직접 URL 접근 등) 버튼이 그냥 비활성화된다 */
+.detail-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.detail-nav-count {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* <a>로 감싼 다운로드 버튼: 링크 자체에 걸리는 전역 hover 밑줄(a:hover의
+   border-bottom)이 버튼 아래 두꺼운 줄처럼 보여서, 다른 버튼과 다르게 눈에 띄었다.
+   버튼 자체의 hover 효과만 보이도록 링크의 밑줄은 항상 없앤다. */
+#detail-actions a {
+  border-bottom: none;
+}
+
+#detail-actions a:hover {
+  border-bottom-color: transparent;
+}
+
+/* 자료명·경로 두 줄뿐이라 다른 카드와 같은 20px 여백을 쓰면 아래쪽이 헐렁해 보인다.
+   내용이 짧은 만큼 위아래 여백도 줄인다. margin-bottom은 넣지 않는다 — 이 div는
+   카드(section.card, 테두리 있음) 안의 마지막 요소라 margin이 밖으로 상쇄되지 않고
+   그대로 padding 위에 더해져서, 위쪽(padding-top만)보다 아래쪽이 훨씬 벌어져 보였다.
+   카드 사이 간격은 section.card의 margin-bottom이 이미 담당한다. */
+.detail-card {
+  padding: 12px 20px;
+}
+
+/* 한 줄에 강제로 나란히 배치 (자료명·자료종류·대분류·현재Rev·상태).
+   경로는 길어질 수 있어 별도 줄(.detail-path)에서 줄바꿈을 허용한다. */
+.detail-row {
+  display: flex;
+  gap: 28px;
+  font-size: 13px;
+}
+
+.detail-row > div {
+  display: flex;
+  gap: 5px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--surface-alt);
+  min-width: 0;
+}
+
+.detail-row + .detail-row > div {
+  border-bottom: none;
+}
+
+.detail-path {
+  flex: 1 1 auto;
+}
+
+/* 다섯 칸을 무조건 균등 분할하면 자료명이 짧은 값(현재Rev 등)과 같은 폭으로 눌려
+   긴 자료명이 중간에 어색하게 줄바꿈됐다. 그렇다고 자료명 혼자 남는 공간을 전부
+   가져가면 이번엔 나머지 항목들이 오른쪽 끝에 다닥다닥 붙어 라벨-값 짝을 알아보기
+   어려워진다. 자료명에 더 큰 비중(5)을 주되 나머지 항목도 조금씩(1) 나눠 가지도록 해서
+   각 항목 사이에 눈에 띄는 간격이 남게 한다. */
+.detail-row > div:first-child {
+  flex: 5 1 auto;
+}
+
+.detail-row > div:not(:first-child) {
+  flex: 1 1 auto;
+}
+
+.dt {
+  flex: 0 0 78px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.dd {
+  color: var(--text);
+  word-break: break-all;
+  min-width: 0;
+}
+
+/* MDB 자료 상세보기의 Note — 자유롭게 적는 칸이라 줄바꿈을 적은 그대로 살려 보여주고,
+   내용이 길어도 스크롤 없이 전부 펼친다(2026-08-28 CM 확정). 낱말 중간이 아니라 낱말
+   단위로 줄을 바꿔 읽기 쉽게 한다(경로처럼 붙어 있는 긴 문자열이 아니므로). */
+.detail-note {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+}
+
+/* 섹션 카드 */
+section.card {
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+
+.section-head {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-alt);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-head h2 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 엑셀 내보내기 버튼(32px)이 있는 헤더는 제목만 있는 "자료내용" 헤더보다 위아래
+   여백이 그대로면 더 두꺼워 보인다. 버튼 크기는 유지하고 위아래 여백만 줄여서
+   전체 헤더 높이를 "자료내용" 헤더와 맞춘다. */
+.section-head-btn {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+/* 제목(왼쪽)과, [승인만 보기]+[엑셀 내보내기] 묶음(오른쪽)을 양끝으로 벌린다.
+   space-between이 세 요소로 흩어지지 않게 오른쪽 둘을 한 묶음으로 둔다. */
+.section-head-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.section-head-right .check-inline {
+  margin-right: 0;
+}
+
+.section-note {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-faint);
+}
+
+/* 표를 카드 안에 넣을 때는 테두리/그림자 제거 */
+.table-scroll.flat {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  max-height: 340px;
+}
+
+/* "반출된 적이 없습니다" 같은 빈 상태 문구는 목록 화면의 큰 표에나 어울리는
+   44px 여백(.empty 기본값)은 과하지만, 일반 셀 여백(9px)을 그대로 쓰면 오히려
+   Revision 이력의 실제 행보다 짧아진다 — 비고 칸의 입력창(input, 높이 32px) 때문에
+   실제 행 높이가 텍스트 한 줄보다 훨씬 크기 때문. 그 높이에 맞춰 여백을 더 준다. */
+.table-scroll.flat .empty {
+  padding: 15px 12px;
+}
+
+/* 반출 이력은 Revision 이력과 달리 실제 행에 입력창 같은 큰 요소가 없어
+   위 15px 여백을 그대로 쓰면 너무 얇아 보인다 — TDB 반출이력 화면의
+   "조회 결과가 없습니다" 빈 상태(.empty 기본값 44px)와 섹션 높이를 맞춘다. */
+#detail-dist-table .empty {
+  padding: 44px;
+}
+
+/* PDF 뷰어 */
+#pdf-area iframe {
+  width: 100%;
+  height: 660px;
+  border: none;
+  display: block;
+}
+
+/* 사본·원본 미리보기 틀(style.css .preview-stage) — 위 창과 같은 높이를 잡아 준다 */
+#pdf-area .preview-stage {
+  height: 660px;
+}
+
+.no-pdf-notice {
+  margin: 16px;
+  padding: 18px;
+  background: var(--warn-soft);
+  border: 1px solid #f3d9a8;
+  border-radius: var(--radius);
+  color: var(--warn);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.no-pdf-notice b {
+  display: block;
+  margin-bottom: 4px;
+}
+
+/* 비고(note-edit) 칸 스타일은 style.css로 옮겼다 — TDB 관리 삭제 보관함 화면도 같이 쓴다. */

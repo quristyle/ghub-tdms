@@ -1,0 +1,354 @@
+/* 권한 관리 화면 — 그룹 목록 + 구성원 + 권한 트리 3분할 */
+
+/* 사용자 관리 화면의 팝업(iframe) 안에서 열렸을 때(?embed=1) — 이 화면 안에 헤더·네비가
+   또 있으면 이중으로 보여서 감추고, 여백도 팝업 안에 맞게 줄인다. */
+html.embedded .app-header {
+  display: none;
+}
+
+html.embedded .page {
+  padding: 16px;
+  max-width: none;
+}
+
+.perm-page-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.perm-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.perm-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 섹션 제목줄 — MDB 관리 폴더편집/자료편집/Zip 업로드 카드(bulk-block-head)와 같은 디자인
+   (배경 구분 + 굵은 제목, 2026-08-12 CM 요청). editor.css의 .bulk-block-head/-title을 이
+   화면 전용 이름으로 그대로 옮겨왔다(이 화면은 editor.css를 안 불러옴). */
+.perm-panel-head {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-alt);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.perm-panel-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.perm-panel-body {
+  padding: 14px 16px;
+  min-width: 0;
+}
+
+.perm-group-list-full {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.perm-group-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.perm-group-row:hover {
+  background: var(--surface-alt);
+}
+
+.perm-group-row.selected {
+  background: var(--accent-soft);
+  border-color: var(--border-strong);
+  font-weight: 600;
+}
+
+.perm-group-row-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.perm-group-row-count {
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 400 !important;
+}
+
+.perm-group-row-edit {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--text-faint);
+  border: none;
+  background: none;
+  padding: 2px 4px;
+}
+
+.perm-group-row-edit:hover {
+  color: var(--text);
+}
+
+.perm-members-side {
+  min-width: 0;
+}
+
+/* 인원 (N명) 표 — 사용자 관리 화면(users.html)의 결과 표와 같은 템플릿을 쓴다.
+   table/thead th/tbody td의 글씨 크기·색·정렬·행 구분선은 style.css 전역 규칙을 그대로
+   물려받고, 여기서는 이 화면 전용 폭(팝업 안 좁은 패널)과 컬럼 세로구분선만 추가한다. */
+.perm-members-scroll {
+  max-height: 62vh;
+  border: none;
+  border-radius: 0;
+}
+
+#members-table thead th:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 1px;
+  background: var(--border-strong);
+}
+
+/* 아이디·이름 결과값도 칸 너비 중앙 정렬 (No 열은 .col-no로 이미 중앙 정렬됨,
+   그룹 열은 select가 칸을 꽉 채우므로 정렬 지정이 의미 없음) */
+#members-table tbody td:nth-child(2),
+#members-table tbody td:nth-child(3) {
+  text-align: center;
+}
+
+.perm-member-move {
+  width: 100%;
+  font-size: 11.5px;
+  padding: 3px 6px;
+  height: auto;
+}
+
+/* "전체 인원" 가상 항목 전용 — 구분선을 살짝 다르게 줘 진짜 그룹과 구별한다 */
+.perm-group-row-all {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  padding-bottom: 9px;
+}
+
+.perm-empty-note {
+  color: var(--text-faint);
+  font-size: 12px;
+  padding: 4px 2px;
+}
+
+.perm-main {
+  min-width: 0;
+}
+
+#perm-dirty-note {
+  color: var(--warn);
+  font-size: 12px;
+  align-self: center;
+}
+
+.perm-tree {
+  max-height: 62vh;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.perm-tree-node {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 10px;
+  border-bottom: 1px solid var(--border);
+  min-height: 26px;
+}
+
+.perm-tree-node:last-child {
+  border-bottom: none;
+}
+
+.perm-tree-node:hover {
+  background: var(--surface-sunken);
+}
+
+.perm-tree-node[data-has-children="true"] {
+  cursor: pointer;
+}
+
+.perm-tree-node[data-depth="0"] {
+  background: var(--surface-alt);
+  font-weight: 700;
+}
+
+.perm-tree-node[data-depth="1"] .perm-tree-label {
+  font-weight: 600;
+}
+
+.perm-tree-label-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 0;
+}
+
+.perm-tree-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.perm-tree-desc {
+  color: var(--text-faint);
+  font-size: 10.5px;
+  font-weight: 400;
+  white-space: normal;
+}
+
+/* 폴더트리 접기/펼치기 화살표 — 하위 노드가 있는 행에만 보인다 */
+.perm-tree-toggle {
+  flex: 0 0 14px;
+  width: 14px;
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+/* 상하위 관계를 보여주는 L자 안내선(폴더트리 방식). depth 0(화면)은 안내선 없이 그대로 두고,
+   depth 1부터 조상 칸(perm-guide)과 자기 자신의 꺾쇠(perm-elbow)를 이어 그린다. */
+.perm-tree-indent {
+  display: flex;
+  align-self: stretch;
+  flex: 0 0 auto;
+}
+
+.perm-guide,
+.perm-elbow {
+  position: relative;
+  flex: 0 0 16px;
+  width: 16px;
+}
+
+.perm-guide.has-line::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--border-strong);
+}
+
+.perm-elbow::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  height: 50%;
+  border-left: 1px solid var(--border-strong);
+}
+
+.perm-elbow:not(.is-last)::before {
+  height: 100%;
+}
+
+.perm-elbow::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  right: 2px;
+  border-top: 1px solid var(--border-strong);
+}
+
+.perm-mixed-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+  flex: 0 0 auto;
+}
+
+/* Y/N 허용 토글 (users.css에 있던 것을 여기로 옮김 — 팝업이 아니라 이 화면 전용이 됨) */
+.yn-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.yn-btn {
+  height: 24px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+
+.yn-btn + .yn-btn {
+  border-left: 1px solid var(--border-strong);
+}
+
+.yn-btn:hover:not(.active) {
+  background: var(--surface-alt);
+}
+
+.yn-btn.active.yn-y {
+  background: var(--ok-soft);
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.yn-btn.active.yn-n {
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* 상하위 depth별로 Y/N 버튼 크기는 그대로 두고 색 진하기만 다르게 한다.
+   depth 0(화면)이 가장 진하고, 아래로 내려갈수록 옅어진다 (CM 요청 — 크기 차이는 어색해서 색으로 변경). */
+.perm-tree-node[data-depth="0"] .yn-toggle {
+  border-color: var(--text-muted);
+}
+
+.perm-tree-node[data-depth="1"] .yn-toggle {
+  opacity: 0.8;
+}
+
+.perm-tree-node[data-depth="2"] .yn-toggle,
+.perm-tree-node[data-depth="3"] .yn-toggle,
+.perm-tree-node[data-depth="4"] .yn-toggle {
+  opacity: 0.6;
+}

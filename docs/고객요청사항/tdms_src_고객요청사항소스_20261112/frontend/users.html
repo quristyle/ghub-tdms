@@ -1,0 +1,98 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>TDMS 기술자료 관리 시스템</title>
+  <link rel="icon" href="assets/favicon.ico?v=1" />
+  <link rel="stylesheet" href="style.css?v=36" />
+  <link rel="stylesheet" href="users.css?v=3" />
+  <script src="auth-guard.js?v=13"></script>
+</head>
+<body data-require-permission="screen.users.access">
+  <header class="app-header">
+    <div class="app-header-inner">
+      <a class="app-brand" href="index.html">
+        <img class="app-brand-logo" src="assets/skgas-logo.png" alt="SK gas" />
+        <span class="app-brand-text"><strong>TDMS</strong> 기술자료 관리 시스템</span>
+      </a>
+      <nav class="app-nav">
+        <a href="index.html">TDB 조회</a>
+        <a href="import.html">TDB 반입·검수</a>
+        <a href="editor.html">TDB 관리</a>
+        <a href="distributions.html">TDB 반출이력</a>
+        <a href="mdb.html">MDB 조회</a>
+        <a href="mdb-editor.html">MDB 관리</a>
+        <a href="audit.html">시스템 로그</a>
+        <a href="users.html" class="active">사용자 관리</a>
+      </nav>
+      <div id="user-slot" class="app-user"></div>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="page-head">
+      <div>
+        <h1 class="page-title"><a class="page-title-link" href="users.html">사용자 관리</a><span class="page-title-sub">사용자 계정, 권한 및 접근 통제 관리</span></h1>
+      </div>
+      <div class="page-actions">
+        <button type="button" id="perm-edit-btn">권한 관리</button>
+        <button type="button" id="add-user-btn">사용자 추가</button>
+      </div>
+    </div>
+
+    <div class="filter-bar">
+      <div class="filter-row">
+        <div class="filter-fields">
+          <div class="field">
+            <label for="role-toggle">권한</label>
+            <div class="hideable-dropdown ms-dropdown" id="role-dropdown">
+              <button type="button" class="dropdown-toggle" id="role-toggle">전체</button>
+              <div class="dropdown-list hidden" id="role-list"></div>
+            </div>
+          </div>
+          <div class="field">
+            <label for="status-toggle">상태</label>
+            <div class="hideable-dropdown ms-dropdown" id="status-dropdown">
+              <button type="button" class="dropdown-toggle" id="status-toggle">전체</button>
+              <div class="dropdown-list hidden" id="status-list"></div>
+            </div>
+          </div>
+          <input type="text" id="q" class="filter-search" placeholder="사용자명 검색" />
+          <button id="search-btn" class="primary" type="button">검색</button>
+        </div>
+        <div class="filter-actions">
+          <button id="reset-btn" type="button">조건 초기화</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-scroll">
+      <table id="users-table">
+        <colgroup>
+          <col style="width:54px" />
+          <col style="width:130px" />
+          <col style="width:130px" />
+          <col style="width:130px" />
+          <col style="width:130px" />
+          <col style="width:130px" />
+          <col style="width:130px" />
+          <col style="width:130px" />
+          <col style="width:130px" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th>No</th><th>아이디</th><th>이름</th><th>권한</th><th>상태</th><th>등록일</th><th>수정일</th><th>접속일</th><th data-sort="off">조치</th>
+          </tr>
+        </thead>
+        <tbody id="users-tbody"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <div id="modal-root"></div>
+
+  <script src="ui.js?v=41"></script>
+  <script src="favorites.js?v=9"></script>
+  <script src="users.js?v=7"></script>
+</body>
+</html>
