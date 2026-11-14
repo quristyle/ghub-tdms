@@ -153,7 +153,26 @@ export async function pendingReview(filters: { q?: string; vendorId?: number; pr
       groups.set(key, toGroup(r))
     }
   }
-  return { items: [...groups.values()] }
+  const items = [...groups.values()]
+
+  // 분기(중복반출) 건은 '몇 건 중 몇 건이 들어왔는지' 를 함께 적는다 — 화면의 '1-a(2/3)'.
+  // 자료 수만큼 질의하지 않고 한 번에 받아 온다.
+  const branchDocIds = [...new Set(items.filter((g) => g.isBranch).map((g) => g.documentId))]
+  if (branchDocIds.length) {
+    const progress = new Map(
+      (await q.branchProgressMany(branchDocIds)).map((r) => [r.documentId, r]),
+    )
+    for (const g of items) {
+      const p = g.isBranch ? progress.get(g.documentId) : undefined
+      if (!p || p.expected === 0) continue
+      g.branchExpected = p.expected
+      g.branchArrived = p.arrived
+      // 반출된 것이 전부 돌아오기 전에는 승인할 수 없다 (승인 때 서버가 다시 막는다)
+      g.canApprove = p.arrived >= p.expected
+    }
+  }
+
+  return { items }
 }
 
 function toFile(r: q.PendingRow) {
@@ -174,6 +193,9 @@ function toGroup(r: q.PendingRow) {
     drawingNo: r.drawingNo,
     title: r.title,
     folderName: r.folderName,
+    category: r.category,
+    folderPath: r.folderNames ? r.folderNames.join(' > ') : null,
+    distributedExts: r.distributedExts ?? [],
     rev: r.rev,
     branch: r.branch,
     revLabel: revLabel(r.rev, r.branch),
@@ -186,6 +208,8 @@ function toGroup(r: q.PendingRow) {
     isBranch: r.branch !== null,
     branchArrived: null as number | null,
     branchExpected: null as number | null,
+    /** 지금 바로 승인할 수 있는가 — 분기본은 전부 돌아와야 한다 */
+    canApprove: true,
     hasWarning: r.revMismatch,
     currentPdfFileId: r.currentPdfFileId,
   }

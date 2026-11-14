@@ -22,6 +22,8 @@ export interface MdbSearchState {
   category: MdbCategory
   /** 하위폴더 전체보기 */
   recursive: boolean
+  /** 원본/사본 보유 — 자료 단위로 본다 (원본 = PDF 아닌 파일, 사본 = PDF) */
+  hold: 'all' | 'both' | 'dwg_only' | 'pdf_only'
   sort: 'updatedAt' | 'title' | 'equipmentType' | 'docType' | 'year'
   dir: 'asc' | 'desc'
   limit: number
@@ -33,7 +35,8 @@ const CART_KEY = 'tdms.mdb.cart'
 export function defaultSearch(): MdbSearchState {
   return {
     folder: null, keyword: '', searchTarget: 'title', equipmentType: '', docType: '',
-    projectId: '', year: '', category: '', recursive: true, sort: 'updatedAt', dir: 'desc', limit: 200,
+    projectId: '', year: '', category: '', recursive: true, hold: 'all',
+    sort: 'updatedAt', dir: 'desc', limit: 200,
   }
 }
 
@@ -79,6 +82,7 @@ export function toServerFilters(s: MdbSearchState) {
     docType: s.docType || undefined,
     projectId: s.projectId || undefined,
     year: s.year || undefined,
+    hold: s.hold,
     ...categoryParams(s.category),
   }
 }

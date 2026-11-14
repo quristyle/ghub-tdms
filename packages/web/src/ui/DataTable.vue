@@ -132,7 +132,7 @@ const emit = defineEmits<{
   exportServer: []
 }>()
 
-const rowH = computed(() => props.rowHeight ?? 30)
+const rowH = computed(() => props.rowHeight ?? 36)
 
 /** autoHeight 일 때 스크롤 영역이 가질 높이 — 줄 수만큼, 한계까지만. */
 const scrollStyle = computed(() =>
@@ -466,10 +466,9 @@ async function exportExcel() {
           :aria-sort="currentSortKey === col.key ? (currentSortDir === 'asc' ? 'ascending' : 'descending') : undefined"
           @click="onHeaderClick(col)"
         >
+          <!-- 정렬 표시는 세모 아이콘 없이 글씨만 — 지금 정렬 중인 열은 진하게·강조색
+               (기존 화면 .sortable-th 규칙). -->
           <span class="dt-th-label">{{ col.label }}</span>
-          <span v-if="isSortable(col)" class="dt-sort" :class="{ on: currentSortKey === col.key }">
-            {{ currentSortKey === col.key ? (currentSortDir === 'asc' ? '▲' : '▼') : '▲' }}
-          </span>
           <span
             class="dt-grip" title="끌어서 너비 조절 · 두 번 눌러 되돌리기"
             @pointerdown="startResize($event, col)"
@@ -638,7 +637,7 @@ async function exportExcel() {
 
 <style scoped>
 .dt {
-  --dt-head-h: 29px;   /* 거르기 줄이 머리글 바로 아래에 붙는 높이 */
+  --dt-head-h: 38px;   /* 거르기 줄이 머리글 바로 아래에 붙는 높이 */
   display: flex; flex-direction: column; height: 100%; width: 100%;
   flex: 1;
   /* 둘 다 0 이어야 한다. min-*: auto 면 안쪽 내용(max-content) 만큼 부풀어
@@ -658,29 +657,37 @@ async function exportExcel() {
 .dt.auto {
   height: auto;
   border: 1px solid var(--border);
-  border-radius: var(--r);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
   overflow: hidden;
 }
 .dt.auto .dt-scroll { flex: 0 1 auto; }
 .dt.auto .dt-empty { padding: 20px; }
 .dt-inner { width: 100%; min-width: max-content; }
 
+/* 기존 화면의 thead th 와 같다 — 흰 바탕, 아래만 진한 선, 가운데 맞춤 */
 .dt-head {
   display: flex; position: sticky; top: 0; z-index: 3;
   width: 100%; min-width: max-content;
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--border);
-  font-weight: 600; font-size: var(--fs-sm); color: var(--fg-muted);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-strong);
+  font-weight: 600; font-size: 11.5px; color: var(--text-muted);
+  letter-spacing: 0.02em;
 }
-.dt-th { position: relative; user-select: none; }
+.dt-head .dt-cell { justify-content: center; }
+.dt-th { position: relative; user-select: none; justify-content: center; }
 .dt-th.sortable { cursor: pointer; }
-.dt-th.sortable:hover { color: var(--fg); background: var(--surface-3); }
-.dt-th.sorted { color: var(--primary); }
+.dt-th.sortable:hover { color: var(--text); }
+/* 정렬 중인 열은 세모 아이콘 없이 글씨만 진하게 (2026 기존 화면 규칙) */
+.dt-th.sorted { color: var(--accent); font-weight: 700; }
 .dt-th-label { overflow: hidden; text-overflow: ellipsis; }
 
-.dt-sort { margin-left: 4px; font-size: 8px; opacity: 0; transition: opacity .1s ease; }
-.dt-th.sortable:hover .dt-sort { opacity: .45; }
-.dt-sort.on { opacity: 1; }
+
+/* 컬럼 사이 구분선 — 머리글에서만, 머리글 높이의 80% 정도로 */
+.dt-head .dt-th:not(:last-child)::after {
+  content: ""; position: absolute; right: 0; top: 10%; bottom: 10%;
+  width: 1px; background: var(--border-strong);
+}
 
 /* 너비 손잡이 — 칸 경계에 걸친다 */
 .dt-grip {
@@ -689,9 +696,9 @@ async function exportExcel() {
 }
 .dt-grip::after {
   content: ''; position: absolute; top: 5px; bottom: 5px; left: 3px;
-  width: 1px; background: transparent; transition: background-color .1s ease;
+  width: 2px; background: transparent; transition: background-color .1s ease;
 }
-.dt-grip:hover::after { background: var(--primary); }
+.dt-grip:hover::after { background: var(--text-faint); }
 
 /* ── 거르기 줄 ──────────────────────────────────────────────────── */
 .dt-filter {
@@ -703,15 +710,14 @@ async function exportExcel() {
 .dt-filter .dt-cell { padding: 3px 4px; overflow: visible; }
 .dt-finput {
   width: 100%; height: 22px; padding: 0 6px;
-  font-size: var(--fs-xs);
-  border: 1px solid transparent; border-radius: var(--r-sm);
-  background: var(--surface-2); color: var(--fg);
+  font-size: 11px;
+  border: 1px solid transparent; border-radius: var(--radius-sm);
+  background: var(--surface-sunken); color: var(--text);
 }
 .dt-finput:hover { border-color: var(--border-strong); }
 .dt-finput:focus {
   background: var(--surface);
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px var(--primary-soft);
+  border-color: var(--text);
 }
 .dt-finput::placeholder { color: var(--fg-subtle); font-weight: 400; }
 
@@ -720,7 +726,7 @@ async function exportExcel() {
   border: 0; border-radius: var(--r-sm);
   background: transparent; color: var(--fg-muted); font-size: 10px;
 }
-.dt-clear:hover { background: var(--surface-3); color: var(--danger); }
+.dt-clear:hover { background: var(--surface-sunken); color: var(--danger); }
 
 /* ── 본문 ───────────────────────────────────────────────────────── */
 .dt-rows { position: relative; width: 100%; min-width: max-content; }
@@ -729,24 +735,25 @@ async function exportExcel() {
   display: flex; align-items: center; cursor: pointer;
   border-bottom: 1px solid var(--border);
 }
-.dt-row:hover { background: var(--surface-2); }
+.dt-row:hover { background: var(--surface-alt); }
 
 /* 상태 색 — 표 전체에서 뜻이 같아야 한다(base.css 의 .grid 와 같은 이름).
    고른 줄(active)이 늘 이긴다. 안 그러면 뭘 눌렀는지 보이지 않는다. */
 .dt-row.warn  { background: var(--warn-soft); }
 .dt-row.issue { background: var(--danger-soft); }
-.dt-row.off   { color: var(--fg-subtle); }
-.dt-row.cur   { background: var(--primary-soft); font-weight: 600; }
-.dt-row.warn:hover  { background: var(--warn-soft); filter: brightness(.98); }
-.dt-row.issue:hover { background: var(--danger-soft); filter: brightness(.98); }
-.dt-row.active, .dt-row.active:hover { background: var(--primary-soft); filter: none; }
+.dt-row.off   { color: var(--text-faint); }
+.dt-row.cur   { background: var(--accent-soft); }
+.dt-row.warn:hover  { background: #f2ecdf; }
+.dt-row.issue:hover { background: #f5e6e4; }
+.dt-row.active, .dt-row.active:hover { background: var(--accent-soft); filter: none; }
 
 .dt-cell {
-  padding: 0 9px; line-height: calc(var(--row-h, 30px) - 1px);
+  padding: 0 12px; line-height: calc(var(--row-h, 36px) - 1px);
+  font-size: 12.5px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   display: flex; align-items: center;
 }
-.dt-head .dt-cell { line-height: 28px; height: 29px; }
+.dt-head .dt-cell { line-height: 37px; height: 38px; font-size: 11.5px; }
 .dt-row .dt-cell { height: 100%; }
 .dt-cell:not(.dt-th):not(.dt-no):not(.dt-check) { display: block; }
 
@@ -756,67 +763,64 @@ async function exportExcel() {
 .dt-cell.dt-slot :deep(.btn) { flex: 0 0 auto; }
 .dt-cell.dt-slot :deep(input[type=text]) { height: 22px; font-size: var(--fs-sm); min-width: 0; }
 .dt-cell.dt-slot :deep(a) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dt-cell.dt-slot :deep(a:hover) { color: var(--primary); text-decoration: underline; }
+.dt-cell.dt-slot :deep(a:hover) { color: var(--text); text-decoration: underline; border-bottom-color: transparent; }
 
+/* No 열 — 기존 화면은 다른 칸과 같은 바탕이고 가운데 맞춤만 다르다 */
 .dt-no {
-  flex: 0 0 48px; width: 48px;
+  flex: 0 0 54px; width: 54px;
   justify-content: center; text-align: center;
-  color: var(--fg-subtle); font-size: var(--fs-sm);
-  border-right: 1px solid var(--border);
-  background: var(--surface-2);
+  color: var(--text-muted); font-size: 12px;
 }
-.dt-row:hover .dt-no { color: var(--fg-muted); }
-.dt-row.active .dt-no { color: var(--primary); background: var(--primary-soft); }
-.dt-filter .dt-no { background: var(--surface); }
+.dt-head .dt-no { color: var(--text-muted); }
 
 .dt-check {
   flex: 0 0 36px; width: 36px;
   justify-content: center; text-align: center;
 }
 
-.dt-empty { padding: 36px; text-align: center; color: var(--fg-muted); }
+.dt-empty { padding: 44px; text-align: center; color: var(--text-faint); font-size: 12.5px; }
 
 /* ── 아래쪽 집계 ────────────────────────────────────────────────── */
 .dt-foot {
   display: flex; align-items: center; gap: 4px;
-  flex: 0 0 auto; height: 29px; padding: 0 var(--sp-3);
+  flex: 0 0 auto; height: 30px; padding: 0 12px;
   border-top: 1px solid var(--border);
-  background: var(--surface-2);
-  font-size: var(--fs-sm); color: var(--fg-muted);
+  background: var(--surface-alt);
+  font-size: 12px; color: var(--text-muted);
 }
-.dt-foot strong { color: var(--fg); font-weight: 600; }
+.dt-foot strong { color: var(--text); font-weight: 700; }
 .dt-foot-filter { color: var(--warn); }
 .dt-foot-filter strong { color: var(--warn); }
-.dt-foot-sel { color: var(--primary); margin-left: 10px; }
-.dt-foot-sel strong { color: var(--primary); }
+.dt-foot-sel { color: var(--text); margin-left: 10px; }
+.dt-foot-sel strong { color: var(--text); }
 
 /* 엑셀 내려받기 — 집계 줄 오른쪽 끝. 자주 쓰지만 주인공은 아니라 조용하게 둔다. */
 .dt-xls {
   display: inline-flex; align-items: center; gap: 5px;
-  height: 21px; padding: 0 8px; margin-left: 10px;
-  border: 1px solid var(--border-strong); border-radius: var(--r-sm);
-  background: var(--surface); color: var(--fg-muted);
-  font-size: var(--fs-xs); font-weight: 500;
+  height: 22px; padding: 0 8px; margin-left: 10px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius);
+  background: var(--surface); color: var(--text-muted);
+  font-size: 11px; font-weight: 500;
   transition: color .12s ease, border-color .12s ease, background-color .12s ease;
 }
-.dt-xls:hover:not(:disabled) { color: var(--ok); border-color: var(--ok-line); background: var(--ok-soft); }
-.dt-xls:disabled { opacity: .4; cursor: not-allowed; }
+.dt-xls:hover:not(:disabled) { color: var(--text); border-color: var(--text-faint); background: var(--surface-alt); }
+.dt-xls:disabled { opacity: .4; cursor: var(--cursor-forbidden); }
 .dt-xls-server { margin-left: 6px; }
-.dt-xls-server:hover:not(:disabled) { color: var(--primary); border-color: var(--primary); background: var(--primary-soft); }
+.dt-xls-server:hover:not(:disabled) { color: var(--text); border-color: var(--text-faint); background: var(--surface-alt); }
 .dt-foot-loading {
   display: inline-flex; align-items: center; gap: 4px;
-  margin-left: 8px; font-size: var(--fs-xs); color: var(--primary);
+  margin-left: 8px; font-size: 11px; color: var(--text-muted);
 }
 .dt-more-btn {
   display: inline-flex; align-items: center;
-  height: 20px; padding: 0 6px; margin-left: 8px;
-  border: 1px solid var(--border); border-radius: var(--r-sm);
-  background: var(--surface); color: var(--fg-muted);
-  font-size: var(--fs-xs); cursor: pointer;
+  height: 22px; padding: 0 8px; margin-left: 8px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius);
+  background: var(--surface); color: var(--text-muted);
+  font-size: 11px; cursor: pointer;
   transition: all .12s ease;
 }
 .dt-more-btn:hover {
-  color: var(--primary); border-color: var(--primary); background: var(--primary-soft);
+  color: var(--text); border-color: var(--text-faint); background: var(--surface-alt);
 }
 .dt-spin { animation: dt-spin 1s linear infinite; }
 @keyframes dt-spin { to { transform: rotate(360deg); } }
@@ -838,6 +842,6 @@ async function exportExcel() {
 }
 .dt-row.dragging {
   opacity: 0.45;
-  background: var(--surface-2);
+  background: var(--surface-alt);
 }
 </style>

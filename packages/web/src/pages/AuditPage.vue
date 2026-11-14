@@ -4,6 +4,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/vue-query'
 import type { AuditEntry, AuditListResponse, AuditMeta, AuditSort, JobCreated } from '@tdms/contracts'
 import DataTable, { type Column, type SortDir } from '@/ui/DataTable.vue'
 import Modal from '@/ui/Modal.vue'
+import ZipStatusModal from '@/ui/ZipStatusModal.vue'
 import JobProgress from '@/ui/JobProgress.vue'
 import { api, ApiError } from '@/lib/api'
 import { staleTime } from '@/lib/queryKeys'
@@ -106,21 +107,57 @@ const {
 const rows = computed(() => data.value?.pages.flatMap((p) => p.items) ?? [])
 const total = computed(() => data.value?.pages[0]?.total ?? null)
 const detail = ref<AuditEntry | null>(null)
+/** Zip 상세 현황 팝업 — 반출이력과 공용 */
+const zipDetail = ref<string | null>(null)
 
 const ts = (v: string) => v.slice(0, 19).replace('T', ' ')
 
+/**
+ * 상세(JSON)를 한 줄 글로 — 기존 화면의 formatDetail 과 같은 모양.
+ * 표에 그대로 적고, 길어서 잘리면 눌러서 전체를 팝업으로 본다.
+ */
+function blank(v: unknown) {
+  return v === null || v === undefined || v === '' || (Array.isArray(v) && !v.length)
+}
+function detailText(d: AuditEntry['detail']): string {
+  if (!d) return ''
+  const parts: string[] = []
+  for (const [k, v] of Object.entries(d)) {
+    if (blank(v)) continue
+    if (typeof v === 'object' && !Array.isArray(v)) {
+      const inner = Object.entries(v as Record<string, unknown>)
+        .filter(([, x]) => !blank(x)).map(([ik, ix]) => `${ik} ${String(ix)}`).join(', ')
+      if (inner) parts.push(`${k}(${inner})`)
+    } else {
+      parts.push(`${k}: ${Array.isArray(v) ? v.join(', ') : String(v)}`)
+    }
+  }
+  return parts.join(' \u00b7 ')
+}
+
+/** 반출 Zip 을 남긴 기록이면 그 파일 이름 — 기존 화면의 'Zip 파일명' 칸 */
+const zipNameOf = (a: AuditEntry) =>
+  (typeof a.detail?.zipName === 'string' ? a.detail.zipName : null)
+
+const zipHref = (name: string) =>
+  `/api/distributions/zip-file?zipName=${encodeURIComponent(name)}`
+
 /** 엑셀로 나가는 값도 여기를 거친다 — 화면과 파일이 어긋나지 않는다. */
 const COLUMNS: Column<AuditEntry>[] = [
-  { key: 'occurredAt', label: '시각',      width: '160px', align: 'center', sortable: true, render: (a) => ts(a.occurredAt) },
-  { key: 'userName',   label: '사용자',    width: '110px', align: 'center', sortable: true, render: (a) => a.userName ?? '' },
-  { key: 'screen',     label: '화면',      width: '140px', sortable: true, render: (a) => a.screen ?? '' },
-  { key: 'action',     label: '동작',      width: '160px', sortable: true, render: (a) => a.action ?? '' },
-  { key: 'target',     label: '자료명',    sortable: true, render: (a) => a.target ?? '' },
-  { key: 'clientIp',   label: '접속 주소', width: '130px', align: 'center', sortable: true, render: (a) => a.clientIp ?? '' },
-  // 상세는 본문이 JSON 이라 한 줄로 못 보여 준다. 있는지 없는지만 적고 창으로 연다.
-  { key: 'detail',     label: '상세',      width: '64px', align: 'center', sortable: false, filterable: false,
-    render: (a) => (a.detail ? '있음' : '') },
+  { key: 'occurredAt', label: '시각',        width: '150px', align: 'center', sortable: true, render: (a) => ts(a.occurredAt) },
+  { key: 'screen',     label: '화면',        width: '130px', align: 'center', sortable: true, render: (a) => a.screen ?? '\u00b7' },
+  { key: 'action',     label: '동작',        width: '150px', align: 'center', sortable: true, render: (a) => a.action ?? '\u00b7' },
+  { key: 'userName',   label: '사용자',      width: '100px', align: 'center', sortable: true, render: (a) => a.userName ?? '\u00b7' },
+  { key: 'target',     label: '자료명',      width: '200px', sortable: true, render: (a) => a.target ?? '\u00b7' },
+  { key: 'zipName',    label: 'Zip 파일명',  width: '190px', sortable: false,
+    render: (a) => zipNameOf(a) ?? '\u00b7' },
+  { key: 'confirm',    label: '확인',        width: '170px', align: 'center',
+    sortable: false, filterable: false, exportable: false, render: () => '' },
+  { key: 'clientIp',   label: '접속 주소',   width: '120px', align: 'center', sortable: true, render: (a) => a.clientIp ?? '\u00b7' },
+  // 내용을 그대로 적는다 — 칸보다 길면 눌러서 전체를 본다 (기존 .detail-cell)
+  { key: 'detail',     label: '상세 내용',   sortable: false, render: (a) => detailText(a.detail) },
 ]
+
 
 function reset() {
   const d = defaultDates()
@@ -160,41 +197,76 @@ async function startServerExport() {
 
 <template>
   <main class="app-main audit">
-    <div class="panel head">
-      <h1>이벤트 및 작업 이력 기록</h1>
-      <span class="muted sub">기록은 수정하거나 지울 수 없습니다.</span>
-    </div>
-
-    <div class="panel search">
-      <div class="bar">
-        <input v-model="f.dateFrom" type="date" title="시작일" />
-        <span class="muted">~</span>
-        <input v-model="f.dateTo" type="date" title="종료일" />
-        <span v-for="kind in (['screen', 'action'] as const)" :key="kind" class="multi" @mouseleave="picker = null">
-          <button type="button" class="btn btn-sm multi-btn" :class="{ on: f[kind].length }"
-                  :aria-expanded="picker === kind" @click="picker = picker === kind ? null : kind">
-            {{ pickLabel(kind) }} ▾
-          </button>
-          <div v-if="picker === kind" class="multi-pop" role="listbox" aria-multiselectable="true">
-            <div class="multi-tools">
-              <button type="button" class="btn btn-sm btn-ghost" @click="f[kind] = []">전체</button>
-            </div>
-            <label v-for="v in (kind === 'screen' ? meta?.screens : meta?.actions) ?? []" :key="v" class="multi-item">
-              <input type="checkbox" :checked="f[kind].includes(v)" @change="togglePick(kind, v)" /> {{ v }}
-            </label>
-          </div>
-        </span>
-        <select v-model="f.userId"
-                :title="meta?.canSelectOtherUser ? '사용자' : '다른 사용자를 고를 권한이 없습니다'">
-          <option value="">사용자 전체</option>
-          <option v-for="u in meta?.users ?? []" :key="u.id" :value="u.id">{{ u.name }}</option>
-        </select>
-        <input v-model="f.q" type="text" placeholder="자료명·사용자" style="width:160px" />
-        <button class="btn btn-sm" @click="reset">조건 초기화</button>
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">
+          시스템 로그<span class="page-title-sub">이벤트 및 작업 이력 기록</span>
+        </h1>
+        <p class="page-desc">기록은 수정하거나 지울 수 없습니다.</p>
       </div>
     </div>
 
-    <div class="panel table-panel">
+    <div class="filter-bar">
+      <div class="filter-row">
+        <div class="filter-fields">
+          <div v-for="kind in (['screen', 'action'] as const)" :key="kind" class="field">
+            <label>{{ kind === 'screen' ? '로그화면' : '로그동작' }}</label>
+            <div class="hideable-dropdown ms-dropdown" @mouseleave="picker = null">
+              <button type="button" class="dropdown-toggle"
+                      :aria-expanded="picker === kind" @click="picker = picker === kind ? null : kind">
+                {{ pickLabel(kind) }}
+              </button>
+              <div v-if="picker === kind" class="dropdown-list" role="listbox" aria-multiselectable="true">
+                <div class="dropdown-group-label">
+                  <button type="button" class="link" @click="f[kind] = []">전체 해제</button>
+                </div>
+                <label v-for="v in (kind === 'screen' ? meta?.screens : meta?.actions) ?? []" :key="v"
+                       class="dropdown-item dropdown-item-ms">
+                  <input type="checkbox" :checked="f[kind].includes(v)" @change="togglePick(kind, v)" /> {{ v }}
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="audit-user">사용자</label>
+            <select id="audit-user" v-model="f.userId"
+                    :title="meta?.canSelectOtherUser ? '사용자' : '다른 사용자를 고를 권한이 없습니다'">
+              <option value="">전체</option>
+              <option v-for="u in meta?.users ?? []" :key="u.id" :value="u.id">{{ u.name }}</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="from-filter">기간</label>
+            <input id="from-filter" v-model="f.dateFrom" type="date" title="시작일" />
+          </div>
+          <div class="field">
+            <label for="to-filter">~</label>
+            <input id="to-filter" v-model="f.dateTo" type="date" title="종료일" />
+          </div>
+
+          <input v-model="f.q" type="text" class="filter-search" placeholder="자료명·상세 내용 검색" />
+        </div>
+        <div class="filter-actions">
+          <button type="button" @click="reset">조건 초기화</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="status-bar">
+      <span class="status-bar-left">
+        <span class="total-count">전체 {{ (total ?? 0).toLocaleString() }}건</span>
+        <span v-if="isFetching && !isFetchingNextPage" class="muted">&nbsp;· 조회 중…</span>
+      </span>
+      <span class="cart-status">
+        <button class="cart-btn" type="button" :disabled="exporting" @click="startServerExport">
+          엑셀 내보내기
+        </button>
+      </span>
+    </div>
+
+    <div class="table-box">
       <DataTable
         :columns="COLUMNS"
         :rows="rows"
@@ -206,47 +278,29 @@ async function startServerExport() {
         :sort-dir="dir"
         storage-key="audit"
         excel-name="시스템 로그"
-        server-excel
-        :server-exporting="exporting"
-        @export-server="startServerExport"
         empty-text="기록이 없습니다."
         @sort="onSort"
         @load-more="() => { if (hasNextPage && !isFetchingNextPage) fetchNextPage() }"
         @row-click="(a) => { if (a.detail) detail = a }"
       >
-        <template #cell:detail="{ row }">
-          <span
-            v-if="row.detail"
-            class="detail-icon-wrap"
-            title="상세 보기"
-            role="button"
-            tabindex="0"
-            aria-label="상세 보기"
-            @click.stop="detail = row"
-            @keydown.enter.space.prevent="detail = row"
-          >
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M9.5 1.5H3.5a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-8.5L9.5 1.5z" />
-              <path d="M9.5 1.5v3.5h3.5" />
-              <path d="M5.5 7.5h5" />
-              <path d="M5.5 10.5h5" />
-            </svg>
-          </span>
+        <template #cell:confirm="{ row }">
+          <template v-if="zipNameOf(row)">
+            <a class="small zip-btn" :href="zipHref(zipNameOf(row)!)"
+               :download="zipNameOf(row)!" title="이 기록이 만든 Zip 받기" @click.stop>Zip 다운</a>
+            <button class="small" title="이 Zip 에 담긴 자료와 반입 진행 상황"
+                    @click.stop="zipDetail = zipNameOf(row)">상세 현황</button>
+          </template>
         </template>
+
+        <template #cell:detail="{ row }">
+          <span v-if="row.detail" class="detail-cell-clickable" :title="detailText(row.detail)"
+                @click.stop="detail = row">{{ detailText(row.detail) }}</span>
+        </template>
+
       </DataTable>
     </div>
 
-    <div v-if="exportErr" class="panel msg err">
+    <div v-if="exportErr" class="msg err">
       {{ exportErr }}<span style="flex:1" />
       <button class="btn btn-sm" @click="exportErr = ''">닫기</button>
     </div>
@@ -258,6 +312,9 @@ async function startServerExport() {
       </div>
       <JobProgress :job-id="exportJobId" />
     </div>
+
+    <!-- Zip 상세 현황 (반출이력과 공용 팝업) -->
+    <ZipStatusModal v-if="zipDetail" :zip-name="zipDetail" @close="zipDetail = null" />
 
     <Modal v-if="detail" title="상세 내용" @close="detail = null">
       <table class="kv">
@@ -276,48 +333,35 @@ async function startServerExport() {
 </template>
 
 <style scoped>
-.audit { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
-.head { display: flex; align-items: baseline; gap: 10px; padding: 10px 12px; flex: 0 0 auto; }
-.head h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; }
-.sub { font-size: var(--fs-sm); }
-.search { padding: 10px 12px; flex: 0 0 auto; }
-.bar { display: flex; gap: var(--gap-sm); align-items: center; flex-wrap: wrap; }
-/* 스크롤은 DataTable 이 자기 안에서 맡는다 — 바깥에서 또 스크롤하면
-   머리글 고정이 깨진다. 여기서는 자리만 내준다. */
-.table-panel { flex: 1; min-height: 0; overflow: hidden; display: flex; }
-.table-panel > * { flex: 1; min-width: 0; }
-.detail-icon-wrap {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto;
-  width: 24px;
-  height: 24px;
-  border-radius: var(--radius-sm);
-  color: var(--primary);
-  cursor: pointer;
-  transition: background-color var(--dur-fast, 120ms), color var(--dur-fast, 120ms);
+.audit { min-height: 0; }
+
+/* 결과 표 — 스크롤은 DataTable 이 자기 안에서 맡는다. 여기서는 자리만 내준다. */
+.table-box {
+  flex: 1 1 auto; min-height: 240px; display: flex;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); overflow: hidden;
 }
-.detail-icon-wrap:hover {
-  background-color: var(--primary-soft);
+.table-box > * { flex: 1; min-width: 0; }
+
+/* 상세 내용 칸 — 잘려 보이는 글을 누르면 팝업으로 전체를 본다 (기존 .detail-cell) */
+.detail-cell-clickable { cursor: pointer; }
+.detail-cell-clickable:hover { text-decoration: underline; color: var(--text); }
+
+/* '확인' 칸의 [Zip 다운] — <a> 를 작은 버튼처럼 */
+.zip-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 26px; padding: 0 10px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius);
+  background: var(--surface); color: var(--text); font-size: 11.5px; white-space: nowrap;
 }
+.zip-btn:hover { background: var(--surface-alt); border-color: var(--text-faint); border-bottom-color: var(--text-faint); }
+
 .kv th, .kv td { padding: 4px 8px; text-align: left; border: 1px solid var(--border); }
-.kv th { background: var(--bg); width: 90px; white-space: nowrap; }
+.kv th { background: var(--surface-alt); width: 90px; white-space: nowrap; }
 .detail {
-  margin: 12px 0 0; padding: 10px; background: var(--bg); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); font-size: 11px; overflow: auto; max-height: 240px;
+  margin: 12px 0 0; padding: 10px; background: var(--surface-alt); border: 1px solid var(--border);
+  border-radius: var(--radius); font-size: 11.5px; overflow: auto; max-height: 240px;
 }
-.multi { position: relative; }
-.multi-btn.on { border-color: var(--primary); color: var(--primary); }
-.multi-pop {
-  position: absolute; top: 100%; left: 0; z-index: 20; margin-top: 2px;
-  min-width: 200px; max-height: 300px; overflow: auto; padding: 4px 0;
-  background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-lg);
-}
-.multi-tools { padding: 2px 6px 4px; border-bottom: 1px solid var(--border); }
-.multi-item { display: flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: var(--fs-sm); white-space: nowrap; cursor: pointer; }
-.multi-item:hover { background: var(--accent-soft); }
-.msg { display: flex; align-items: center; gap: 8px; padding: 9px 12px; flex: 0 0 auto; }
-.job-head { display: flex; align-items: center; padding: 8px 12px; font-size: var(--fs-sm); font-weight: 600; }
+.msg { flex: 0 0 auto; }
+.job-head { display: flex; align-items: center; padding: 8px 12px; font-size: 11.5px; font-weight: 600; }
 </style>

@@ -30,6 +30,11 @@ function toItem(r: q.MdbRow) {
     isShared: r.isShared,
     needsCheck: r.needsCheck,
     tagCount: r.tagCount,
+    files: r.files ?? [{ id: r.id, fileExt: r.fileExt }],
+    hasDwg: r.hasDwg,
+    hasXlsx: r.hasXlsx,
+    hasEtc: r.hasEtc,
+    hasPdf: r.hasPdf,
     updatedAt: r.updatedAt.toISOString(),
   }
 }

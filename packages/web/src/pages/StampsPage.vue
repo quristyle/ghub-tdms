@@ -351,17 +351,15 @@ async function toggleEnabled(s: StampItem) {
 
 <template>
   <main class="app-main stamps-page">
-    <div class="panel head">
-      <div class="title-row">
-        <h1>스탬프 관리</h1>
-        <span class="muted desc">
-          도면 미리보기 툴바에서 날인할 수 있는 도장 및 표 스탬프를 관리합니다.
-        </span>
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">
+          스탬프 관리<span class="page-title-sub">도면 미리보기 툴바에서 날인할 도장·표 스탬프 관리</span>
+        </h1>
       </div>
-      <span style="flex:1" />
-      <button class="btn btn-primary" @click="openCreate">
-        + 새 스탬프 등록
-      </button>
+      <div class="page-actions">
+        <button class="primary" type="button" @click="openCreate">＋ 새 스탬프 등록</button>
+      </div>
     </div>
 
     <!-- 알림 메시지 -->
@@ -702,7 +700,7 @@ async function toggleEnabled(s: StampItem) {
 }
 
 .grid-icon-btn.edit-btn:hover {
-  color: var(--primary, #c8102e);
+  color: var(--primary, #1c1c1b);
   border-color: var(--primary-line, #f5c2ca);
   background: var(--primary-soft, #fef2f3);
 }

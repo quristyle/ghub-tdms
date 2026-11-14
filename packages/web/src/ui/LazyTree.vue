@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { useQueryClient } from '@tanstack/vue-query'
 import type { DocClass, FolderNode, FolderTreeResponse } from '@tdms/contracts'
 import TreeNode from './TreeNode.vue'
@@ -18,7 +18,12 @@ import { qk } from '@/lib/queryKeys'
  * 트리를 새로 고치는 것을 따로 기억할 필요가 없다 — 예전에는 폴더를 만들어도 트리에
  * 나타나지 않았다.
  */
-const props = defineProps<{ docClass: DocClass; selectedId: number | null }>()
+const props = withDefaults(defineProps<{
+  docClass: DocClass
+  selectedId: number | null
+  /** 숨김 폴더 보기 — 껍데기만 남은 DWG·PDF 폴더까지 드러낸다 */
+  showHidden?: boolean
+}>(), { showHidden: false })
 const emit = defineEmits<{ select: [folder: FolderNode | null] }>()
 
 const qc = useQueryClient()
@@ -28,12 +33,16 @@ const expanded = ref(new Set<number>())
 const loading = ref(new Set<number>())
 
 async function fetchChildren(parentId: number | null): Promise<FolderNode[]> {
-  const key = qk.folders.tree(props.docClass, parentId ?? undefined)
+  const key = [...qk.folders.tree(props.docClass, parentId ?? undefined), props.showHidden]
   const state = qc.getQueryState(key)
   const hit = qc.getQueryData<FolderTreeResponse>(key)
   if (hit && !state?.isInvalidated) return hit.items
   const data = await api.get<FolderTreeResponse>(
-    `/folders${qs({ docClass: props.docClass, parentId: parentId ?? undefined })}`,
+    `/folders${qs({
+      docClass: props.docClass,
+      parentId: parentId ?? undefined,
+      showHidden: props.showHidden || undefined,
+    })}`,
   )
   qc.setQueryData(key, data)
   return data.items
@@ -75,6 +84,9 @@ async function reload() {
 
 void reload()
 
+// [숨김 폴더 보기] 를 켜고 끄면 트리를 통째로 다시 읽는다
+watch(() => props.showHidden, () => { void reload() })
+
 // 폴더 질의가 무효화되면 스스로 다시 읽는다.
 // (로컬 맵에 복사해 둔 가지는 캐시만 비워서는 갱신되지 않는다)
 let reloading = false
@@ -92,14 +104,24 @@ const unsubscribe = qc.getQueryCache().subscribe((ev) => {
 
 onBeforeUnmount(unsubscribe)
 
-defineExpose({ reload })
+/** 펼쳐 둔 가지를 모두 접는다 — 트리 머리글의 [폴더]를 누르면 대분류만 남는다 (기존 동작) */
+function collapseAll() {
+  expanded.value = new Set()
+}
+
+defineExpose({ reload, collapseAll })
 </script>
 
 <template>
-  <div class="tree">
-    <div class="tree-row" :class="{ sel: selectedId === null }" @click="emit('select', null)">
-      <span class="tree-arrow" />
-      <span class="tree-name">전체</span>
+  <div class="tree-body">
+    <div
+      class="tree-node" :class="{ active: selectedId === null }"
+      data-depth="0" style="padding-left:8px"
+      @click="emit('select', null)"
+    >
+      <span class="tree-toggle" />
+      <span class="tree-icon">📁</span>
+      <span class="tree-label">전체</span>
     </div>
     <TreeNode
       :nodes="roots" :depth="0"
@@ -109,27 +131,3 @@ defineExpose({ reload })
     />
   </div>
 </template>
-
-<style>
-.tree { padding: var(--sp-2) 6px; font-size: var(--fs); }
-.tree-row {
-  display: flex; align-items: center; gap: 5px;
-  height: 27px; padding-right: 8px;
-  border-radius: var(--r); cursor: pointer; user-select: none;
-  color: var(--fg-muted);
-  transition: background-color .1s ease, color .1s ease;
-}
-.tree-row:hover { background: var(--surface-2); color: var(--fg); }
-.tree-row.sel { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
-.tree-arrow {
-  flex: 0 0 15px; width: 15px; font-size: 8px; color: var(--fg-subtle);
-  transition: transform .12s ease; text-align: center;
-}
-.tree-arrow.open { transform: rotate(90deg); }
-.tree-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tree-count {
-  font-size: var(--fs-xs); color: var(--fg-subtle);
-  font-variant-numeric: tabular-nums;
-}
-.tree-row.sel .tree-count { color: var(--primary); }
-</style>

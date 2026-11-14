@@ -308,11 +308,15 @@ function reset() {
 
 <template>
   <main class="app-main perms">
-    <div class="panel head">
-      <h1>접속권한 관리</h1>
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">
+          접속권한 관리<span class="page-title-sub">그룹별 화면·기능 접근 권한 설정</span>
+        </h1>
+      </div>
     </div>
 
-    <div v-if="message" class="panel msg" :class="message.kind">
+    <div v-if="message" class="msg" :class="message.kind">
       {{ message.text }}<span style="flex:1" />
       <button class="btn btn-sm" @click="message = null">닫기</button>
     </div>

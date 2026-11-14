@@ -363,26 +363,37 @@ const DIST_COLUMNS: Column<DistRow>[] = [
     <div v-if="isLoading" class="panel pad muted">불러오는 중…</div>
 
     <template v-else-if="doc">
-      <div class="panel head">
-        <h1>TDB 자료 상세 보기</h1>
-        <span style="flex:1" />
-        <span class="nav" :title="navOn ? '' : '목록에서 들어왔을 때만 넘겨볼 수 있습니다'">
-          <button class="btn btn-sm" title="맨 처음 자료" :disabled="!navOn || navPos === 1"
-                  @click="goDoc(nav?.firstId)">◀◀ 처음</button>
-          <button class="btn btn-sm" title="이전 자료" :disabled="!navOn || !nav?.prevId"
-                  @click="goDoc(nav?.prevId)">◀ 이전</button>
-          <span v-if="navOn" class="nav-count">
-            <input v-model="posInput" type="text" inputmode="numeric" class="nav-pos"
-                   title="번호를 입력하고 Enter" @keydown.enter="jumpTo"
-                   @blur="posInput = navPos === null ? '' : String(navPos)" />
-            / {{ nav?.total }}
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">TDB 자료 상세 보기</h1>
+        </div>
+      </div>
+
+      <div class="detail-toolbar">
+        <div class="detail-toolbar-left">
+          <button type="button" class="back-btn" @click="router.push('/')">목록으로</button>
+          <span class="detail-nav" :title="navOn ? '' : '목록에서 들어왔을 때만 넘겨볼 수 있습니다'">
+            <span class="nav-btn-pair">
+              <button type="button" class="nav-step-btn" title="맨 처음 자료" :disabled="!navOn || navPos === 1"
+                      @click="goDoc(nav?.firstId)"><span class="nav-arrow dbl-arrow">◀◀</span> 처음</button>
+              <button type="button" class="nav-step-btn" title="이전 자료" :disabled="!navOn || !nav?.prevId"
+                      @click="goDoc(nav?.prevId)"><span class="nav-arrow">◀</span> 이전</button>
+            </span>
+            <span v-if="navOn" class="detail-nav-count">
+              <input v-model="posInput" type="text" inputmode="numeric" class="nav-pos-input"
+                     title="번호를 입력하고 Enter" @keydown.enter="jumpTo"
+                     @blur="posInput = navPos === null ? '' : String(navPos)" />
+              <span>/ {{ nav?.total }}</span>
+            </span>
+            <span class="nav-btn-pair">
+              <button type="button" class="nav-step-btn" title="다음 자료" :disabled="!navOn || !nav?.nextId"
+                      @click="goDoc(nav?.nextId)">다음 <span class="nav-arrow">▶</span></button>
+              <button type="button" class="nav-step-btn" title="맨 끝 자료" :disabled="!navOn || navPos === nav?.total"
+                      @click="goDoc(nav?.lastId)">끝 <span class="nav-arrow dbl-arrow">▶▶</span></button>
+            </span>
           </span>
-          <button class="btn btn-sm" title="다음 자료" :disabled="!navOn || !nav?.nextId"
-                  @click="goDoc(nav?.nextId)">다음 ▶</button>
-          <button class="btn btn-sm" title="맨 끝 자료" :disabled="!navOn || navPos === nav?.total"
-                  @click="goDoc(nav?.lastId)">끝 ▶▶</button>
-        </span>
-        <button class="btn btn-sm" @click="router.push('/')">목록으로</button>
+        </div>
+        <div class="page-actions" />
       </div>
 
       <div class="panel body">

@@ -2,7 +2,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 /** 모달 — 포커스 트랩, ESC 닫기, 배경 스크롤 잠금. */
-defineProps<{ title: string; wide?: boolean }>()
+defineProps<{ title: string; wide?: boolean; notice?: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 
 const box = ref<HTMLElement | null>(null)
@@ -35,7 +35,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="backdrop" @click.self="emit('close')">
-    <div ref="box" class="box" :class="{ wide }" role="dialog" aria-modal="true" :aria-label="title">
+    <div ref="box" class="box" :class="{ wide, notice }" role="dialog" aria-modal="true" :aria-label="title">
       <div class="box-head">
         <h2>{{ title }}</h2>
         <span style="flex:1" />
@@ -48,38 +48,36 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* 기존 화면의 .modal-overlay / .modal-box 와 같은 모양 (style.css) */
 .backdrop {
   position: fixed; inset: 0; z-index: 100;
-  background: rgb(9 9 11 / .45);
-  backdrop-filter: blur(2px);
+  background: rgba(16, 24, 40, 0.45);
   display: flex; align-items: center; justify-content: center;
-  padding: var(--sp-5);
-  animation: fade .12s ease;
+  padding: 20px;
 }
 .box {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
-  width: 560px; max-width: 100%; max-height: 100%;
+  width: 400px; max-width: 100%; max-height: 90vh;
   display: flex; flex-direction: column;
-  animation: rise .14s ease;
 }
-.box.wide { width: 900px; }
+.box.wide { width: 900px; max-width: 92vw; }
+/* 상단 알림 팝업([TDB 수정]·[TDB 반출]) — 표가 들어가므로 가로 스크롤이 안 생기게 넓게 */
+.box.notice { width: 1420px; max-width: 94vw; }
+
 .box-head {
   display: flex; align-items: center;
-  padding: 13px var(--sp-4); border-bottom: 1px solid var(--border);
+  padding: 18px 22px 10px;
 }
-.box-head h2 { font-size: var(--fs-md); margin: 0; font-weight: 600; }
-.box-body { padding: var(--sp-4); overflow: auto; }
-.box-foot {
-  padding: 12px var(--sp-4); border-top: 1px solid var(--border);
-  display: flex; gap: var(--sp-2); align-items: center; justify-content: flex-end;
-}
+.box-head h2 { font-size: 15px; font-weight: 700; margin: 0; }
 
-@keyframes fade { from { opacity: 0 } }
-@keyframes rise { from { opacity: 0; transform: translateY(6px) } }
-@media (prefers-reduced-motion: reduce) {
-  .backdrop, .box { animation: none; }
+.box-body { padding: 0 22px; overflow: auto; flex: 1; min-height: 0; }
+
+.box-foot {
+  padding: 20px 22px 22px;
+  display: flex; gap: 8px; align-items: center; justify-content: flex-end;
 }
+/* 아래 버튼줄이 없으면 본문 밑여백을 본문이 갖는다 */
+.box-body:last-child { padding-bottom: 22px; }
 </style>

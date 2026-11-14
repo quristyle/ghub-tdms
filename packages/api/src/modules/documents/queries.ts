@@ -28,6 +28,8 @@ export interface DocumentListRow {
   hasXlsx: boolean
   hasEtc: boolean
   updatedAt: Date
+  /** 등록 뒤 실제로 손댄 적이 있는가 — 목록 '최종수정' 색을 칠할지 가른다 */
+  isModified: boolean
   lentTo: string | null
   lentAt: Date | null
 }
@@ -55,6 +57,34 @@ const SORT_SQL: Record<string, string> = {
   docType:    'd.doc_type',
 }
 
+/**
+ * '수정된 자료' 로 볼 것인가 — 목록의 '최종수정' 색, 수정일 거르개, [TDB 수정] 팝업이
+ * **함께 쓰는 하나의 기준**이다. 세 곳이 어긋나면 색과 건수가 서로 안 맞는다.
+ *
+ *   ① 등록된 뒤로 실제로 무언가 바뀐 것(updated_at 이 created_at 보다 뒤), 또는
+ *   ② 초기 일괄적재 **이후**에 새로 등록된 것 — 등록 자체를 수정으로 본다
+ *
+ * 기존 시스템은 ② 의 기준일을 날짜로 박아 두었다(2026-08-14). 이 시스템은 이관 적재일이
+ * 따로 있으므로 "가장 먼저 등록된 날의 다음 날" 을 기준으로 삼는다 — 그래야 이관된
+ * 수만 건이 통째로 "최근 수정" 으로 물들지 않고, 이관을 다시 돌려도 저절로 맞는다.
+ */
+const MODIFIED_SQL = `
+  (d.updated_at > d.created_at
+   OR d.created_at >= (SELECT min(created_at) + interval '1 day' FROM documents))`
+
+/**
+ * 수정일 거르개의 세 구간 — 목록 '최종수정' 색 단계와 정확히 같다.
+ * 진한 색 = 오늘~30일, 연한 색 = 31~90일, 색 없음 = 91일 이전.
+ * 세 구간은 겹치지 않고, 셋을 다 고르면 전체와 같아진다.
+ */
+const MODIFIED_SCOPE_SQL: Record<string, string> = {
+  D30:    `${MODIFIED_SQL} AND d.updated_at >= now() - interval '30 days'`,
+  D31_90: `${MODIFIED_SQL} AND d.updated_at >= now() - interval '90 days'
+                           AND d.updated_at <  now() - interval '30 days'`,
+  // 91일 이전 = 90일보다 오래전에 수정됐거나, 등록 뒤 한 번도 손댄 적 없는 것
+  D91:    `(NOT ${MODIFIED_SQL} OR d.updated_at < now() - interval '90 days')`,
+}
+
 const HOLD_SQL: Record<string, string> = {
   all: 'TRUE',
   both: 'd.has_dwg AND d.has_pdf',
@@ -66,6 +96,7 @@ const HOLD_SQL: Record<string, string> = {
 export type ListFilter = Pick<
   DocumentListQuery,
   'status' | 'hold' | 'includeIsometric' | 'q' | 'searchTarget' | 'projectId' | 'rev' | 'docType'
+  | 'modified'
 >
 
 /** WHERE 조각들. params[0] 은 언제나 폴더 id 목록이다. */
@@ -95,6 +126,11 @@ function buildListWhere(qp: ListFilter, params: unknown[]): string[] {
     params.push(qp.docType)
     where.push(`d.doc_type = $${params.length}`)
   }
+  // 고른 구간 중 하나라도 들어맞으면 통과. 셋을 다 고르면 조건을 걸지 않은 것과 같다.
+  if (qp.modified?.length && qp.modified.length < 3) {
+    const parts = qp.modified.map((k) => MODIFIED_SCOPE_SQL[k]).filter(Boolean)
+    if (parts.length) where.push(`(${parts.map((p) => `(${p})`).join(' OR ')})`)
+  }
   return where
 }
 
@@ -114,6 +150,9 @@ const LIST_SELECT = `
          d.has_xlsx     AS "hasXlsx",
          d.has_etc      AS "hasEtc",
          d.updated_at   AS "updatedAt",
+         -- 목록의 '최종수정' 색을 두 단계로 칠할지 판단하는 값. 등록만 되고 한 번도
+         -- 손댄 적 없는 자료는 그 날짜가 '등록한 날' 이라 색을 칠하지 않는다.
+         ${MODIFIED_SQL} AS "isModified",
          lent.vendor_name    AS "lentTo",
          lent.distributed_at AS "lentAt"
     FROM documents d
@@ -464,20 +503,8 @@ export function listFolderDocuments(folderIds: number[], includeIsometric: boole
 
 // ── TDB 수정 (최근수정본) ───────────────────────────────────────────────
 
-/**
- * "수정된 자료" 로 볼 것인가 — 기존 is_modified_condition 을 옮긴 것.
- *
- *   ① 등록된 뒤로 실제로 무언가 바뀐 것 (updated_at > created_at)
- *   ② 초기 일괄적재 **이후**에 새로 등록된 것 — 등록 자체를 수정으로 본다
- *
- * 기존은 ② 의 기준일을 날짜로 박아 두었다(2026-08-14). 이 시스템은 이관 적재일이
- * 따로 있으므로 "가장 먼저 등록된 날의 다음 날" 을 기준으로 삼는다 — 그래야 이관된
- * 수만 건이 통째로 "최근 수정" 으로 물들지 않고, 이관을 다시 돌려도 저절로 맞는다.
- */
-const MODIFIED_SQL = `
-  (d.updated_at > d.created_at
-   OR d.created_at >= (SELECT min(created_at) + interval '1 day' FROM documents))`
-
+// '수정된 자료' 의 기준(MODIFIED_SQL)은 이 파일 맨 위에 하나만 둔다 —
+// 목록의 색·수정일 거르개·이 팝업이 같은 수를 보아야 하기 때문이다.
 const RECENT_WHERE = `
   NOT d.is_archived AND d.status <> 'RETIRED'
   AND ${MODIFIED_SQL}

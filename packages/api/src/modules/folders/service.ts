@@ -2,10 +2,13 @@ import { cached } from '../../core/cache.js'
 import { Errors } from '../../core/errors.js'
 import * as q from './queries.js'
 
-export async function tree(docClass: 'TDB' | 'MDB', parentId?: number, expandTo?: number) {
-  if (expandTo !== undefined) return q.listExpandedTo(docClass, expandTo)
-  return cached('cache_tree', `${docClass}:${parentId ?? 'root'}`, () =>
-    q.listChildren(docClass, parentId ?? null),
+export async function tree(
+  docClass: 'TDB' | 'MDB', parentId?: number, expandTo?: number, showHidden = false,
+) {
+  if (expandTo !== undefined) return q.listExpandedTo(docClass, expandTo, showHidden)
+  // 숨김 여부에 따라 결과가 다르므로 캐시 열쇠에도 같이 넣는다
+  return cached('cache_tree', `${docClass}:${parentId ?? 'root'}:${showHidden ? 'all' : 'visible'}`, () =>
+    q.listChildren(docClass, parentId ?? null, showHidden),
   )
 }
 

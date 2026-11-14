@@ -6,7 +6,7 @@ import type {
   ArchiveListResponse, FolderNode, JobCreated, MdbCartItem, MdbIdsByFolderResponse,
   MdbListItem, MdbListResponse, MdbMeta, TagSuggestResponse,
 } from '@tdms/contracts'
-import LazyTree from '@/ui/LazyTree.vue'
+import FolderTreePanel from '@/ui/FolderTreePanel.vue'
 import DataTable, { type Column, type SortDir } from '@/ui/DataTable.vue'
 import JobProgress from '@/ui/JobProgress.vue'
 import Modal from '@/ui/Modal.vue'
@@ -41,6 +41,12 @@ watch(keyword, (v) => {
   if (composing.value) return
   timer = setTimeout(() => (s.value.keyword = v), 250)
 })
+
+/** [검색] — 입력 중 기다리지 않고 바로 조회한다 (기존 화면의 검색 버튼) */
+function doSearch() {
+  clearTimeout(timer)
+  s.value.keyword = keyword.value
+}
 
 function onFolder(f: FolderNode | null) {
   s.value.folder = f ? { id: f.id, name: f.name } : null
@@ -124,11 +130,15 @@ function addToCart(items: MdbCartItem[]): number {
   return taking.length
 }
 
-const toCartItem = (r: MdbListItem): MdbCartItem =>
-  ({ id: r.id, title: r.title, folderName: r.folderName, fileExt: r.fileExt })
+/**
+ * 목록 한 줄은 **자료 한 건**이고 다운대기함은 **파일 단위**다 —
+ * 한 줄을 담으면 그 자료의 원본·사본이 각각 담긴다.
+ */
+const toCartItems = (r: MdbListItem): MdbCartItem[] =>
+  r.files.map((f) => ({ id: f.id, title: r.title, folderName: r.folderName, fileExt: f.fileExt }))
 
 function addSelected() {
-  const picked = rows.value.filter((r) => selected.value.has(r.id)).map(toCartItem)
+  const picked = rows.value.filter((r) => selected.value.has(r.id)).flatMap(toCartItems)
   if (!picked.length) { message.value = { kind: 'err', text: '담을 자료를 표에서 체크하세요.' }; return }
   const n = addToCart(picked)
   selected.value = new Set()
@@ -227,208 +237,300 @@ const { data: retired, isFetching: retiredLoading } = useQuery({
   staleTime: staleTime.list,
 })
 
-function size(b: number): string {
-  return b < 1024 ? `${b} B` : b < 1024 ** 2 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1024 ** 2).toFixed(1)} MB`
-}
-
 /* 'Mechanical Data Book'(자료유형)·'Heat Exchanger'(설비유형)가 들어가는 너비로 잡았다 */
+const yn = (on: boolean) => (on ? 'Y' : '\u00b7')
+
 const columns = computed<Column<MdbListItem>[]>(() => [
-  { key: 'title', label: '자료명', width: '288px', sortable: true },
-  { key: 'folderName', label: '폴더', sortable: false },   // 남는 자리를 받는 칸
-  { key: 'equipmentType', label: '설비유형', width: '124px', sortable: true,
-    render: (r) => r.equipmentType ?? '-' },
-  { key: 'docType', label: '자료유형', width: '176px', sortable: true,
-    render: (r) => r.docType ?? '-' },
-  { key: 'year', label: '연도', width: '64px', align: 'center', sortable: true,
-    render: (r) => String(r.year ?? '-') },
+  { key: 'title', label: '자료명', width: '220px', sortable: true },
+  { key: 'year', label: '연도', width: '60px', align: 'center', sortable: true,
+    render: (r) => String(r.year ?? '\u00b7') },
+  { key: 'projectName', label: '공사', width: '150px', sortable: true,
+    render: (r) => r.projectName ?? '\u00b7' },
+  { key: 'folderName', label: '경로', sortable: false },   // 남는 자리를 받는 칸
+  { key: 'equipmentType', label: '설비유형', width: '110px', sortable: true,
+    render: (r) => r.equipmentType ?? '\u00b7' },
+  { key: 'docType', label: '자료유형', width: '110px', sortable: true,
+    render: (r) => r.docType ?? '\u00b7' },
   { key: 'isShared', label: '분류', width: '84px', align: 'center', sortable: false,
     render: (r) => (r.needsCheck ? '확인필요' : r.isShared ? '공용' : '전용') },
-  { key: 'fileExt', label: '형식', width: '56px', align: 'center', sortable: false,
-    render: (r) => r.fileExt.toUpperCase() },
+  { key: 'hasDwg', label: 'DWG', width: '58px', align: 'center', sortable: false, filterable: false,
+    render: (r) => yn(r.hasDwg) },
+  { key: 'hasXlsx', label: 'XLSX', width: '58px', align: 'center', sortable: false, filterable: false,
+    render: (r) => yn(r.hasXlsx) },
+  { key: 'hasEtc', label: 'ETC', width: '58px', align: 'center', sortable: false, filterable: false,
+    render: (r) => yn(r.hasEtc) },
+  { key: 'hasPdf', label: 'PDF', width: '58px', align: 'center', sortable: false, filterable: false,
+    render: (r) => yn(r.hasPdf) },
   { key: 'tagCount', label: 'Tag', width: '56px', align: 'center', sortable: false, filterable: false,
     render: (r) => String(r.tagCount) },
-  { key: 'byteSize', label: '크기', width: '84px', align: 'right', sortable: false, filterable: false,
-    render: (r) => size(r.byteSize) },
-  { key: 'updatedAt', label: '최종수정', width: '104px', align: 'center', sortable: true,
+  { key: 'updatedAt', label: '최종수정', width: '134px', align: 'center', sortable: true,
     render: (r) => r.updatedAt.slice(0, 10) },
 ])
 </script>
 
 <template>
-  <aside class="app-side">
-    <LazyTree doc-class="MDB" :selected-id="s.folder?.id ?? null" @select="onFolder" />
-  </aside>
-
-  <main class="app-main mdb">
-    <div class="panel search">
-      <div class="bar">
-        <select v-model="s.category" title="분류">
-          <option value="">분류 전체</option>
-          <option value="전용">전용</option>
-          <option value="공용">공용</option>
-          <option value="확인필요">확인필요</option>
-        </select>
-        <select v-model="s.equipmentType">
-          <option value="">설비유형 전체</option>
-          <option v-for="e in meta?.equipmentTypes ?? []" :key="e" :value="e">{{ e }}</option>
-        </select>
-        <select v-model="s.docType">
-          <option value="">자료유형 전체</option>
-          <option v-for="d in meta?.docTypes ?? []" :key="d" :value="d">{{ d }}</option>
-        </select>
-        <select v-model="s.projectId">
-          <option value="">공사 전체</option>
-          <option v-for="p in meta?.projects ?? []" :key="p.id" :value="String(p.id)">{{ p.name }}</option>
-        </select>
-        <select v-model="s.year">
-          <option value="">연도 전체</option>
-          <option v-for="y in meta?.years ?? []" :key="y" :value="String(y)">{{ y }}</option>
-        </select>
-        <label class="chk"><input v-model="s.recursive" type="checkbox" /> 하위폴더 전체보기</label>
-        <select v-model="s.searchTarget">
-          <option value="title">자료명 검색</option>
-          <option value="folder">폴더명 검색</option>
-          <option value="tag">Tag No 검색</option>
-        </select>
-        <span class="tagwrap">
-          <input
-            v-model="keyword" type="text" placeholder="검색어" style="width:180px"
-            @compositionstart="composing = true"
-            @compositionend="composing = false; s.keyword = keyword"
-          />
-          <ul v-if="tagHints.length" class="hints">
-            <li v-for="t in tagHints" :key="t" @click="pickHint(t)">{{ t }}</li>
-          </ul>
-        </span>
-        <select v-model.number="s.limit" title="한 번에 불러올 건수">
-          <option :value="200">200건씩</option>
-          <option :value="500">500건씩</option>
-          <option :value="1000">1000건씩</option>
-        </select>
-        <button class="btn btn-sm" @click="reset">조건 초기화</button>
-        <span style="flex:1" />
-        <button v-if="canSeeRetired" class="btn btn-sm" title="폐기 보관함 (읽기 전용)" @click="retiredOpen = true">
-          폐기 보관함 <span class="cnt">{{ retired?.count ?? 0 }}</span>
+  <main class="app-main">
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">
+          MDB 조회<span class="page-title-sub">Mechanical Data Book(설비자료) 문서 조회 및 열람</span>
+        </h1>
+      </div>
+      <div class="page-actions">
+        <button v-if="canSeeRetired" type="button" title="폐기 보관함 (읽기 전용)" @click="retiredOpen = true">
+          폐기 보관함 <span class="tree-count">({{ retired?.count ?? 0 }})</span>
         </button>
       </div>
-      <div class="muted meta">
-        <span v-if="s.folder">{{ s.folder.name }}</span>
-        <span v-else>전체 폴더</span>
-        <span v-if="isFetching && !isFetchingNextPage"> · 조회 중…</span>
-        <span v-else-if="isFetchingNextPage"> · 다음 페이지 불러오는 중…</span>
+    </div>
+
+    <!-- 검색·필터 — 분류·설비유형·자료유형·공사·연도·하위폴더전체보기.
+         검색칸 좌측에 검색대상(전체/자료명/Tag No) 드롭박스를 둔다. -->
+    <div class="filter-bar">
+      <div class="filter-row">
+        <div class="filter-fields">
+          <div class="field">
+            <label for="category">분류</label>
+            <select id="category" v-model="s.category">
+              <option value="">전체</option>
+              <option value="전용">전용</option>
+              <option value="공용">공용</option>
+              <option value="확인필요">확인필요</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="equipment_type">설비유형</label>
+            <select id="equipment_type" v-model="s.equipmentType">
+              <option value="">전체</option>
+              <option v-for="e in meta?.equipmentTypes ?? []" :key="e" :value="e">{{ e }}</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="doc_type">자료유형</label>
+            <select id="doc_type" v-model="s.docType">
+              <option value="">전체</option>
+              <option v-for="d in meta?.docTypes ?? []" :key="d" :value="d">{{ d }}</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="project_id">공사</label>
+            <select id="project_id" v-model="s.projectId">
+              <option value="">전체</option>
+              <option v-for="p in meta?.projects ?? []" :key="p.id" :value="String(p.id)">{{ p.name }}</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="mdb-year">연도</label>
+            <select id="mdb-year" v-model="s.year">
+              <option value="">전체</option>
+              <option v-for="y in meta?.years ?? []" :key="y" :value="String(y)">{{ y }}</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="holding">원본/사본</label>
+            <select id="holding" v-model="s.hold">
+              <option value="all">전체</option>
+              <option value="both">원본/사본 있음</option>
+              <option value="dwg_only">원본만 있음</option>
+              <option value="pdf_only">사본만 있음</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="mdb-limit">조회건수</label>
+            <select id="mdb-limit" v-model.number="s.limit" title="한 번에 불러올 건수">
+              <option :value="200">200건씩</option>
+              <option :value="500">500건씩</option>
+              <option :value="1000">1000건씩</option>
+            </select>
+          </div>
+
+          <label class="check-inline field-check">
+            <input v-model="s.recursive" type="checkbox" /> 하위폴더 전체보기
+          </label>
+
+          <div class="field search-lead">
+            <label for="search-target">검색대상</label>
+            <select id="search-target" v-model="s.searchTarget">
+              <option value="title">자료명</option>
+              <option value="folder">폴더명</option>
+              <option value="tag">Tag No</option>
+            </select>
+          </div>
+
+          <span class="tagwrap">
+            <input
+              v-model="keyword" type="text" class="filter-search" placeholder="자료명 검색"
+              @compositionstart="composing = true"
+              @compositionend="composing = false; s.keyword = keyword"
+              @keyup.enter="doSearch"
+            />
+            <ul v-if="tagHints.length" class="hints">
+              <li v-for="t in tagHints" :key="t" @click="pickHint(t)">{{ t }}</li>
+            </ul>
+          </span>
+          <button id="search-btn" class="primary" type="button" @click="doSearch">검색</button>
+        </div>
+
+        <div class="filter-actions">
+          <button type="button" @click="reset">조건 초기화</button>
+        </div>
       </div>
     </div>
 
-    <div class="panel actions">
-      <span class="muted small">체크 {{ selected.size }}건</span>
-      <button v-if="selected.size" class="btn btn-sm btn-ghost" @click="selected = new Set()">선택 초기화</button>
-      <span style="flex:1" />
-      <button class="btn btn-sm" :disabled="!s.folder || folderLoading"
-              :title="s.folder ? `${s.folder.name} 폴더 자료를 전부 담습니다` : '폴더를 먼저 고르세요'"
-              @click="addFolder">{{ folderLoading ? '담는 중…' : '폴더 다운' }}</button>
-      <button class="btn btn-sm" @click="addSelected">선택 다운</button>
-      <button class="btn btn-sm btn-primary" @click="cartOpen = true">다운대기함 ({{ cart.length }})</button>
-    </div>
-
-    <div class="panel table-panel">
-      <DataTable
-        :columns="columns" :rows="rows" selectable :selected="selected"
-        :loading="isFetching && !isFetchingNextPage && !rows.length"
-        :total="total" :sort-key="s.sort" :sort-dir="s.dir" storage-key="mdb-list" excel-name="MDB 자료목록"
-        :has-more="hasNextPage" :loading-more="isFetchingNextPage"
-        server-excel :server-exporting="exporting"
-        :row-class="(r) => (cartIds.has(r.id) ? 'cur' : '')"
-        @load-more="() => { if (hasNextPage && !isFetchingNextPage) fetchNextPage() }"
-        @export-server="startServerExport"
-        @toggle="toggle" @toggle-all="toggleAll" @sort="onSort"
-        @row-click="(r) => router.push(`/mdb/${r.id}`)"
+    <div class="main-layout">
+      <FolderTreePanel
+        doc-class="MDB" :selected-id="s.folder?.id ?? null"
+        storage-key="mdb-list" @select="onFolder"
       />
+
+      <div class="main-content">
+        <div class="status-bar">
+          <span class="status-bar-left">
+            <span class="selected-folder-name">
+              <template v-if="s.folder">{{ s.folder.name }}</template>
+              <template v-else>전체 폴더</template>
+            </span>
+            <span class="total-count">전체 {{ (total ?? 0).toLocaleString() }}건</span>
+            <button
+              v-if="selected.size" class="clear-selection-btn" type="button"
+              title="체크해둔 자료를 모두 해제합니다" @click="selected = new Set()"
+            >선택 초기화 ({{ selected.size }})</button>
+            <span v-if="isFetching && !isFetchingNextPage" class="muted">&nbsp;· 조회 중…</span>
+          </span>
+          <span class="cart-status">
+            <button
+              class="cart-btn" type="button" :disabled="!s.folder || folderLoading"
+              :title="s.folder ? `${s.folder.name} 폴더 자료를 전부 담습니다` : '폴더를 먼저 고르세요'"
+              @click="addFolder"
+            >{{ folderLoading ? '담는 중…' : '폴더 다운' }}</button>
+            <button class="cart-btn" type="button" @click="addSelected">선택 다운</button>
+            <button class="cart-btn" type="button" @click="cartOpen = true">다운대기함 ({{ cart.length }})</button>
+            <button class="cart-btn" type="button" :disabled="exporting" @click="startServerExport">
+              엑셀 내보내기
+            </button>
+          </span>
+        </div>
+
+        <div class="table-box">
+          <DataTable
+            :columns="columns" :rows="rows" selectable :selected="selected"
+            :loading="isFetching && !isFetchingNextPage && !rows.length"
+            :total="total" :sort-key="s.sort" :sort-dir="s.dir" storage-key="mdb-list" excel-name="MDB 자료목록"
+            :has-more="hasNextPage" :loading-more="isFetchingNextPage"
+            :row-class="(r) => (r.files.some((x) => cartIds.has(x.id)) ? 'cur' : '')"
+            @load-more="() => { if (hasNextPage && !isFetchingNextPage) fetchNextPage() }"
+            @toggle="toggle" @toggle-all="toggleAll" @sort="onSort"
+            @row-click="(r) => router.push(`/mdb/${r.id}`)"
+          >
+            <template #cell:hasDwg="{ row }"><span :class="row.hasDwg ? 'yn-y' : 'yn-n'">{{ yn(row.hasDwg) }}</span></template>
+            <template #cell:hasXlsx="{ row }"><span :class="row.hasXlsx ? 'yn-y' : 'yn-n'">{{ yn(row.hasXlsx) }}</span></template>
+            <template #cell:hasEtc="{ row }"><span :class="row.hasEtc ? 'yn-y' : 'yn-n'">{{ yn(row.hasEtc) }}</span></template>
+            <template #cell:hasPdf="{ row }"><span :class="row.hasPdf ? 'yn-y' : 'yn-n'">{{ yn(row.hasPdf) }}</span></template>
+          </DataTable>
+        </div>
+      </div>
     </div>
 
-    <div v-if="message" class="panel msg" :class="message.kind">
+    <div v-if="message" class="msg" :class="message.kind">
       {{ message.text }}<span style="flex:1" />
-      <button class="btn btn-sm" @click="message = null">닫기</button>
+      <button class="small" @click="message = null">닫기</button>
     </div>
 
-    <div v-if="exportJobId !== null" class="panel">
-      <div class="job-head">
+    <div v-if="exportJobId !== null" class="card">
+      <div class="section-head">
         <span>전체 엑셀 다운로드 (서버 작업)</span><span style="flex:1" />
-        <button class="btn btn-sm" @click="exportJobId = null">닫기</button>
+        <button class="small" @click="exportJobId = null">닫기</button>
       </div>
       <JobProgress :job-id="exportJobId" />
     </div>
 
-    <div v-if="zipJobId !== null" class="panel">
-      <div class="job-head">
+    <div v-if="zipJobId !== null" class="card">
+      <div class="section-head">
         <span>다운대기함 Zip</span><span style="flex:1" />
-        <button class="btn btn-sm" @click="zipJobId = null">닫기</button>
+        <button class="small" @click="zipJobId = null">닫기</button>
       </div>
       <JobProgress :job-id="zipJobId" />
     </div>
 
     <!-- 다운대기함 -->
     <Modal v-if="cartOpen" title="다운대기함" wide @close="cartOpen = false">
-      <div class="cart-bar">
-        <span>{{ cart.length }}건</span>
-        <span style="flex:1" />
-        <label class="chk" title="Zip 안에 원래 폴더 경로대로 담습니다 (항상 유지)">
-          <input type="checkbox" checked disabled /> 폴더 경로 유지
-        </label>
-        <button class="btn btn-sm" :disabled="!cartChecked.size" @click="cartRemoveChecked">선택 제거</button>
-        <button class="btn btn-sm" :disabled="!cart.length" @click="cartClear">전체 비우기</button>
-        <button class="btn btn-sm" :disabled="!cart.length" @click="cartExport">엑셀 내보내기</button>
+      <div class="status-bar" style="margin-bottom:8px">
+        <span><b>{{ cart.length }}건</b></span>
+        <span class="cart-status" style="margin-right:0">
+          <label class="check-inline" title="Zip 안에 원래 폴더 경로대로 담습니다 (항상 유지)">
+            <input type="checkbox" checked disabled /> 폴더 경로 유지
+          </label>
+          <button class="small" :disabled="!cartChecked.size" @click="cartRemoveChecked">선택 제거</button>
+          <button class="small" :disabled="!cart.length" @click="cartClear">전체 비우기</button>
+          <button class="small" :disabled="!cart.length" @click="cartExport">엑셀 내보내기</button>
+        </span>
       </div>
-      <div class="cart-scroll">
-        <table class="grid">
+      <div class="table-scroll cart-scroll">
+        <table>
+          <colgroup>
+            <col style="width:54px" /><col style="width:34px" /><col />
+            <col style="width:260px" /><col style="width:60px" />
+          </colgroup>
           <thead>
             <tr>
-              <th style="width:48px">No</th>
-              <th style="width:34px">
+              <th>No</th>
+              <th class="col-check">
                 <input type="checkbox" :checked="cartAllChecked" @change="cartToggleAll(($event.target as HTMLInputElement).checked)" />
               </th>
-              <th>자료명</th><th style="width:260px">경로</th><th style="width:60px">형식</th>
+              <th>자료명</th><th>경로</th><th>형식</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="(c, i) in cart" :key="c.id">
-              <td class="tc">{{ i + 1 }}</td>
+              <td class="col-no">{{ i + 1 }}</td>
               <td class="tc"><input type="checkbox" :checked="cartChecked.has(c.id)" @change="cartToggle(c.id)" /></td>
               <td>{{ c.title }}</td>
               <td class="muted">{{ c.folderName }}</td>
               <td class="tc">{{ c.fileExt.toUpperCase() }}</td>
             </tr>
-            <tr v-if="!cart.length"><td colspan="5" class="tc muted">다운대기함이 비어 있습니다. 표에서 체크한 뒤 [선택 다운]이나 [폴더 다운]으로 담으세요.</td></tr>
+            <tr v-if="!cart.length">
+              <td colspan="5" class="empty">다운대기함이 비어 있습니다. 표에서 체크한 뒤 [선택 다운]이나 [폴더 다운]으로 담으세요.</td>
+            </tr>
           </tbody>
         </table>
       </div>
       <template #footer>
-        <button class="btn" @click="cartOpen = false">닫기</button>
-        <button class="btn btn-primary" :disabled="!cart.length" @click="downloadCart">이 목록으로 다운하기</button>
+        <button @click="cartOpen = false">닫기</button>
+        <button class="primary" :disabled="!cart.length" @click="downloadCart">이 목록으로 다운하기</button>
       </template>
     </Modal>
 
     <!-- 폐기 보관함 (읽기 전용) -->
     <Modal v-if="retiredOpen" title="폐기 보관함 (읽기 전용)" wide @close="retiredOpen = false">
-      <p class="muted small">복구·비고 작성은 MDB 관리 화면에서 합니다.</p>
-      <div class="cart-scroll">
-        <table class="grid">
+      <p class="page-desc" style="margin-bottom:10px">복구·비고 작성은 MDB 관리 화면에서 합니다.</p>
+      <div class="table-scroll cart-scroll">
+        <table>
+          <colgroup>
+            <col style="width:54px" /><col /><col /><col style="width:70px" />
+            <col /><col /><col style="width:130px" /><col style="width:90px" />
+          </colgroup>
           <thead>
-            <tr><th style="width:48px">No</th><th>묶음</th><th>원래 자리</th><th style="width:70px">건수</th>
-                <th>사유</th><th>비고</th><th style="width:130px">폐기 일시</th><th style="width:90px">처리자</th></tr>
+            <tr><th>No</th><th>묶음</th><th>원래 자리</th><th>건수</th>
+                <th>사유</th><th>비고</th><th>폐기 일시</th><th>처리자</th></tr>
           </thead>
           <tbody>
             <tr v-for="(b, i) in retired?.items ?? []" :key="b.id">
-              <td class="tc">{{ i + 1 }}</td>
+              <td class="col-no">{{ i + 1 }}</td>
               <td>{{ b.label }}</td>
-              <td class="muted">{{ b.originalPath ?? '-' }}</td>
+              <td class="muted">{{ b.originalPath ?? '·' }}</td>
               <td class="tc">{{ b.itemCount }}</td>
               <td>{{ b.reason ?? '' }}</td>
               <td>{{ b.note ?? '' }}</td>
               <td class="tc">{{ b.archivedAt.slice(0, 16).replace('T', ' ') }}</td>
-              <td class="tc">{{ b.archivedBy ?? '-' }}</td>
+              <td class="tc">{{ b.archivedBy ?? '·' }}</td>
             </tr>
             <tr v-if="!retired?.items.length">
-              <td colspan="8" class="tc muted">{{ retiredLoading ? '불러오는 중…' : '폐기 보관함이 비어 있습니다.' }}</td>
+              <td colspan="8" class="empty">{{ retiredLoading ? '불러오는 중…' : '폐기 보관함이 비어 있습니다.' }}</td>
             </tr>
           </tbody>
         </table>
@@ -438,31 +540,37 @@ const columns = computed<Column<MdbListItem>[]>(() => [
 </template>
 
 <style scoped>
-.mdb { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
-.search { padding: 10px 12px; flex: 0 0 auto; }
-.bar { display: flex; gap: var(--gap-sm); align-items: center; flex-wrap: wrap; }
-.meta { margin-top: 8px; font-size: var(--fs-sm); }
-.chk { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
-.actions { display: flex; gap: var(--gap-sm); align-items: center; padding: 6px 12px; flex: 0 0 auto; }
-.small { font-size: var(--fs-sm); }
-.table-panel {
-  flex: 1; min-width: 0;
-  display: flex; flex-direction: column;
-  min-height: 0; overflow: hidden;
+.table-box {
+  flex: 1 1 auto;
+  min-height: 240px;
+  display: flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
 }
-.table-panel > * {
-  flex: 1; min-width: 0;
+.table-box > * { flex: 1; min-width: 0; }
+
+@media (max-width: 900px) {
+  .main-layout { flex-direction: column; }
+  .main-layout :deep(.tree-panel) { flex: 0 0 auto !important; max-height: 240px; }
+  .main-layout :deep(.tree-resize-handle) { display: none; }
 }
-.msg { display: flex; align-items: center; gap: 8px; padding: 9px 12px; flex: 0 0 auto; }
-.job-head { display: flex; align-items: center; padding: 8px 12px; font-size: var(--fs-sm); font-weight: 600; }
-.cart-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.cart-scroll { max-height: 60vh; overflow: auto; border: 1px solid var(--border); }
+
+/* 검색대상 드롭박스와 검색칸이 한 묶음으로 오른쪽 끝에 붙게 한다 (기존 style.css 규칙) */
+.search-lead { margin-left: auto; }
+.filter-search { margin-left: 0; }
+
+.cart-scroll { max-height: 60vh; }
+.tree-count { color: var(--text-faint); font-size: 11px; font-weight: 400; }
+
 .tagwrap { position: relative; }
 .hints {
   position: absolute; top: 100%; left: 0; z-index: 10; margin: 2px 0 0; padding: 0;
   list-style: none; background: var(--surface); border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm); min-width: 180px; max-height: 220px; overflow: auto;
+  border-radius: var(--radius); min-width: 180px; max-height: 220px; overflow: auto;
+  box-shadow: var(--shadow-sm);
 }
-.hints li { padding: 5px 10px; cursor: pointer; font-size: var(--fs-sm); }
-.hints li:hover { background: var(--accent-soft); }
+.hints li { padding: 6px 10px; cursor: pointer; font-size: 12.5px; }
+.hints li:hover { background: var(--surface-alt); }
 </style>

@@ -51,3 +51,29 @@ export const IMPORT_REASON_LABEL: Record<string, string> = {
   REV_TAG_MALFORMED: '리비전 표기 형식 오류',
   REGISTER_FAILED: '등록 실패',
 }
+
+// ── 배지 색 ────────────────────────────────────────────────────────────
+// 기존 화면(ui.js STATUS_MAP)과 같은 색 배정. 표에서 뜻이 화면마다 달라지지 않게 한 곳에 둔다.
+
+export const DOC_STATUS_BADGE: Record<string, string> = {
+  ACTIVE: 'badge-success',
+  PENDING: 'badge-info',
+  SUPERSEDED: 'badge-neutral',
+  MERGE_REQUIRED: 'badge-warning',
+  RETIRED: 'badge-neutral',
+}
+
+export const DISTRIBUTION_STATE_BADGE: Record<string, string> = {
+  DONE: 'badge-success',
+  INCOMPLETE: 'badge-warning',
+  ISSUE: 'badge-danger',
+  REVIEWING: 'badge-info',
+}
+
+export const REVIEW_STATUS_BADGE: Record<string, string> = {
+  PENDING: 'badge-info',
+  APPROVED: 'badge-success',
+  REJECTED: 'badge-danger',
+  ISSUE: 'badge-danger',
+  MERGED: 'badge-neutral',
+}

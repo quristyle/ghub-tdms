@@ -87,6 +87,15 @@ export function qs(params: Record<string, unknown>): string {
   const sp = new URLSearchParams()
   for (const [k, v] of Object.entries(params)) {
     if (v === undefined || v === null || v === '') continue
+    // 여러 개를 고를 수 있는 조건(화면·동작·수정일 …)은 ?k=a&k=b 로 보낸다.
+    // String(배열) 로 뭉뚱그리면 "a,b" 한 값이 돼서 서버가 아무것도 못 찾는다.
+    if (Array.isArray(v)) {
+      for (const item of v) {
+        if (item === undefined || item === null || item === '') continue
+        sp.append(k, String(item))
+      }
+      continue
+    }
     sp.set(k, String(v))
   }
   const s = sp.toString()

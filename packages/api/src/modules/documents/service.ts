@@ -71,6 +71,7 @@ function toListItem(r: q.DocumentListRow) {
     hasXlsx: r.hasXlsx,
     hasEtc: r.hasEtc,
     updatedAt: r.updatedAt.toISOString(),
+    isModified: r.isModified,
     lentTo: r.lentTo,
     lentAt: r.lentAt ? r.lentAt.toISOString() : null,
   }

@@ -16,7 +16,7 @@ export function registerFolderRoutes(app: FastifyInstance): void {
     },
     handler: async (req) => {
       const qp = FolderTreeQuery.parse(req.query)
-      return { items: await svc.tree(qp.docClass, qp.parentId, qp.expandTo) }
+      return { items: await svc.tree(qp.docClass, qp.parentId, qp.expandTo, qp.showHidden) }
     },
   })
 }

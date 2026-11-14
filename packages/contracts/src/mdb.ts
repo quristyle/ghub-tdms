@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { BoolParam, PageQuery, SortDir, pageResult } from './common.js'
+import { HoldFilter } from './documents.js'
 
 /**
  * MDB — 설비 데이터북 (기존 화면 5·6).
@@ -31,6 +32,11 @@ export const MdbListQuery = PageQuery.extend({
   shared: BoolParam.optional(),
   /** 확인필요만 보기 */
   needsCheck: BoolParam.optional(),
+  /**
+   * 원본/사본 보유 — 자료(같은 폴더 + 같은 자료명) 단위로 본다.
+   * 원본 = PDF 가 아닌 파일(DWG·XLSX·기타), 사본 = PDF. TDB 조회의 같은 이름 조건과 뜻이 같다.
+   */
+  hold: HoldFilter.default('all'),
 })
 export type MdbListQuery = z.infer<typeof MdbListQuery>
 
@@ -49,6 +55,21 @@ export const MdbListItem = z.object({
   isShared: z.boolean(),
   needsCheck: z.boolean(),
   tagCount: z.number().int(),
+  /**
+   * 이 자료에 속한 파일 전부 (id 는 그중 대표 파일).
+   *
+   * 목록 한 줄 = 자료 한 건이고, 원본·사본은 그 안의 파일이다. 담기·옮기기·보관처럼
+   * **자료 통째로** 움직여야 하는 일은 id 하나가 아니라 이 목록을 보낸다.
+   */
+  files: z.array(z.object({ id: z.number().int(), fileExt: z.string() })),
+  /**
+   * 자료(같은 폴더 + 같은 자료명)가 가진 파일 종류 — 기존 화면의 DWG·XLSX·ETC·PDF 칸.
+   * 한 자료가 여러 파일로 나뉘어 있어도 같은 값을 본다.
+   */
+  hasDwg: z.boolean(),
+  hasXlsx: z.boolean(),
+  hasEtc: z.boolean(),
+  hasPdf: z.boolean(),
   updatedAt: z.string(),
 })
 export type MdbListItem = z.infer<typeof MdbListItem>

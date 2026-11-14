@@ -123,11 +123,15 @@ function exportRuns() {
 
 <template>
   <main class="app-main backup">
-    <div class="panel head">
-      <h1>자료 백업 관리</h1>
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">
+          백업 관리<span class="page-title-sub">자료 백업 상태 확인 및 복구</span>
+        </h1>
+      </div>
     </div>
 
-    <div v-if="message" class="panel msg" :class="message.kind">
+    <div v-if="message" class="msg" :class="message.kind">
       {{ message.text }}<span style="flex:1" />
       <button class="btn btn-sm" @click="message = null">닫기</button>
     </div>

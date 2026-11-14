@@ -113,7 +113,7 @@ function toggle() {
 }
 
 .check-switch:focus-visible .switch-track {
-  box-shadow: 0 0 0 2px var(--surface, #ffffff), 0 0 0 4px var(--primary, #c8102e);
+  box-shadow: 0 0 0 2px var(--surface, #ffffff), 0 0 0 4px var(--primary, #1c1c1b);
 }
 
 /* 썸 (노브: sm: 16px x 16px, md: 20px x 20px) */

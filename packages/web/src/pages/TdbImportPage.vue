@@ -9,7 +9,6 @@ import type {
   RecheckIssueResult, RegisterNewResult, ResolveIssueResult,
 } from '@tdms/contracts'
 import DataTable, { type Column } from '@/ui/DataTable.vue'
-import Tabs from '@/ui/Tabs.vue'
 import Modal from '@/ui/Modal.vue'
 import JobProgress from '@/ui/JobProgress.vue'
 import LazyTree from '@/ui/LazyTree.vue'
@@ -24,12 +23,23 @@ import { useSession } from '@/lib/session'
 const session = useSession()
 const qc = useQueryClient()
 
-const tab = ref<'register' | 'review' | 'issues'>('review')
-const TABS = [
-  { key: 'register', label: '반입등록' },
-  { key: 'review', label: '검수 대기' },
-  { key: 'issues', label: '확인 필요' },
-]
+/**
+ * 화면 위쪽 거르개 — 기존 화면(import.html)의 필터 바 그대로다.
+ * 구분·공사·업체·기간·자료명 여섯 가지이고, 공사·업체 후보는 두 목록(검수대기·확인필요)에
+ * 실제 등장한 값만 쓴다(자유 입력 금지 — 기존 populateImpFilterOptions 와 같은 규칙).
+ *
+ * 거르기는 **화면에서** 한다. 두 목록 모두 업무 대기열이라 한 번에 다 받아 두기 때문이다.
+ */
+const blankFilter = () => ({ kind: '' as '' | 'REVIEW' | 'ISSUE', project: '', vendor: '', from: '', to: '', q: '' })
+/** 입력 중인 값 — [검색]을 눌러야 아래 applied 로 옮겨간다 (기존 동작) */
+const f = ref(blankFilter())
+const applied = ref(blankFilter())
+
+function doSearch() { applied.value = { ...f.value } }
+function resetFilter() { f.value = blankFilter(); applied.value = blankFilter() }
+
+/** 구분을 바꾸는 것만은 [검색] 없이 바로 먹는다 — 보이는 표가 달라지는 선택이라서 */
+function onKindChange() { applied.value = { ...applied.value, kind: f.value.kind } }
 
 const canApprove = computed(() => session.can('screen.tdb_import.review.approve'))
 const canReject = computed(() => session.can('screen.tdb_import.review.reject'))
@@ -58,18 +68,28 @@ async function postForm<T>(path: string, fd: FormData): Promise<T> {
 }
 
 // ── 검수 대기 ─────────────────────────────────────────────────────────
-const keyword = ref('')
-const pendingKey = computed(() => ['pending-review', keyword.value])
-
 const { data: pending, isFetching } = useQuery({
-  queryKey: pendingKey,
-  queryFn: () =>
-    api.get<PendingReviewResponse>(`/revisions/pending-review${qs({ q: keyword.value || undefined })}`),
+  queryKey: ['pending-review'],
+  queryFn: () => api.get<PendingReviewResponse>('/revisions/pending-review'),
   staleTime: staleTime.worklist,   // 업무 대기열은 항상 최신
 })
 
 const groups = computed(() => pending.value?.items ?? [])
 const selected = ref(new Set<number>())
+
+/**
+ * 한 줄이 거르개에 걸리는가 — 검수대기·확인필요 두 목록이 같은 규칙을 쓴다
+ * (기존 impItemMatches 그대로: 공사·업체는 정확히 일치, 자료명은 부분 일치, 기간은 업로드일).
+ */
+function matches(it: { projectName: string | null; vendorName: string | null; name: string; uploadedAt: string }) {
+  const a = applied.value
+  if (a.project && (it.projectName ?? '') !== a.project) return false
+  if (a.vendor && (it.vendorName ?? '') !== a.vendor) return false
+  if (a.q && !it.name.toLowerCase().includes(a.q.trim().toLowerCase())) return false
+  if (a.from && it.uploadedAt < `${a.from}T00:00:00`) return false
+  if (a.to && it.uploadedAt > `${a.to}T23:59:59`) return false
+  return true
+}
 
 function toggle(g: PendingReviewGroup) {
   const id = g.files[0]!.id
@@ -78,9 +98,9 @@ function toggle(g: PendingReviewGroup) {
 }
 
 const reviewMutation = useMutation({
-  mutationFn: (v: { action: 'APPROVE' | 'REJECT'; note: string | null }) =>
+  mutationFn: (v: { fileIds: number[]; action: 'APPROVE' | 'REJECT'; note: string | null }) =>
     api.post<{ done: number; failed: { fileId: number; message: string }[] }>(
-      '/revisions/review-bulk', { fileIds: [...selected.value], ...v },
+      '/revisions/review-bulk', v,
     ),
   onSuccess: (r) => {
     selected.value = new Set()
@@ -93,16 +113,29 @@ const reviewMutation = useMutation({
   onError: (e) => fail(e),
 })
 
-const rejectOpen = ref(false)
+/** 반려할 대상 — 줄 하나일 수도, 체크한 여럿일 수도 있다 */
+const rejectIds = ref<number[] | null>(null)
 const rejectNote = ref('')
 
-function approve() {
-  if (!selected.value.size) return
-  reviewMutation.mutate({ action: 'APPROVE', note: null })
+function approve(ids: number[] = [...selected.value]) {
+  // 중복반출 병합 대상과 아직 다 안 돌아온 건은 빼고 보낸다 (기존 화면과 같은 규칙)
+  const ok = ids.filter((id) => {
+    const g = pendingRows.value.find((r) => r.id === id)
+    return g ? g.canApprove && !g.isBranch : false
+  })
+  if (!ok.length) {
+    message.value = { kind: 'err', text: '선택한 항목 중 바로 승인할 수 있는 건이 없습니다 (중복반출 병합 대상이거나 아직 다 돌아오지 않은 항목은 제외됩니다).' }
+    return
+  }
+  const skipped = ids.length - ok.length
+  if (skipped) message.value = { kind: 'warn', text: `${skipped}건은 중복반출·미도착으로 제외하고 ${ok.length}건을 승인합니다.` }
+  reviewMutation.mutate({ fileIds: ok, action: 'APPROVE', note: null })
 }
 function confirmReject() {
-  rejectOpen.value = false
-  reviewMutation.mutate({ action: 'REJECT', note: rejectNote.value || null })
+  const ids = rejectIds.value ?? []
+  rejectIds.value = null
+  if (!ids.length) return
+  reviewMutation.mutate({ fileIds: ids, action: 'REJECT', note: rejectNote.value || null })
   rejectNote.value = ''
 }
 
@@ -136,6 +169,14 @@ async function submitMerge() {
   }
 }
 
+// ── 미리보기 (목록의 돋보기) ──────────────────────────────────────────
+// 기존 화면처럼 자료명 왼쪽 돋보기를 누르면 받은 PDF 를 그 자리에서 크게 본다.
+const previewFileId = ref<number | null>(null)
+const previewUrl = ref<string | null>(null)
+
+/** 이 줄이 받은 파일 중 PDF 의 id (없으면 null) */
+const pdfOf = (g: PendingRow) => g.files.find((x) => x.fileExt === 'pdf')?.id ?? null
+
 // ── 비교 (반출본 ↔ 반입본) ────────────────────────────────────────────
 // 왼쪽은 지금 승인된 PDF, 오른쪽은 들어온 PDF. 확인 필요 건은 아직 files 행이 아니라서
 // /import-issues/:id/preview 로 본다.
@@ -165,7 +206,9 @@ const { data: issues, isFetching: issuesFetching } = useQuery({
   queryFn: () => api.get<ImportIssueResponse>('/import-issues'),
   staleTime: staleTime.worklist,
 })
-const issueRows = computed(() => issues.value?.items ?? [])
+const allIssues = computed(() => issues.value?.items ?? [])
+const issueRows = computed(() => allIssues.value.filter((i) =>
+  matches({ projectName: i.projectName, vendorName: i.vendorName, name: i.displayName, uploadedAt: i.createdAt })))
 const issueSelected = ref(new Set<number>())
 
 function toggleIssue(id: number) {
@@ -386,7 +429,6 @@ const selInput = ref<HTMLInputElement | null>(null)
 const { data: outstanding } = useQuery({
   queryKey: ['import-targets', 'outstanding'],
   queryFn: () => api.get<ImportTargetResponse>('/imports/targets'),
-  enabled: computed(() => tab.value === 'register'),
   staleTime: staleTime.worklist,
 })
 
@@ -475,7 +517,6 @@ async function uploadSelection() {
 const { data: options } = useQuery({
   queryKey: ['import-options'],
   queryFn: () => api.get<ImportOptions>('/imports/options'),
-  enabled: computed(() => tab.value === 'register'),
   staleTime: 5 * 60_000,
 })
 
@@ -534,26 +575,63 @@ async function registerNew() {
  */
 type PendingRow = PendingReviewGroup & { id: number }
 const pendingRows = computed<PendingRow[]>(() =>
-  groups.value.map((g) => ({ ...g, id: g.files[0]!.id })),
+  groups.value
+    .filter((g) => matches({
+      projectName: g.projectName, vendorName: g.vendorName,
+      name: `${g.drawingNo} ${g.title}`, uploadedAt: g.uploadedAt,
+    }))
+    .map((g) => ({ ...g, id: g.files[0]!.id })),
 )
 
+/** 공사·업체 후보 — 두 목록에 실제 등장한 값만 (기존 populateImpFilterOptions) */
+const projectOptions = computed(() => [...new Set([
+  ...groups.value.map((g) => g.projectName),
+  ...allIssues.value.map((i) => i.projectName),
+].filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b, 'ko')))
+
+const vendorOptions = computed(() => [...new Set([
+  ...groups.value.map((g) => g.vendorName),
+  ...allIssues.value.map((i) => i.vendorName),
+].filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b, 'ko')))
+
+/**
+ * 구분에 따라 어느 표를 보이는가 (기존 applyImpSectionVisibility).
+ * '전체' 일 때는 확인 필요가 0건이면 감춘다 — 구분을 직접 고른 때는 0건이어도
+ * "없습니다" 안내를 보여준다.
+ */
+const showReview = computed(() => applied.value.kind !== 'ISSUE')
+const showIssues = computed(() =>
+  applied.value.kind === 'ISSUE' || (applied.value.kind === '' && issueRows.value.length > 0))
+
+const extsLabel = (list: string[]) =>
+  (list.length ? list.map((e) => e.toUpperCase()).join(', ') : '\u00b7')
+
+/** 중복반출이면 반입Rev 에 진행 상황을 함께 적는다 — "1-a(2/3)" (기존 화면과 같은 표기) */
+function revText(g: PendingRow): string {
+  return g.isBranch && g.branchExpected !== null
+    ? `${g.revLabel}(${g.branchArrived ?? 0}/${g.branchExpected})`
+    : g.revLabel
+}
+
 const PENDING_COLUMNS: Column<PendingRow>[] = [
-  { key: 'drawingNo', label: '반입자료', width: '220px',
+  { key: 'projectName', label: '공사', width: '100px', align: 'center', render: (g) => g.projectName ?? '\u00b7' },
+  { key: 'vendorName', label: '업체', width: '90px', align: 'center', render: (g) => g.vendorName ?? '\u00b7' },
+  { key: 'drawingNo', label: '반입·검수대기 자료명', width: '200px',
     render: (g) => (g.title ? `${g.drawingNo} ${g.title}` : g.drawingNo) },
-  { key: 'folderName', label: '분류', width: '140px' },
-  { key: 'revLabel', label: '반입Rev', width: '86px', align: 'center' },
-  { key: 'distributedRev', label: '반출Rev', width: '86px', align: 'center',
-    render: (g) => (g.distributedRev !== null ? `Rev${g.distributedRev}` : '') },
-  { key: 'vendorName', label: '업체', width: '130px', render: (g) => g.vendorName ?? '' },
-  { key: 'projectName', label: '공사', width: '120px', align: 'center', render: (g) => g.projectName ?? '' },
-  { key: 'files', label: '파일', width: '170px',
-    render: (g) => g.files.map((f) => `${f.fileExt.toUpperCase()} ${size(f.byteSize)}`).join(', ') },
+  { key: 'category', label: '분류', width: '100px', render: (g) => g.category ?? g.folderName },
+  { key: 'folderPath', label: '경로', render: (g) => g.folderPath ?? '\u00b7' },
+  { key: 'distributedRev', label: '반출Rev', width: '84px', align: 'center',
+    render: (g) => String(g.distributedRev ?? 0) },
+  { key: 'revLabel', label: '반입Rev', width: '104px', align: 'center', render: revText },
+  { key: 'distributedExts', label: '반출자료', width: '88px', align: 'center',
+    render: (g) => extsLabel(g.distributedExts) },
+  { key: 'importedExts', label: '반입자료', width: '88px', align: 'center',
+    render: (g) => extsLabel(g.files.map((x) => x.fileExt)) },
+  { key: 'isBranch', label: '중복반출', width: '84px', align: 'center', filterable: false,
+    render: (g) => (g.isBranch ? 'Y' : '\u00b7') },
   { key: 'uploadedAt', label: '업로드 일시', width: '130px', align: 'center',
     render: (g) => g.uploadedAt.slice(0, 16).replace('T', ' ') },
-  // 엑셀에도 "중복반출"·"Rev 불일치"가 나가야 화면과 같은 뜻이 된다
-  { key: 'state', label: '상태', width: '190px', filterable: false,
-    render: (g) => [g.isBranch ? '중복반출' : '', g.hasWarning ? 'Rev 불일치' : ''].filter(Boolean).join(' ') },
-  { key: 'cmp', label: '비교', width: '64px', align: 'center', sortable: false, filterable: false,
+  { key: 'act', label: '조치', width: '210px', align: 'center', sortable: false, filterable: false,
     exportable: false, render: () => '' },
 ]
 
@@ -566,28 +644,33 @@ function reasonClass(c: string): string {
 }
 
 const ISSUE_COLUMNS: Column<ImportIssue>[] = [
-  { key: 'projectName', label: '공사', width: '110px', align: 'center', render: (i) => i.projectName ?? '' },
-  { key: 'vendorName', label: '업체', width: '120px', align: 'center', render: (i) => i.vendorName ?? '' },
+  { key: 'projectName', label: '공사', width: '110px', align: 'center', render: (i) => i.projectName ?? '\u00b7' },
+  { key: 'vendorName', label: '업체', width: '110px', align: 'center', render: (i) => i.vendorName ?? '\u00b7' },
   { key: 'displayName', label: '자료명', width: '220px' },
-  { key: 'files', label: '파일', width: '150px',
-    render: (i) => i.files.map((f) => f.ext.toUpperCase()).join(', ') },
-  { key: 'createdAt', label: '업로드일시', width: '130px', align: 'center',
+  { key: 'createdAt', label: '업로드 일시', width: '130px', align: 'center',
     render: (i) => i.createdAt.slice(0, 16).replace('T', ' ') },
   // 글자값에 사유상세 문장까지 담는다 — 엑셀(기존 '사유' 칸)과 거르기가 이것을 쓴다
   { key: 'reasons', label: '사유', width: '220px',
-    render: (i) => `${i.reasons.map(reasonLabel).join(', ')} — ${i.detailText}` },
-  { key: 'act', label: '조치', width: '420px', sortable: false, filterable: false, exportable: false, render: () => '' },
+    render: (i) => `${i.reasons.map(reasonLabel).join(', ')} \u2014 ${i.detailText}` },
+  { key: 'files', label: '받은 파일', width: '150px',
+    render: (i) => i.files.map((x) => x.ext.toUpperCase()).join(', ') },
+  { key: 'act', label: '비고', width: '420px', sortable: false, filterable: false, exportable: false, render: () => '' },
 ]
 
 const PICKER_COLUMNS: Column<PickerRow>[] = [
-  { key: 'displayName', label: '자료명', width: '200px' },
-  { key: 'title', label: '내용', width: '160px' },
-  { key: 'folderPath', label: '경로', width: '220px' },
+  { key: 'displayName', label: '자료명', width: '180px' },
+  { key: 'title', label: '내용', width: '140px' },
+  { key: 'folderPath', label: '경로' },
   { key: 'revAtDistribution', label: '반출Rev', width: '70px', align: 'center',
     render: (t) => `Rev${String(t.revAtDistribution).padStart(2, '0')}` },
-  { key: 'exts', label: '보유', width: '120px', align: 'center',
-    render: (t) => [t.hasDwg ? 'DWG' : '', t.hasXlsx ? 'XLSX' : '', t.hasEtc ? '기타' : '', t.hasPdf ? 'PDF' : '']
-      .filter(Boolean).join(' ') },
+  { key: 'hasDwg', label: 'DWG', width: '56px', align: 'center', filterable: false,
+    render: (t) => (t.hasDwg ? 'Y' : '\u00b7') },
+  { key: 'hasXlsx', label: 'XLSX', width: '56px', align: 'center', filterable: false,
+    render: (t) => (t.hasXlsx ? 'Y' : '\u00b7') },
+  { key: 'hasEtc', label: 'ETC', width: '56px', align: 'center', filterable: false,
+    render: (t) => (t.hasEtc ? 'Y' : '\u00b7') },
+  { key: 'hasPdf', label: 'PDF', width: '56px', align: 'center', filterable: false,
+    render: (t) => (t.hasPdf ? 'Y' : '\u00b7') },
   { key: 'distributedAt', label: '반출일', width: '96px', align: 'center', render: (t) => t.distributedAt.slice(0, 10) },
   { key: 'status', label: '상태', width: '96px', align: 'center', render: (t) => PICKER_STATUS[t.status].text },
 ]
@@ -599,236 +682,352 @@ function size(b: number): string {
 
 <template>
   <main class="app-main import">
-    <div class="panel head">
-      <h1>TDB 신규 자료 등록 및 검토·승인</h1>
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">
+          TDB 반입·검수<span class="page-title-sub">TDB 신규 자료 등록 및 검토·승인</span>
+        </h1>
+      </div>
     </div>
 
-    <div v-if="message" class="panel msg" :class="message.kind">
+    <!-- 검색 -->
+    <div class="filter-bar">
+      <div class="filter-row">
+        <div class="filter-fields">
+          <div class="field">
+            <label for="imp-kind">구분</label>
+            <select id="imp-kind" v-model="f.kind" @change="onKindChange">
+              <option value="">전체</option>
+              <option value="REVIEW">검수 대기</option>
+              <option value="ISSUE">확인 필요</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="imp-project">공사</label>
+            <select id="imp-project" v-model="f.project">
+              <option value="">전체</option>
+              <option v-for="p in projectOptions" :key="p" :value="p">{{ p }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="imp-vendor">업체</label>
+            <select id="imp-vendor" v-model="f.vendor">
+              <option value="">전체</option>
+              <option v-for="v in vendorOptions" :key="v" :value="v">{{ v }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="imp-from">기간</label>
+            <input id="imp-from" v-model="f.from" type="date" />
+          </div>
+          <div class="field">
+            <label for="imp-to">~</label>
+            <input id="imp-to" v-model="f.to" type="date" />
+          </div>
+          <input
+            v-model="f.q" type="text" class="filter-search" placeholder="자료명 검색"
+            @keyup.enter="doSearch"
+          />
+          <button id="imp-search-btn" class="primary" type="button" @click="doSearch">검색</button>
+        </div>
+        <div class="filter-actions">
+          <button type="button" @click="resetFilter">조건 초기화</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="message" class="msg" :class="message.kind">
       {{ message.text }}
       <span style="flex:1" />
-      <button class="btn btn-sm" @click="message = null">닫기</button>
+      <button class="small" @click="message = null">닫기</button>
     </div>
 
-    <div class="panel body">
-      <Tabs v-model="tab" :tabs="TABS" />
+    <!-- 검수 대기 -->
+    <section v-if="showReview" class="imp-section">
+      <div class="status-bar">
+        <span class="status-bar-left">
+          <b>검수 대기 ({{ pendingRows.length }})</b>
+          <span v-if="isFetching && !pendingRows.length" class="muted">&nbsp;· 조회 중…</span>
+        </span>
+        <span class="cart-status">
+          <button
+            class="cart-btn" type="button"
+            :disabled="!selected.size || !canApprove || reviewMutation.isPending.value"
+            @click="approve()"
+          >선택 승인</button>
+          <button
+            class="cart-btn" type="button"
+            :disabled="!selected.size || !canReject || reviewMutation.isPending.value"
+            @click="rejectIds = [...selected]"
+          >선택 반려</button>
+        </span>
+      </div>
 
-      <!-- 반입등록 -->
-      <section v-if="tab === 'register'" class="pad">
-        <h2>반입 Zip</h2>
-        <p class="muted">
-          반출할 때 받은 Zip(반출목록 엑셀 + 폴더 구조)을 그대로 올리면, 반출목록의 문서ID·업체로
-          반출 건을 찾아 폴더·자료명을 대조합니다. 맞는 것은 <strong>검수 대기</strong>로,
-          이름·경로가 다르거나 원본/PDF 가 빠진 것은 <strong>확인 필요</strong>로 넘어갑니다.
-        </p>
-        <div class="bar">
-          <input type="file" accept=".zip" :disabled="!canRegister"
-                 @change="(e) => (zipFile = (e.target as HTMLInputElement).files?.[0] ?? null)" />
-          <button class="btn btn-sm btn-primary" :disabled="!canRegister || !zipFile || zipBusy" @click="uploadZip">
-            반입
-          </button>
-        </div>
-        <JobProgress :job-id="zipJobId" @done="onJobDone" @failed="onJobFailed" />
-
-        <h2>반입 자료 (Zip 없이)</h2>
-        <p class="muted">
-          업체·공사를 고르고 [자료검색]으로 반입할 도면을 체크한 뒤(또는 반출 Zip 묶음을 고른 뒤)
-          원본과 PDF 를 올립니다. 폴더 정보가 없으므로 파일 이름(도면번호)으로 배정합니다.
-          Zip 을 올려도 풀어서 이름으로 배정합니다.
-        </p>
-        <div class="form-grid">
-          <label>공사
-            <select v-model="sel.projectKey" @change="resetSelTargets">
-              <option value="">공사 선택</option>
-              <option v-for="[k, p] in projectChoices" :key="k" :value="k">
-                {{ p.name }} (반입 미완료 {{ p.count }}건)
-              </option>
-            </select>
-          </label>
-          <label>업체
-            <select v-model="sel.vendorName" @change="resetSelTargets">
-              <option value="">업체 선택</option>
-              <option v-for="[v, n] in vendorChoices" :key="v" :value="v">{{ v }} (반입 미완료 {{ n }}건)</option>
-            </select>
-          </label>
-          <label>반출일
-            <span class="range">
-              <input v-model="sel.dateFrom" type="date" /> ~ <input v-model="sel.dateTo" type="date" />
-            </span>
-          </label>
-          <label>반출 Zip 묶음
-            <select v-model="sel.zipName" @change="sel.distributions = []">
-              <option value="">(자료검색으로 고름)</option>
-              <option v-for="[z, n] in zipChoices" :key="z" :value="z">{{ z }} ({{ n }}건)</option>
-            </select>
-          </label>
-        </div>
-        <div class="bar">
-          <button class="btn btn-sm" :disabled="!canRegister" @click="searchTargets">자료검색</button>
-          <span class="muted small">
-            <template v-if="sel.zipName">Zip 묶음 '{{ sel.zipName }}' 의 반출 건 전체</template>
-            <template v-else>선택된 도면: {{ sel.distributions.length }}건</template>
-          </span>
-          <span v-if="sel.distributions.length && !sel.zipName" class="muted small ellipsis">
-            {{ sel.distributions.slice(0, 5).map((d) => d.name).join(', ') }}{{ sel.distributions.length > 5 ? ' …' : '' }}
-          </span>
-        </div>
-        <div class="bar">
-          <input ref="selInput" type="file" multiple :disabled="!canRegister"
-                 @change="(e) => (selFiles = (e.target as HTMLInputElement).files)" />
-          <button class="btn btn-sm btn-primary" :disabled="!canRegister" @click="uploadSelection">반입</button>
-        </div>
-        <JobProgress :job-id="selJobId" @done="onJobDone" @failed="onJobFailed" />
-
-        <h2>신규 자료 등록</h2>
-        <p class="muted">
-          공유폴더에 없던 자료를 새로 만듭니다. CM 이 직접 올리는 것이라 검수 없이 Rev00 으로 바로 등록됩니다.
-          원본과 PDF 를 함께 올려야 하고(D-19), 자료명에는 리비전 표기를 적지 않습니다 — 시스템이 붙입니다.
-        </p>
-        <div class="form-grid">
-          <label>폴더 *
-            <span class="range">
-              <input type="text" readonly :value="nf.folder?.name ?? ''" placeholder="폴더를 고르세요" />
-              <button class="btn btn-sm" @click="folderPickOpen = true">고르기</button>
-            </span>
-          </label>
-          <label>자료명(도면번호) * <input v-model="nf.drawingNo" type="text" maxlength="200" /></label>
-          <label>내용 <input v-model="nf.title" type="text" maxlength="500" placeholder="비우면 자료명" /></label>
-          <label>대분류 <input v-model="nf.category" type="text" maxlength="100" /></label>
-          <label>공종 <input v-model="nf.discipline" type="text" maxlength="100" /></label>
-          <label>도면종류 <input v-model="nf.docType" type="text" maxlength="100" /></label>
-          <label>ISBL/OSBL <input v-model="nf.isblOsbl" type="text" maxlength="50" /></label>
-          <label>지상/지하 <input v-model="nf.elevation" type="text" maxlength="50" /></label>
-          <label>구역 <input v-model="nf.area" type="text" maxlength="100" /></label>
-          <label>업체
-            <select v-model="nf.vendorName">
-              <option value="">(없음)</option>
-              <option v-for="v in options?.vendors ?? []" :key="v.id" :value="v.name">{{ v.name }}</option>
-            </select>
-          </label>
-          <label>공사
-            <select v-model="nf.projectId">
-              <option value="">(없음)</option>
-              <option v-for="p in options?.projects ?? []" :key="p.id" :value="String(p.id)">{{ p.name }}</option>
-            </select>
-          </label>
-        </div>
-        <div class="bar">
-          <input ref="nfInput" type="file" multiple accept=".pdf,.dwg,.dxf,.xlsx,.xls,.docx,.pptx"
-                 :disabled="!canRegister" @change="(e) => (nfFiles = (e.target as HTMLInputElement).files)" />
-          <button class="btn btn-sm btn-primary" :disabled="!canRegister || nfBusy" @click="registerNew">등록</button>
-        </div>
-      </section>
-
-      <!-- 검수 대기 -->
-      <section v-else-if="tab === 'review'" class="pad grid-tab">
-        <div class="bar">
-          <input v-model="keyword" type="text" placeholder="반입·검수대기 자료명" style="width:220px" />
-          <!-- 선택 건수는 그리드 아래쪽이 적는다. 두 군데 적으면 서로 어긋난다. -->
-          <span style="flex:1" />
-          <button class="btn btn-sm" :disabled="!selected.size || !canApprove || reviewMutation.isPending.value"
-                  @click="approve">선택 승인</button>
-          <button class="btn btn-sm" :disabled="!selected.size || !canReject || reviewMutation.isPending.value"
-                  @click="rejectOpen = true">선택 반려</button>
-        </div>
-
+      <div class="table-box">
         <DataTable
           :columns="PENDING_COLUMNS" :rows="pendingRows" selectable :selected="selected"
           :total="pendingRows.length" :loading="isFetching && !pendingRows.length"
-          :row-class="(g) => (g.hasWarning || g.isBranch ? 'warn' : '')"
           storage-key="import-pending" excel-name="TDB 검수대기"
-          empty-text="검수 대기 중인 자료가 없습니다."
+          empty-text="검수 대기 중인 항목이 없습니다."
           @toggle="(id) => toggle(pendingRows.find(g => g.id === id)!)"
           @toggle-all="(on) => { selected = on ? new Set(pendingRows.map(g => g.id)) : new Set() }"
         >
+          <!-- 자료명 앞 돋보기 — 받은 PDF 를 그 자리에서 크게 본다 (기존 화면과 같은 자리) -->
           <template #cell:drawingNo="{ row }">
+            <button
+              class="preview-icon-btn" type="button" title="받은 PDF 미리보기"
+              :class="{ 'is-empty': !pdfOf(row) }" :disabled="!pdfOf(row)"
+              @click.stop="previewFileId = pdfOf(row)"
+            >🔍</button>
             <span>{{ row.drawingNo }}</span>
             <span v-if="row.title" class="muted small sub-inline">{{ row.title }}</span>
           </template>
 
-          <template #cell:files="{ row }">
-            <span v-for="f in row.files" :key="f.id" class="chip" :title="f.originalFilename">
-              {{ f.fileExt.toUpperCase() }} {{ size(f.byteSize) }}
-            </span>
-          </template>
-
-          <template #cell:state="{ row }">
-            <span v-if="row.isBranch" class="tag">중복반출</span>
-            <span v-if="row.hasWarning" class="tag warn-tag"
+          <template #cell:revLabel="{ row }">
+            <b>{{ revText(row) }}</b>
+            <span v-if="row.hasWarning" class="badge badge-warning"
                   title="업체가 적은 Rev 표기와 다릅니다">Rev 불일치</span>
-            <button v-if="row.isBranch" class="btn btn-sm" @click.stop="dupDocId = row.documentId">현황</button>
-            <button v-if="row.isBranch && canApprove" class="btn btn-sm"
-                    @click.stop="mergeDocId = row.documentId">병합본</button>
           </template>
 
-          <template #cell:cmp="{ row }">
-            <!-- PDF 가 없어 비교할 것이 없어도 단추는 남기고 눌리지 않게만 한다 -->
-            <button class="btn btn-sm" :disabled="!row.files.some((f) => f.fileExt === 'pdf')"
+          <!-- 중복반출 — 있으면 눌러서 현황을 본다 (기존 화면의 [Y] 단추) -->
+          <template #cell:isBranch="{ row }">
+            <button v-if="row.isBranch" class="small" @click.stop="dupDocId = row.documentId">Y</button>
+            <span v-else class="yn-n">·</span>
+          </template>
+
+          <template #cell:act="{ row }">
+            <button class="small" :disabled="!row.files.some((x) => x.fileExt === 'pdf')"
                     @click.stop="compareGroup(row)">비교</button>
+            <button v-if="row.isBranch" class="small primary" :disabled="!canApprove || !row.canApprove"
+                    :title="row.canApprove
+                      ? '중복반출 건은 통합본을 첨부해 승인합니다'
+                      : '반출된 것이 모두 돌아와야 승인할 수 있습니다'"
+                    @click.stop="mergeDocId = row.documentId">승인</button>
+            <button v-else class="small primary"
+                    :disabled="!canApprove || !row.canApprove || reviewMutation.isPending.value"
+                    @click.stop="approve([row.id])">승인</button>
+            <button class="small" :disabled="!canReject || reviewMutation.isPending.value"
+                    @click.stop="rejectIds = [row.id]">반려</button>
           </template>
         </DataTable>
-      </section>
+      </div>
+    </section>
 
-      <!-- 확인 필요 -->
-      <section v-else class="pad grid-tab">
-        <div class="bar">
-          <span class="muted">
-            반입 중 자료를 확정하지 못했거나 문제가 있는 항목입니다. 파일은 보관돼 있으니 사라지지 않습니다.
-          </span>
-          <span style="flex:1" />
-          <button class="btn btn-sm" :disabled="!issueSelected.size || !canRecheck || busy"
+    <!-- 확인 필요 -->
+    <section v-if="showIssues" class="imp-section">
+      <div class="status-bar">
+        <span class="status-bar-left">
+          <b>확인 필요 ({{ issueRows.length }})</b>
+          <span class="muted">&nbsp;· 반입 중 자료를 확정하지 못했거나 문제가 있는 항목입니다. 파일은 보관돼 있습니다.</span>
+        </span>
+        <span class="cart-status">
+          <button class="cart-btn" type="button" :disabled="!issueSelected.size || !canRecheck || busy"
                   @click="recheck([...issueSelected])">선택 재검수</button>
-          <button class="btn btn-sm" :disabled="!issueSelected.size || !canDiscard || busy"
+          <button class="cart-btn" type="button" :disabled="!issueSelected.size || !canDiscard || busy"
                   @click="discardIds = [...issueSelected]">선택 반려</button>
-        </div>
+        </span>
+      </div>
+
+      <div class="table-box">
         <DataTable
           :columns="ISSUE_COLUMNS" :rows="issueRows" :total="issueRows.length"
           selectable :selected="issueSelected" :loading="issuesFetching && !issueRows.length"
           :row-class="(i) => (i.reasons.includes('ALREADY_IMPORTED') ? '' : 'warn')"
           storage-key="import-issues-v2" excel-name="TDB 확인필요"
-          empty-text="확인이 필요한 자료가 없습니다."
+          empty-text="확인이 필요한 항목이 없습니다."
           @toggle="toggleIssue"
           @toggle-all="(on) => { issueSelected = on ? new Set(issueRows.map((i) => i.id)) : new Set() }"
         >
           <template #cell:displayName="{ row }">
+            <button
+              class="preview-icon-btn" type="button" title="받은 PDF 미리보기"
+              :class="{ 'is-empty': !row.hasPdf }" :disabled="!row.hasPdf"
+              @click.stop="previewUrl = `/api/import-issues/${row.id}/preview`"
+            >🔍</button>
             <span :title="row.folderPath ?? ''">{{ row.displayName }}</span>
-          </template>
-
-          <template #cell:files="{ row }">
-            <span v-for="(f, n) in row.files" :key="n" class="chip"
-                  :title="`${f.folder ? f.folder + '/' : ''}${f.filename}`">
-              {{ f.ext.toUpperCase() || '?' }}{{ f.byteSize !== null ? ' ' + size(f.byteSize) : '' }}
-            </span>
           </template>
 
           <template #cell:reasons="{ row }">
             <span v-for="c in row.reasons" :key="c" class="badge" :class="reasonClass(c)">{{ reasonLabel(c) }}</span>
           </template>
 
+          <template #cell:files="{ row }">
+            <span v-for="(x, n) in row.files" :key="n" class="chip"
+                  :title="`${x.folder ? x.folder + '/' : ''}${x.filename}`">
+              {{ x.ext.toUpperCase() || '?' }}{{ x.byteSize !== null ? ' ' + size(x.byteSize) : '' }}
+            </span>
+          </template>
+
           <template #cell:act="{ row }">
-            <button class="btn btn-sm" @click.stop="detailIssue = row">사유상세</button>
-            <button class="btn btn-sm" :disabled="!row.hasPdf || row.suggestedDocumentId === null"
+            <button class="small" @click.stop="detailIssue = row">사유상세</button>
+            <button class="small" :disabled="!row.hasPdf || row.suggestedDocumentId === null"
                     title="대상 도면이 정해져 있고 받은 파일에 PDF 가 있을 때 비교할 수 있습니다"
                     @click.stop="compareIssue(row)">비교</button>
-            <button class="btn btn-sm" :disabled="!canReattach"
-                    @click.stop="reattachIssue = row">자료 재첨부</button>
-            <button class="btn btn-sm" :disabled="!canRepath" @click.stop="openRepath(row)">경로 재선택</button>
-            <button class="btn btn-sm btn-primary" :disabled="!canRecheck || busy"
+            <button class="small" :disabled="!canReattach" @click.stop="reattachIssue = row">자료 재첨부</button>
+            <button class="small" :disabled="!canRepath" @click.stop="openRepath(row)">경로 재선택</button>
+            <button class="small primary" :disabled="!canRecheck || busy"
                     @click.stop="recheck([row.id])">재검수</button>
-            <button class="btn btn-sm" :disabled="!canDiscard || busy"
+            <button class="small" :disabled="!canDiscard || busy"
                     @click.stop="discardIds = [row.id]">반려</button>
           </template>
         </DataTable>
-      </section>
-    </div>
+      </div>
+    </section>
+
+    <!-- 반입 등록: 반입 Zip | 반입 자료 -->
+    <section class="import-form">
+      <div class="bulk-top-grid">
+        <!-- 반입 Zip -->
+        <div class="bulk-block card" :class="{ 'perm-disabled': !canRegister }">
+          <div class="bulk-block-head">
+            <span class="bulk-block-title">반입등록 (Zip 파일)</span>
+            <span class="bulk-block-desc">Zip(반출목록 xlxs+폴더) 첨부</span>
+          </div>
+          <div class="bulk-block-body">
+            <div class="file-row">
+              <input type="file" accept=".zip" :disabled="!canRegister"
+                     @change="(e) => (zipFile = (e.target as HTMLInputElement).files?.[0] ?? null)" />
+              <button class="primary" type="button" :disabled="!canRegister || !zipFile || zipBusy"
+                      @click="uploadZip">업로드</button>
+            </div>
+            <p class="page-desc">
+              반출할 때 받은 Zip 을 그대로 올리면 반출목록의 문서ID·업체로 반출 건을 찾아 대조합니다.
+              맞는 것은 <strong>검수 대기</strong>로, 이름·경로가 다르거나 원본/PDF 가 빠진 것은
+              <strong>확인 필요</strong>로 넘어갑니다.
+            </p>
+            <JobProgress :job-id="zipJobId" @done="onJobDone" @failed="onJobFailed" />
+          </div>
+        </div>
+
+        <!-- 반입 자료 -->
+        <div class="bulk-block card" :class="{ 'perm-disabled': !canRegister }">
+          <div class="bulk-block-head">
+            <span class="bulk-block-title">반입등록 (개별 자료)</span>
+            <span class="bulk-block-desc">자료 선택 후, 자료(원본+사본) 첨부</span>
+          </div>
+          <div class="bulk-block-body">
+            <div class="sel-row">
+              <div class="field">
+                <label for="sel-project">공사</label>
+                <select id="sel-project" v-model="sel.projectKey" @change="resetSelTargets">
+                  <option value="">공사 선택</option>
+                  <option v-for="[k, p] in projectChoices" :key="k" :value="k">
+                    {{ p.name }} ({{ p.count }}건)
+                  </option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="sel-vendor">업체</label>
+                <select id="sel-vendor" v-model="sel.vendorName" @change="resetSelTargets">
+                  <option value="">업체 선택</option>
+                  <option v-for="[v, n] in vendorChoices" :key="v" :value="v">{{ v }} ({{ n }}건)</option>
+                </select>
+              </div>
+              <div class="field field-date">
+                <label for="sel-date-from">기간</label>
+                <input id="sel-date-from" v-model="sel.dateFrom" type="date" />
+              </div>
+              <div class="field field-date">
+                <label for="sel-date-to">~</label>
+                <input id="sel-date-to" v-model="sel.dateTo" type="date" />
+              </div>
+              <div class="field">
+                <label for="sel-zip">반출 Zip 묶음</label>
+                <select id="sel-zip" v-model="sel.zipName" @change="sel.distributions = []">
+                  <option value="">(자료검색으로 고름)</option>
+                  <option v-for="[z, n] in zipChoices" :key="z" :value="z">{{ z }} ({{ n }}건)</option>
+                </select>
+              </div>
+              <button class="primary" type="button" :disabled="!canRegister" @click="searchTargets">자료검색</button>
+              <span class="sel-count">
+                <template v-if="sel.zipName">Zip 묶음 '{{ sel.zipName }}'</template>
+                <template v-else>선택된 도면: {{ sel.distributions.length }}건</template>
+              </span>
+            </div>
+            <div class="file-row">
+              <input ref="selInput" type="file" multiple :disabled="!canRegister"
+                     @change="(e) => (selFiles = (e.target as HTMLInputElement).files)" />
+              <button class="primary" type="button" :disabled="!canRegister" @click="uploadSelection">업로드</button>
+            </div>
+            <p v-if="sel.distributions.length && !sel.zipName" class="page-desc ellipsis">
+              {{ sel.distributions.slice(0, 5).map((d) => d.name).join(', ')
+              }}{{ sel.distributions.length > 5 ? ' …' : '' }}
+            </p>
+            <JobProgress :job-id="selJobId" @done="onJobDone" @failed="onJobFailed" />
+          </div>
+        </div>
+      </div>
+
+      <!-- 신규 자료 등록 — 공유폴더에 없던 자료를 CM 이 직접 만든다 -->
+      <div class="bulk-block card" :class="{ 'perm-disabled': !canRegister }">
+        <div class="bulk-block-head">
+          <span class="bulk-block-title">신규 자료 등록</span>
+          <span class="bulk-block-desc">검수 없이 Rev00 으로 바로 등록 · 원본+사본 함께 첨부</span>
+        </div>
+        <div class="bulk-block-body">
+          <div class="form-grid">
+            <div class="field">
+              <label>폴더 *</label>
+              <span class="range">
+                <input type="text" readonly :value="nf.folder?.name ?? ''" placeholder="폴더를 고르세요" />
+                <button class="small" type="button" @click="folderPickOpen = true">고르기</button>
+              </span>
+            </div>
+            <div class="field"><label>자료명(도면번호) *</label><input v-model="nf.drawingNo" type="text" maxlength="200" /></div>
+            <div class="field"><label>내용</label><input v-model="nf.title" type="text" maxlength="500" placeholder="비우면 자료명" /></div>
+            <div class="field"><label>대분류</label><input v-model="nf.category" type="text" maxlength="100" /></div>
+            <div class="field"><label>공종</label><input v-model="nf.discipline" type="text" maxlength="100" /></div>
+            <div class="field"><label>도면종류</label><input v-model="nf.docType" type="text" maxlength="100" /></div>
+            <div class="field"><label>ISBL/OSBL</label><input v-model="nf.isblOsbl" type="text" maxlength="50" /></div>
+            <div class="field"><label>지상/지하</label><input v-model="nf.elevation" type="text" maxlength="50" /></div>
+            <div class="field"><label>구역</label><input v-model="nf.area" type="text" maxlength="100" /></div>
+            <div class="field">
+              <label>업체</label>
+              <select v-model="nf.vendorName">
+                <option value="">(없음)</option>
+                <option v-for="v in options?.vendors ?? []" :key="v.id" :value="v.name">{{ v.name }}</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>공사</label>
+              <select v-model="nf.projectId">
+                <option value="">(없음)</option>
+                <option v-for="p in options?.projects ?? []" :key="p.id" :value="String(p.id)">{{ p.name }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="file-row">
+            <input ref="nfInput" type="file" multiple accept=".pdf,.dwg,.dxf,.xlsx,.xls,.docx,.pptx"
+                   :disabled="!canRegister" @change="(e) => (nfFiles = (e.target as HTMLInputElement).files)" />
+            <button class="primary" type="button" :disabled="!canRegister || nfBusy" @click="registerNew">등록</button>
+          </div>
+          <p class="page-desc">
+            자료명에는 리비전 표기를 적지 않습니다 — 시스템이 붙입니다.
+          </p>
+        </div>
+      </div>
+    </section>
 
     <!-- 반려 사유 -->
-    <Modal v-if="rejectOpen" title="선택 반려" @close="rejectOpen = false">
-      <p class="muted">반려 사유를 적어 주세요. 업체에 전달할 내용입니다.</p>
-      <textarea v-model="rejectNote" rows="4" style="width:100%" placeholder="예: 치수 누락, 도면번호 불일치" />
+    <Modal v-if="rejectIds" :title="`검수 반려 (${rejectIds.length}건)`" @close="rejectIds = null">
+      <p class="page-desc">반려 사유를 적어 주세요. 업체에 전달할 내용입니다.</p>
+      <textarea v-model="rejectNote" rows="4" placeholder="예: 치수 누락, 도면번호 불일치" />
       <template #footer>
-        <button class="btn" @click="rejectOpen = false">취소</button>
-        <button class="btn btn-primary" @click="confirmReject">반려</button>
+        <button @click="rejectIds = null">취소</button>
+        <button class="primary" @click="confirmReject">반려</button>
       </template>
+    </Modal>
+
+    <!-- 받은 PDF 미리보기 (목록의 돋보기) -->
+    <Modal
+      v-if="previewFileId !== null || previewUrl !== null"
+      class="preview-modal" wide title="미리보기"
+      @close="previewFileId = null; previewUrl = null"
+    >
+      <div class="preview-box">
+        <PdfViewer v-if="previewUrl" :file-id="0" :file-url="previewUrl" />
+        <PdfViewer v-else-if="previewFileId" :file-id="previewFileId" />
+      </div>
     </Modal>
 
     <!-- 중복반출 현황 -->
@@ -916,7 +1115,7 @@ function size(b: number): string {
            :title="picker.mode === 'SINGLE' ? '경로 재선택' : '업체별 반출·반입자료 현황'" @close="picker = null">
       <p class="muted">{{ picker.sub }}</p>
       <div class="bar">
-        <button v-for="v in (['ALL', 'INCOMPLETE', 'REVIEWING', 'DONE'] as const)" :key="v"
+        <button v-for="v in (['ALL', 'REVIEWING', 'DONE', 'INCOMPLETE'] as const)" :key="v"
                 class="btn btn-sm" :class="{ 'btn-primary': pickerView === v }" @click="pickerView = v">
           {{ v === 'ALL' ? '전체' : PICKER_STATUS[v].text }}
         </button>
@@ -974,60 +1173,121 @@ function size(b: number): string {
 </template>
 
 <style scoped>
-.import { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
-.head { padding: 10px 12px; flex: 0 0 auto; }
-.head h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; }
 /* 일부만 확인 필요로 간 결과 — 성공도 실패도 아니다 */
 .msg.warn { background: var(--warn-soft); border-color: var(--warn-line); color: var(--warn); }
-.body { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-.body > section { flex: 1; overflow: auto; min-height: 0; }
-.pad { padding: 14px; }
 
-/* 그리드를 쓰는 두 절은 스크롤을 그리드에 맡긴다 — 바깥이 한 번 더 스크롤되면
-   머리글 고정이 깨진다. 여기서는 자리만 내준다. */
-.body > section.grid-tab {
-  display: flex; flex-direction: column; gap: var(--sp-2);
-  min-height: 0; flex: 1; overflow: hidden;
+/* 검수 대기 · 확인 필요 — 상태줄 + 표 한 덩어리 (기존 화면의 section) */
+.imp-section { display: flex; flex-direction: column; gap: 9px; flex: 0 0 auto; }
+.table-box {
+  min-height: 300px; max-height: 68vh; display: flex;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); overflow: hidden;
 }
-.grid-tab > :deep(.dt) { flex: 1; min-height: 0; }
-/* 반입자료·사유 칸의 보조 설명 — 줄 높이를 늘리지 않게 같은 줄에 잇는다 */
+.table-box > * { flex: 1; min-width: 0; }
+
+/* 자료명 칸의 보조 설명 — 줄 높이를 늘리지 않게 같은 줄에 잇는다 */
 .sub-inline { margin-left: 6px; }
-h2 { font-size: var(--fs-base); margin: 18px 0 6px; }
-h2:first-child { margin-top: 0; }
-.bar { display: flex; gap: var(--gap-sm); align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
-.sub { font-size: 11px; }
-.ellipsis { max-width: 520px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 조치 칸의 단추 — 너비가 제각각이면 줄이 지저분해 보이므로 가운데로 모은다
+   (기존 import.css .action-btns). 칸이 좁으면 잘리지 않고 다음 줄로 넘어간다. */
+:deep(.dt-cell.dt-slot) { flex-wrap: wrap; justify-content: center; gap: 5px; }
+
 .chip {
   display: inline-block; font-size: 11px; padding: 1px 6px; margin-right: 3px;
   border: 1px solid var(--border-strong); border-radius: 9px;
 }
-.tag {
-  display: inline-block; font-size: 10px; padding: 1px 5px; border-radius: 8px;
-  background: var(--accent); color: var(--primary-fg); margin-right: 3px;
-}
-.tag.warn-tag { background: var(--warn); }
 .badge { margin-right: 3px; }
+.ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* ---------- 반입 등록 (기존 import.css) ---------- */
+.import-form { margin-top: 4px; flex: 0 0 auto; }
+
+.bulk-top-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  align-items: stretch;
+}
+@media (max-width: 1100px) { .bulk-top-grid { grid-template-columns: 1fr; } }
+
+.bulk-block { display: flex; flex-direction: column; overflow: hidden; }
+.bulk-top-grid + .bulk-block { margin-top: 18px; }
+
+/* 제목 줄: 아래 입력 영역과 배경색·구분선으로 분리한다 */
+.bulk-block-head {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-alt);
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+}
+.bulk-block-title { font-size: 14px; font-weight: 700; color: var(--text); white-space: nowrap; }
+.bulk-block-desc { font-size: 11px; font-weight: 600; color: var(--text-muted); }
+
+.bulk-block-body { padding: 16px; flex: 1; display: flex; flex-direction: column; }
+.bulk-block-body .page-desc { margin-top: 10px; }
+
+/* 공사·업체 드롭다운 옆에 [자료검색] + 선택 건수를 같은 줄에 */
+.sel-row {
+  display: flex; flex-wrap: wrap; align-items: flex-end;
+  gap: 8px 10px; margin-bottom: 28px;
+}
+.sel-row .field { flex: 1 1 0; min-width: 0; }
+.sel-row .field select { width: 100%; }
+.sel-row .field.field-date { flex: 0 0 auto; }
+.sel-row .field.field-date input[type="date"] { width: 132px; }
+.sel-row .field label { font-size: 11px; font-weight: 700; color: var(--text-dark-gray); letter-spacing: 0.02em; }
+.sel-row .sel-count, .sel-row > button { flex: none; }
+
+/* 건수가 0~999건까지 늘어나도 글자 위치가 고정되게 최대 자리수 너비를 미리 잡는다 */
+.sel-count {
+  display: inline-block; min-width: 118px; height: 32px; line-height: 32px;
+  font-size: 12.5px; font-weight: 600; color: var(--accent-hover); white-space: nowrap;
+}
+
+/* 파일 선택 + [업로드] 를 한 줄에. margin-top:auto 로 두 칸의 줄 높이를 맞춘다. */
+.bulk-block-body > .file-row {
+  display: flex; align-items: flex-end; gap: 10px; margin-top: auto;
+}
+.file-row input[type="file"] { flex: 1; min-width: 0; }
+.file-row > button.primary { flex-shrink: 0; min-width: 80px; }
+
+/* 신규 자료 등록 입력 묶음 */
 .form-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  gap: 8px 14px; margin-bottom: 10px; max-width: 980px;
+  gap: 10px 14px; margin-bottom: 16px;
 }
-.form-grid label { display: flex; flex-direction: column; gap: 3px; font-size: var(--fs-sm); color: var(--fg-muted); }
-.form-grid input[type=text], .form-grid select { width: 100%; }
+.form-grid .field > input[type=text], .form-grid .field > select { width: 100%; max-width: none; }
+.form-grid .field > label { font-size: 11px; font-weight: 700; color: var(--text-dark-gray); letter-spacing: 0.02em; }
 .range { display: flex; gap: 4px; align-items: center; }
 .range input { min-width: 0; flex: 1; }
 
+/* ---------- 팝업 ---------- */
 .detail-text { white-space: pre-wrap; line-height: 1.6; }
-.tree-box { height: 420px; overflow: auto; border: 1px solid var(--border); border-radius: var(--r); }
+.tree-box { height: 420px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); }
 
-.picker-modal :deep(.box.wide) { width: 1100px; }
+.picker-modal :deep(.box.wide) { width: 1180px; max-width: 92vw; }
 .picker-grid { height: 440px; display: flex; flex-direction: column; }
 .picker-grid > :deep(.dt) { flex: 1; min-height: 0; }
 
+.preview-modal :deep(.box.wide) { width: 96vw; max-width: 1600px; height: 94vh; }
+.preview-modal :deep(.box-body) { flex: 1; display: flex; min-height: 0; }
+.preview-box {
+  flex: 1; min-height: 0; display: flex;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  overflow: hidden; background: var(--surface-sunken);
+}
+.preview-box > * { flex: 1; min-width: 0; }
+
 .compare-modal :deep(.box.wide) { width: 96vw; height: 92vh; }
 .compare-modal :deep(.box-body) { flex: 1; display: flex; min-height: 0; }
-.compare { display: flex; gap: var(--sp-2); flex: 1; min-height: 0; }
-.side { flex: 1; display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--border); border-radius: var(--r); }
-.side-head { padding: 6px 10px; font-size: var(--fs-sm); border-bottom: 1px solid var(--border); background: var(--surface-2); }
-.nopdf { padding: 40px 16px; color: var(--fg-muted); text-align: center; }
+.compare { display: flex; gap: 8px; flex: 1; min-height: 0; }
+.side {
+  flex: 1; display: flex; flex-direction: column; min-width: 0;
+  border: 1px solid var(--border); border-radius: var(--radius);
+}
+.side-head {
+  padding: 6px 10px; font-size: 11.5px;
+  border-bottom: 1px solid var(--border); background: var(--surface-alt);
+}
+.nopdf { padding: 40px 16px; color: var(--text-faint); text-align: center; }
 </style>

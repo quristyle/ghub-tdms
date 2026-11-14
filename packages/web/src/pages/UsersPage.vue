@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type {
   EmploymentStatus, GroupListResponse, GroupRow, PartnerCompanyListResponse, PartnerCompanyRow, UserListResponse, UserRow,
@@ -11,6 +12,7 @@ import { api, ApiError } from '@/lib/api'
 /** 사용자 관리 — 왼쪽 그룹/소속 탭 목록과 오른쪽 사용자 목록으로 그룹별·소속별 사용자를 확인하고 드래그 앤 드롭으로 소속/그룹을 변경한다. */
 
 const qc = useQueryClient()
+const router = useRouter()
 
 const message = ref<{ kind: 'ok' | 'err'; text: string } | null>(null)
 const say = (kind: 'ok' | 'err', text: string) => (message.value = { kind, text })
@@ -133,6 +135,17 @@ function toggleStatus(k: EmploymentStatus) {
   next.has(k) ? next.delete(k) : next.add(k)
   shown.value = next
 }
+/** 권한 거르개 — 기존 화면의 '권한' 드롭다운 (관리자/일반) */
+const roleFilter = ref<'' | 'ADMIN' | 'VIEWER'>('')
+
+/** 조건 초기화 — 기존 화면의 [조건 초기화] */
+function resetFilter() {
+  keyword.value = ''
+  dept.value = ''
+  roleFilter.value = ''
+  shown.value = new Set<EmploymentStatus>(['ACTIVE'])
+}
+
 const dept = ref('')
 const departments = computed(() =>
   [...new Set((users.value?.items ?? []).map((u) => u.department).filter(Boolean))].sort() as string[],
@@ -164,6 +177,7 @@ const rows = computed(() =>
 
     // 2. 재직 상태, 부서, 키워드 필터링
     if (shown.value.size && !shown.value.has(u.employmentStatus)) return false
+    if (roleFilter.value && u.role !== roleFilter.value) return false
     if (dept.value && u.department !== dept.value) return false
     const k = keyword.value.trim().toLowerCase()
     if (!k) return true
@@ -377,6 +391,10 @@ const COLUMNS: Column<UserRow>[] = [
     render: (u) => [statusLabel(u.employmentStatus), u.mustChangePassword ? '초기비번' : '']
       .filter(Boolean).join(' ') },
   { key: 'hireDate', label: '입사일', width: '100px', align: 'center', render: (u) => u.hireDate ?? '' },
+  { key: 'createdAt', label: '등록일', width: '100px', align: 'center',
+    render: (u) => u.createdAt.slice(0, 10) },
+  { key: 'updatedAt', label: '수정일', width: '100px', align: 'center',
+    render: (u) => u.updatedAt.slice(0, 10) },
   { key: 'lastLoginAt', label: '접속일', width: '100px', align: 'center',
     render: (u) => u.lastLoginAt?.slice(0, 10) ?? '' },
   { key: 'act', label: '조치', width: '152px', align: 'center', sortable: false, filterable: false, render: () => '' },
@@ -594,11 +612,57 @@ async function confirmDeletePartner() {
 
 <template>
   <main class="app-main users">
-    <div class="panel head">
-      <h1>사용자 관리</h1>
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">
+          사용자 관리<span class="page-title-sub">사용자 계정, 권한 및 접근 통제 관리</span>
+        </h1>
+      </div>
+      <div class="page-actions">
+        <button type="button" @click="router.push('/permissions')">권한 관리</button>
+        <button type="button" @click="openCreate">사용자 추가</button>
+      </div>
     </div>
 
-    <div v-if="message" class="panel msg" :class="message.kind">
+    <!-- 검색 -->
+    <div class="filter-bar">
+      <div class="filter-row">
+        <div class="filter-fields">
+          <div class="field">
+            <label for="role-filter">권한</label>
+            <select id="role-filter" v-model="roleFilter">
+              <option value="">전체</option>
+              <option value="ADMIN">관리자</option>
+              <option value="VIEWER">일반</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="dept-filter">부서</label>
+            <select id="dept-filter" v-model="dept">
+              <option value="">전체</option>
+              <option v-for="d in departments" :key="d" :value="d">{{ d }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>상태</label>
+            <span class="status-toggle">
+              <button
+                v-for="st in STATUS" :key="st.key" type="button"
+                class="small" :class="{ primary: shown.has(st.key) }"
+                @click="toggleStatus(st.key)"
+              >{{ st.label }}</button>
+            </span>
+          </div>
+          <input v-model="keyword" type="text" class="filter-search"
+                 placeholder="아이디·이름·사번·부서·연락처·소속사 검색" />
+        </div>
+        <div class="filter-actions">
+          <button type="button" @click="resetFilter">조건 초기화</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="message" class="msg" :class="message.kind">
       {{ message.text }}<span style="flex:1" />
       <button class="btn btn-sm" @click="message = null">닫기</button>
     </div>
@@ -870,27 +934,15 @@ async function confirmDeletePartner() {
       <!-- 오른쪽 사용자 목록 그리드 -->
       <section class="panel users-panel">
         <div class="pad users-inner">
-          <div class="bar">
-            <!-- 활성화된 그룹/소속 필터 배지 -->
-            <span v-if="activeFilterBadge" class="group-filter-badge">
-              {{ activeFilterBadge.label }}: <strong>{{ activeFilterBadge.name }}</strong>
-              <button type="button" class="btn-clear-group" title="전체 보기" @click="clearActiveFilter">×</button>
+          <div class="status-bar">
+            <span class="status-bar-left">
+              <!-- 활성화된 그룹/소속 필터 배지 -->
+              <span v-if="activeFilterBadge" class="group-filter-badge">
+                {{ activeFilterBadge.label }}: <strong>{{ activeFilterBadge.name }}</strong>
+                <button type="button" class="btn-clear-group" title="전체 보기" @click="clearActiveFilter">×</button>
+              </span>
+              <span class="total-count">전체 {{ rows.length.toLocaleString() }}명</span>
             </span>
-
-            <input v-model="keyword" type="text" placeholder="아이디·이름·사번·부서·연락처·소속사" style="width:240px" />
-            <select v-model="dept" style="width:140px">
-              <option value="">부서 전체</option>
-              <option v-for="d in departments" :key="d" :value="d">{{ d }}</option>
-            </select>
-            <span class="seg">
-              <button
-                v-for="st in STATUS" :key="st.key" type="button"
-                class="btn btn-sm" :class="{ on: shown.has(st.key) }"
-                @click="toggleStatus(st.key)"
-              >{{ st.label }}</button>
-            </span>
-            <span style="flex:1" />
-            <button class="btn btn-sm btn-primary" @click="openCreate">사용자 추가</button>
           </div>
 
           <div class="tablewrap">
@@ -1237,6 +1289,10 @@ async function confirmDeletePartner() {
 </template>
 
 <style scoped>
+/* 상태 거르개 — 재직·퇴직·삭제를 켜고 끈다 (기존 화면의 '상태' 드롭다운 자리) */
+.status-toggle { display: flex; gap: 4px; height: 32px; align-items: center; }
+.status-toggle button { height: 26px; }
+
 .users { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
 .head { padding: 10px 12px; flex: 0 0 auto; }
 .head h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; }

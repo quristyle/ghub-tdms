@@ -149,32 +149,44 @@ function size(b: number): string {
     <div v-if="isLoading" class="panel pad muted">불러오는 중…</div>
 
     <template v-else-if="doc">
-      <div class="panel head">
-        <h1>MDB 자료 상세 보기</h1>
-        <span class="nav">
-          <button class="btn btn-sm" :disabled="!nav?.firstId || nav.firstId === id" title="맨 처음 자료"
-                  @click="go(nav?.firstId)">◀◀ 처음</button>
-          <button class="btn btn-sm" :disabled="!nav?.prevId" title="이전 자료" @click="go(nav?.prevId)">◀ 이전</button>
-          <span class="pos">
-            <input v-model="posInput" type="text" inputmode="numeric" title="번호를 입력하고 Enter"
-                   @keydown.enter="jumpTo" />
-            <span class="muted">/ {{ nav?.total ?? '-' }}</span>
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">MDB 자료 상세 보기</h1>
+        </div>
+      </div>
+
+      <div class="detail-toolbar">
+        <div class="detail-toolbar-left">
+          <button type="button" class="back-btn" @click="router.push('/mdb')">목록으로</button>
+          <span class="detail-nav">
+            <span class="nav-btn-pair">
+              <button type="button" class="nav-step-btn" :disabled="!nav?.firstId || nav.firstId === id"
+                      title="맨 처음 자료" @click="go(nav?.firstId)"><span class="nav-arrow dbl-arrow">◀◀</span> 처음</button>
+              <button type="button" class="nav-step-btn" :disabled="!nav?.prevId" title="이전 자료"
+                      @click="go(nav?.prevId)"><span class="nav-arrow">◀</span> 이전</button>
+            </span>
+            <span class="detail-nav-count">
+              <input v-model="posInput" type="text" inputmode="numeric" class="nav-pos-input"
+                     title="번호를 입력하고 Enter" @keydown.enter="jumpTo" />
+              <span>/ {{ nav?.total ?? '·' }}</span>
+            </span>
+            <span class="nav-btn-pair">
+              <button type="button" class="nav-step-btn" :disabled="!nav?.nextId" title="다음 자료"
+                      @click="go(nav?.nextId)">다음 <span class="nav-arrow">▶</span></button>
+              <button type="button" class="nav-step-btn" :disabled="!nav?.lastId || nav.lastId === id"
+                      title="맨 끝 자료" @click="go(nav?.lastId)">끝 <span class="nav-arrow dbl-arrow">▶▶</span></button>
+            </span>
           </span>
-          <button class="btn btn-sm" :disabled="!nav?.nextId" title="다음 자료" @click="go(nav?.nextId)">다음 ▶</button>
-          <button class="btn btn-sm" :disabled="!nav?.lastId || nav.lastId === id" title="맨 끝 자료"
-                  @click="go(nav?.lastId)">끝 ▶▶</button>
-        </span>
-        <span style="flex:1" />
-        <template v-if="sources && (sources.pdfId || sources.originalId)">
-          <a v-if="sources.originalId" class="btn btn-sm" :href="`/api/mdb/files/${sources.originalId}/download`">
-            원본({{ sources.originalExt }}) 다운로드
-          </a>
-          <a v-if="sources.pdfId" class="btn btn-sm" :href="`/api/mdb/files/${sources.pdfId}/download`">
-            PDF 다운로드
-          </a>
-        </template>
-        <a v-else class="btn btn-sm" :href="`/api/mdb/files/${doc.id}/download`">받기</a>
-        <button class="btn btn-sm" @click="router.push('/mdb')">목록으로</button>
+        </div>
+        <div class="page-actions">
+          <template v-if="sources && (sources.pdfId || sources.originalId)">
+            <a v-if="sources.originalId" :href="`/api/mdb/files/${sources.originalId}/download`">
+              원본({{ sources.originalExt }}) 다운로드
+            </a>
+            <a v-if="sources.pdfId" :href="`/api/mdb/files/${sources.pdfId}/download`">PDF 다운로드</a>
+          </template>
+          <a v-else :href="`/api/mdb/files/${doc.id}/download`">받기</a>
+        </div>
       </div>
 
       <div class="panel body">

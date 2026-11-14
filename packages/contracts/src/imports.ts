@@ -23,6 +23,12 @@ export const PendingReviewGroup = z.object({
   drawingNo: z.string(),
   title: z.string(),
   folderName: z.string(),
+  /** 자료의 분류 — 화면의 '분류' 칸 */
+  category: z.string().nullable(),
+  /** 루트부터의 폴더 경로 — 화면의 '경로' 칸 */
+  folderPath: z.string().nullable(),
+  /** 반출 시점 파일 확장자 — 화면의 '반출자료' 칸 (반입자료는 files 가 말한다) */
+  distributedExts: z.array(z.string()),
   rev: z.number().int(),
   branch: z.string().nullable(),
   revLabel: z.string(),
@@ -38,6 +44,8 @@ export const PendingReviewGroup = z.object({
   /** 분기면 (들어온 수 / 나간 수). 전부 들어와야 승인할 수 있다. */
   branchArrived: z.number().int().nullable(),
   branchExpected: z.number().int().nullable(),
+  /** 지금 바로 승인할 수 있는가 — 분기본은 반출된 것이 전부 돌아와야 한다 */
+  canApprove: z.boolean(),
   hasWarning: z.boolean(),
   /** 지금 승인된 리비전의 PDF — [비교]의 왼쪽(반출본) */
   currentPdfFileId: z.number().int().nullable(),

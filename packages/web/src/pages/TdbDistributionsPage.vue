@@ -4,10 +4,10 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type {
   DistributionListResult, DistributionRow, FilterOptions,
   ForImportResult, OutstandingResult, ZipExportListResult, ZipExportRow, ZipReturnResult,
-  ZipStatusResult,
 } from '@tdms/contracts'
 import DataTable, { type Column } from '@/ui/DataTable.vue'
 import Modal from '@/ui/Modal.vue'
+import ZipStatusModal from '@/ui/ZipStatusModal.vue'
 import { api, ApiError, qs } from '@/lib/api'
 import { staleTime } from '@/lib/queryKeys'
 import { DISTRIBUTION_STATE_LABEL, PURPOSE_LABEL } from '@/lib/labels'
@@ -81,10 +81,11 @@ function toggle(id: number) {
 const openPicked = computed(() =>
   rows.value.filter((r) => picked.value.has(r.id) && r.state === 'INCOMPLETE').length)
 
-async function doReturn(manual: boolean) {
+async function doReturn(manual: boolean, ids: number[] = [...picked.value]) {
+  if (!ids.length) return
   try {
     const r = await api.post<{ returned: number; skipped: { reason: string }[] }>(
-      '/distributions/return', { distributionIds: [...picked.value], manual, note: null })
+      '/distributions/return', { distributionIds: ids, manual, note: null })
     say(r.skipped.length ? 'err' : 'ok',
       r.skipped.length
         ? `${r.returned}건 처리, ${r.skipped.length}건 건너뜀 — ${r.skipped[0]!.reason}`
@@ -93,6 +94,9 @@ async function doReturn(manual: boolean) {
     refresh()
   } catch (e) { fail(e) }
 }
+
+/** 줄 하나만 — 기존 화면 '확인' 칸의 [수정없이 반납처리] */
+const returnOne = (row: DistributionRow) => doReturn(true, [row.id])
 
 // ── Zip별: 수정없이 반납처리 (Zip 단위) ───────────────────────────────
 // 기존 distributions.js returnZip. Zip 안에 이미 반입된 자료가 섞여 있으면 서버가 그 Zip 을
@@ -164,13 +168,8 @@ const { data: forImport } = useQuery({
 })
 
 // ── Zip 상세 현황 ─────────────────────────────────────────────────────
+// 팝업은 시스템 로그와 공용이다 (ui/ZipStatusModal.vue).
 const zipDetail = ref<string | null>(null)
-const { data: zipStatus } = useQuery({
-  queryKey: computed(() => ['dist-zip-status', zipDetail.value]),
-  queryFn: () => api.get<ZipStatusResult>(
-    `/distributions/zip-status${qs({ zipName: zipDetail.value ?? '' })}`),
-  enabled: computed(() => zipDetail.value !== null),
-})
 
 // ── 엑셀 내보내기 ─────────────────────────────────────────────────────
 const exportJobId = ref<number | null>(null)
@@ -192,25 +191,28 @@ function stateClass(s: string) {
 const day = (v: string) => v.slice(0, 10)
 
 const COLUMNS: Column<DistributionRow>[] = [
-  { key: 'documentLabel', label: '자료명', width: '220px',
+  { key: 'documentLabel', label: '자료명', width: '210px',
     render: (r) => (r.title ? `${r.documentLabel} ${r.title}` : r.documentLabel) },
-  { key: 'revAtDistribution', label: '반출Rev', width: '76px', align: 'center',
-    render: (r) => `Rev${r.revAtDistribution}` },
-  { key: 'vendorName', label: '업체', width: '130px' },
-  { key: 'projectName', label: '공사', width: '120px', align: 'center', render: (r) => r.projectName ?? '' },
-  { key: 'purpose', label: '목적', width: '92px', align: 'center',
+  { key: 'projectName', label: '공사', width: '110px', align: 'center', render: (r) => r.projectName ?? '\u00b7' },
+  { key: 'vendorName', label: '업체', width: '110px', align: 'center' },
+  { key: 'purpose', label: '목적', width: '88px', align: 'center',
     render: (r) => PURPOSE_LABEL[r.purpose] ?? r.purpose },
-  { key: 'distributedBy', label: '반출자', width: '96px', align: 'center', render: (r) => r.distributedBy ?? '' },
-  { key: 'distributedAt', label: '반출일시', width: '104px', align: 'center', render: (r) => day(r.distributedAt) },
-  { key: 'returnedAt', label: '반입일시', width: '104px', align: 'center',
-    render: (r) => (r.returnedAt ? day(r.returnedAt) : '') },
-  { key: 'state', label: '상태', width: '136px',
+  { key: 'revAtDistribution', label: '반출Rev', width: '70px', align: 'center',
+    render: (r) => String(r.revAtDistribution) },
+  { key: 'distributedAt', label: '반출일시', width: '130px', align: 'center', render: (r) => day(r.distributedAt) },
+  { key: 'returnedAt', label: '반입일시', width: '130px', align: 'center',
+    render: (r) => (r.returnedAt ? day(r.returnedAt) : '\u00b7') },
+  { key: 'state', label: '상태', width: '120px', align: 'center',
     // 엑셀에도 "수정없음"·"21일"이 함께 나가야 화면과 같은 뜻이 된다
     render: (r) => [
       DISTRIBUTION_STATE_LABEL[r.state],
       r.manualReturn ? '수정없음' : '',
       r.daysOut !== null && r.daysOut >= 14 ? `${r.daysOut}일` : '',
     ].filter(Boolean).join(' ') },
+  // 기존 화면의 '확인' 칸 — 반입미완료 건만 [수정없이 반납처리] 가 뜬다
+  { key: 'confirm', label: '확인', width: '150px', align: 'center',
+    sortable: false, filterable: false, exportable: false, render: () => '' },
+  { key: 'distributedBy', label: '반출자', width: '100px', align: 'center', render: (r) => r.distributedBy ?? '\u00b7' },
   { key: 'note', label: '비고', width: '180px', render: (r) => r.note ?? '' },
 ]
 
@@ -241,20 +243,6 @@ const FOR_IMPORT_COLUMNS: Column<DistributionRow>[] = [
 ]
 
 /** Zip 상세 현황 창 */
-const ZIP_STATUS_COLUMNS: Column<DistributionRow>[] = [
-  { key: 'documentLabel', label: '자료명', width: '220px' },
-  { key: 'title', label: '내용', render: (r) => r.title ?? '' },
-  { key: 'revAtDistribution', label: '반출Rev', width: '76px', align: 'center',
-    render: (r) => `Rev${r.revAtDistribution}` },
-  { key: 'purpose', label: '목적', width: '84px', align: 'center',
-    render: (r) => PURPOSE_LABEL[r.purpose] ?? r.purpose },
-  { key: 'returnedAt', label: '반입일시', width: '104px', align: 'center',
-    render: (r) => (r.returnedAt ? day(r.returnedAt) : '') },
-  { key: 'state', label: '상태', width: '120px', align: 'center',
-    render: (r) => [DISTRIBUTION_STATE_LABEL[r.state], r.manualReturn ? '수정없음' : '']
-      .filter(Boolean).join(' ') },
-]
-
 const ZIP_COLUMNS: Column<ZipExportRow & { id: number }>[] = [
   { key: 'zipName', label: 'Zip', width: '240px' },
   { key: 'vendorName', label: '업체', width: '140px' },
@@ -281,79 +269,119 @@ const zipRows = computed(() => zips.value.map((z, i) => ({ ...z, id: i + 1 })))
 
 <template>
   <main class="app-main dist">
-    <div class="panel head">
-      <h1>TDB 자료 다운로드 및 반출 기록 관리</h1>
-      <span style="flex:1" />
-      <button class="btn btn-sm" @click="outstandingOpen = true">
-        미입고 현황 <span class="cnt">{{ outstanding?.summary.total ?? 0 }}</span>
-      </button>
-      <button class="btn btn-sm" @click="forImportOpen = true">반입 대상</button>
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">
+          TDB 반출이력<span class="page-title-sub">TDB 자료 다운로드 및 반출 기록 관리</span>
+        </h1>
+      </div>
+      <div class="page-actions">
+        <button type="button" @click="outstandingOpen = true">
+          미입고 현황 <span class="tree-count">({{ outstanding?.summary.total ?? 0 }})</span>
+        </button>
+        <button type="button" @click="forImportOpen = true">반입 대상</button>
+      </div>
     </div>
 
-    <div class="panel search">
-      <div class="bar">
-        <span class="toggle">
-          <button class="btn btn-sm" :class="{ on: !byZip }" @click="byZip = false">자료별</button>
-          <button class="btn btn-sm" :class="{ on: byZip }" @click="byZip = true">Zip별</button>
-        </span>
-        <input v-model="f.dateFrom" type="date" title="반출 시작일" />
-        <span class="muted">~</span>
-        <input v-model="f.dateTo" type="date" title="반출 종료일" />
-        <select v-model="f.vendorId">
-          <option value="">업체 전체</option>
-          <option v-for="v in opts?.vendors ?? []" :key="v.id" :value="v.id">{{ v.name }}</option>
-        </select>
-        <select v-model="f.projectId">
-          <option value="">공사 전체</option>
-          <option v-for="p in opts?.projects ?? []" :key="p.id" :value="p.id">{{ p.name }}</option>
-        </select>
-        <select v-model="f.purpose">
-          <option value="">목적 전체</option>
-          <option value="MODIFY">수정용</option>
-          <option value="REFERENCE">참조용</option>
-          <option value="ETC">기타</option>
-        </select>
-        <select v-model="f.state">
-          <option value="">상태 전체</option>
-          <option value="INCOMPLETE">반입미완료</option>
-          <option value="REVIEWING">검수대기</option>
-          <option value="ISSUE">확인필요</option>
-          <option value="DONE">반입완료</option>
-        </select>
-        <select v-model="f.distributedBy" :title="opts?.canSelectOtherUser ? '반출자' : '다른 사용자를 고를 권한이 없습니다'">
-          <option value="">반출자 전체</option>
-          <option v-for="u in opts?.distributors ?? []" :key="u.id" :value="u.id">{{ u.name }}</option>
-        </select>
-        <input v-model="f.q" type="text" placeholder="자료명" style="width:150px" />
-        <button class="btn btn-sm" @click="reset">조건 초기화</button>
+    <div class="filter-bar">
+      <div class="filter-row">
+        <div class="filter-fields">
+          <div class="field">
+            <label for="export-kind">반출형태</label>
+            <select id="export-kind" :value="byZip ? 'ZIP' : 'FILE'"
+                    @change="byZip = ($event.target as HTMLSelectElement).value === 'ZIP'">
+              <option value="FILE">자료</option>
+              <option value="ZIP">Zip</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="project">공사</label>
+            <select id="project" v-model="f.projectId">
+              <option value="">전체</option>
+              <option v-for="p in opts?.projects ?? []" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="vendor">업체</label>
+            <select id="vendor" v-model="f.vendorId">
+              <option value="">전체</option>
+              <option v-for="v in opts?.vendors ?? []" :key="v.id" :value="v.id">{{ v.name }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="from">기간</label>
+            <input id="from" v-model="f.dateFrom" type="date" title="반출 시작일" />
+          </div>
+          <div class="field">
+            <label for="to">~</label>
+            <input id="to" v-model="f.dateTo" type="date" title="반출 종료일" />
+          </div>
+          <div class="field">
+            <label for="purpose">반출목적</label>
+            <select id="purpose" v-model="f.purpose">
+              <option value="">전체</option>
+              <option value="MODIFY">수정용</option>
+              <option value="REFERENCE">참조용</option>
+              <option value="ETC">기타</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="status">반출상태</label>
+            <select id="status" v-model="f.state">
+              <option value="">전체</option>
+              <option value="REVIEWING">검수대기</option>
+              <option value="ISSUE">확인필요</option>
+              <option value="DONE">반입완료</option>
+              <option value="INCOMPLETE">반입미완료</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="dist-by">반출자</label>
+            <select id="dist-by" v-model="f.distributedBy"
+                    :title="opts?.canSelectOtherUser ? '반출자' : '다른 사용자를 고를 권한이 없습니다'">
+              <option value="">전체</option>
+              <option v-for="u in opts?.distributors ?? []" :key="u.id" :value="u.id">{{ u.name }}</option>
+            </select>
+          </div>
+          <input v-model="f.q" type="text" class="filter-search" placeholder="자료명 검색" />
+        </div>
+        <div class="filter-actions">
+          <button type="button" @click="reset">조건 초기화</button>
+        </div>
       </div>
-      <div class="bar">
-        <!-- 건수·선택수는 그리드 아래쪽이 적는다. 두 군데 적으면 서로 어긋난다. -->
-        <span v-if="isFetching" class="muted">조회 중…</span>
-        <span style="flex:1" />
+    </div>
+
+    <div class="status-bar">
+      <span class="status-bar-left">
+        <span class="total-count">전체 {{ (list?.total ?? 0).toLocaleString() }}건</span>
+        <span v-if="isFetching" class="muted">&nbsp;· 조회 중…</span>
+      </span>
+      <span class="cart-status">
         <template v-if="!byZip">
-          <button class="btn btn-sm" :disabled="!openPicked" @click="doReturn(false)">선택 반납처리</button>
-          <button class="btn btn-sm" :disabled="!openPicked || !canManualReturn"
+          <button class="cart-btn" type="button" :disabled="!openPicked" @click="doReturn(false)">선택 반납처리</button>
+          <button class="cart-btn" type="button" :disabled="!openPicked || !canManualReturn"
                   :title="canManualReturn ? '' : '권한이 없습니다'"
                   @click="doReturn(true)">수정없이 반납처리</button>
         </template>
-        <button v-else class="btn btn-sm" :disabled="!pickedZipNames.length || !canManualReturn"
+        <button v-else class="cart-btn" type="button" :disabled="!pickedZipNames.length || !canManualReturn"
                 :title="canManualReturn ? '체크한 Zip 의 수정용 자료를 모두 수정 없이 반납 처리합니다' : '권한이 없습니다'"
                 @click="zipReturnTarget = pickedZipNames">
-          선택 Zip 수정없이 반납처리{{ pickedZipNames.length ? ` (${pickedZipNames.length})` : '' }}
+          Zip 수정없이 반납{{ pickedZipNames.length ? ` (${pickedZipNames.length})` : '' }}
         </button>
-        <button class="btn btn-sm" title="조건에 맞는 전체를 워커가 만든다 — 수만 건도 받을 수 있다"
-                @click="exportExcel">전체 엑셀 내보내기</button>
-      </div>
-      <JobProgressSlot :job-id="exportJobId" />
+        <button class="cart-btn" type="button"
+                title="조건에 맞는 전체를 워커가 만든다 — 수만 건도 받을 수 있다"
+                @click="exportExcel">엑셀 내보내기</button>
+      </span>
     </div>
 
-    <div v-if="message" class="panel msg" :class="message.kind">
+    <JobProgressSlot :job-id="exportJobId" />
+
+    <div v-if="message" class="msg" :class="message.kind">
       {{ message.text }}<span style="flex:1" />
-      <button class="btn btn-sm" @click="message = null">닫기</button>
+      <button class="small" @click="message = null">닫기</button>
     </div>
 
-    <div class="panel table-panel">
+    <div class="table-box">
       <!-- 자료별 -->
       <DataTable
         v-if="!byZip"
@@ -379,8 +407,16 @@ const zipRows = computed(() => zips.value.map((z, i) => ({ ...z, id: i + 1 })))
           <span v-if="row.daysOut !== null && row.daysOut >= 14" class="tag warn-tag">{{ row.daysOut }}일</span>
         </template>
 
+        <template #cell:confirm="{ row }">
+          <button
+            v-if="row.state === 'INCOMPLETE'" class="small"
+            :disabled="!canManualReturn" :title="canManualReturn ? '' : '권한이 없습니다'"
+            @click.stop="returnOne(row)"
+          >수정없이 반납처리</button>
+        </template>
+
         <template #cell:note="{ row }">
-          <span v-if="!canNote">{{ row.note ?? '-' }}</span>
+          <span v-if="!canNote">{{ row.note ?? '\u00b7' }}</span>
           <input
             v-else type="text" :value="row.note ?? ''" placeholder="비고" style="width:100%"
             @click.stop
@@ -463,22 +499,8 @@ const zipRows = computed(() => zips.value.map((z, i) => ({ ...z, id: i + 1 })))
       </div>
     </Modal>
 
-    <!-- Zip 상세 현황 -->
-    <Modal v-if="zipDetail" wide :title="`Zip 상세 현황 — ${zipDetail}`" @close="zipDetail = null">
-      <p class="muted">
-        {{ zipStatus?.vendorName }} · {{ zipStatus?.itemCount }}건 중
-        <strong>{{ zipStatus?.returnedCount }}</strong>건 반입
-      </p>
-      <div class="modal-grid">
-        <DataTable
-          :columns="ZIP_STATUS_COLUMNS" :rows="zipStatus?.items ?? []"
-          :total="zipStatus?.items.length ?? 0"
-          :row-class="(r) => stateClass(r.state)"
-          storage-key="dist-zip-status" :excel-name="`Zip 상세 현황_${zipDetail}`"
-          empty-text="이 Zip 에 담긴 자료가 없습니다."
-        />
-      </div>
-    </Modal>
+    <!-- Zip 상세 현황 (시스템 로그와 공용 팝업) -->
+    <ZipStatusModal v-if="zipDetail" :zip-name="zipDetail" @close="zipDetail = null" />
 
     <!-- Zip 수정없이 반납처리 확인 -->
     <Modal v-if="zipReturnTarget" title="수정없이 반납처리" @close="zipReturnTarget = null">
@@ -509,31 +531,24 @@ export default { components: { JobProgressSlot } }
 </script>
 
 <style scoped>
-.dist { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
-.head { display: flex; align-items: center; gap: 6px; padding: 10px 12px; flex: 0 0 auto; }
-.head h1 { font-size: var(--fs-md); margin: 0; font-weight: 600; }
-.search { padding: 10px 12px; flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; }
-.bar { display: flex; gap: var(--gap-sm); align-items: center; flex-wrap: wrap; }
-.toggle { display: flex; gap: 2px; }
-.toggle .btn.on { background: var(--accent); border-color: var(--accent); color: var(--primary-fg); }
-.cnt {
-  display: inline-block; min-width: 17px; padding: 0 4px; margin-left: 3px;
-  background: var(--accent); color: var(--primary-fg); border-radius: 9px; font-size: 10px; text-align: center;
+.dist { min-height: 0; }
+
+/* 결과 표 — 스크롤은 DataTable 이 자기 안에서 맡는다. 여기서는 자리만 내준다. */
+.table-box {
+  flex: 1 1 auto; min-height: 240px; display: flex;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); overflow: hidden;
 }
-/* 스크롤은 DataTable 이 자기 안에서 맡는다 — 바깥에서 또 스크롤하면
-   머리글 고정이 깨진다. 여기서는 자리만 내준다. */
-.table-panel { flex: 1; min-height: 0; overflow: hidden; display: flex; }
-.table-panel > * { flex: 1; min-width: 0; }
+.table-box > * { flex: 1; min-width: 0; }
+
 /* 자료명 칸의 보조 설명 — 줄 높이를 늘리지 않게 같은 줄에 잇는다 */
 .sub-inline { margin-left: 6px; }
+
 /* 창 안의 그리드 — 스크롤은 DataTable 이 맡으므로 높이만 내준다 */
 .modal-grid { height: 55vh; min-height: 260px; display: flex; }
 .modal-grid > * { flex: 1; min-width: 0; }
 .sub { font-size: 11px; }
-.summary { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; font-size: var(--fs-sm); }
-.tag {
-  display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 8px;
-  background: var(--bg); border: 1px solid var(--border-strong); margin-left: 3px;
-}
-/* .tag.warn-tag 는 base.css 가 맡는다 */
+.summary { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; font-size: 12px; }
+.tree-count { color: var(--text-faint); font-size: 11px; font-weight: 400; }
+.tag { margin-left: 3px; }
 </style>

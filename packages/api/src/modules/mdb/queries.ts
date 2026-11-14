@@ -20,7 +20,74 @@ export interface MdbRow {
   isShared: boolean
   needsCheck: boolean
   tagCount: number
+  /** 이 자료에 속한 파일 전부 (대표 파일 포함) */
+  files: { id: number; fileExt: string }[] | null
+  hasDwg: boolean
+  hasXlsx: boolean
+  hasEtc: boolean
+  hasPdf: boolean
   updatedAt: Date
+}
+
+/**
+ * 자료 한 건이 가진 파일 종류 — 기존 화면의 DWG·XLSX·ETC·PDF 칸과 원본/사본 조건.
+ *
+ * MDB 의 '자료 1건' 은 **같은 폴더 + 같은 자료명(title)** 이다. 한 자료가 원본과 사본
+ * 두 파일로 나뉘어 있어도 보유 표시는 자료 단위라야 한다 — 그래서 형제 행까지 본다.
+ * (원본 = PDF 가 아닌 파일, 사본 = PDF. TDB 조회의 같은 이름 조건과 뜻이 같다.)
+ */
+function siblingHas(cond: string): string {
+  return `EXISTS (SELECT 1 FROM mdb_files s
+                   WHERE s.folder_id = m.folder_id AND s.title = m.title
+                     AND NOT s.is_archived AND ${cond})`
+}
+const HAS_DWG  = siblingHas(`lower(s.file_ext) IN ('dwg', 'dxf')`)
+const HAS_XLSX = siblingHas(`lower(s.file_ext) IN ('xlsx', 'xls')`)
+const HAS_PDF  = siblingHas(`lower(s.file_ext) = 'pdf'`)
+const HAS_ETC  = siblingHas(`lower(s.file_ext) NOT IN ('dwg', 'dxf', 'xlsx', 'xls', 'pdf')`)
+/** 원본 = PDF 가 아닌 파일 아무거나 */
+const HAS_ORIGINAL = siblingHas(`lower(s.file_ext) <> 'pdf'`)
+
+/**
+ * 자료 한 건을 대표하는 파일만 남기는 조건.
+ *
+ * MDB 의 '자료 1건' 은 같은 폴더 + 같은 자료명이고, 원본과 사본이 각각 한 행이다.
+ * 목록은 **자료 단위**로 보여야 하므로(기존 화면도 그랬다) 묶음마다 한 줄만 남긴다.
+ *
+ * GROUP BY 로 묶지 않고 대표 행을 고르는 이유: 정렬·커서 페이징·건수 세기가 모두
+ * 행 단위 그대로 유지되기 때문이다. 묶으면 정렬 칸이 전부 집계식이 되고
+ * 커서 비교를 HAVING 으로 옮겨야 해서 깨지기 쉬운 곳이 늘어난다.
+ */
+const REP_ONLY = `
+  m.id = (SELECT min(s.id) FROM mdb_files s
+           WHERE s.folder_id = m.folder_id AND s.title = m.title AND NOT s.is_archived)`
+
+/**
+ * 같은 자료에 속한 파일 전부 — 담기·옮기기·보관은 자료 통째로 움직여야 한다.
+ * 다운대기함은 파일 단위라 확장자도 함께 준다(원본·사본이 따로 담긴다).
+ */
+const SIBLING_FILES = `
+  (SELECT jsonb_agg(jsonb_build_object('id', s.id, 'fileExt', s.file_ext) ORDER BY s.id)
+     FROM mdb_files s
+    WHERE s.folder_id = m.folder_id AND s.title = m.title AND NOT s.is_archived)`
+
+/** 자료가 차지하는 크기 = 속한 파일 크기의 합 */
+const SIBLING_BYTES = `
+  (SELECT coalesce(sum(sb.byte_size), 0)::bigint FROM mdb_files s
+     JOIN blobs sb ON sb.sha256 = s.blob_sha256
+    WHERE s.folder_id = m.folder_id AND s.title = m.title AND NOT s.is_archived)`
+
+/** Tag 는 파일에 붙지만 뜻은 자료의 것이다 — 묶어서 서로 다른 개수를 센다 */
+const SIBLING_TAGS = `
+  (SELECT count(DISTINCT t.tag_no)::int FROM mdb_files s
+     JOIN mdb_file_tags t ON t.mdb_file_id = s.id
+    WHERE s.folder_id = m.folder_id AND s.title = m.title AND NOT s.is_archived)`
+
+const HOLD_SQL: Record<string, string> = {
+  all: 'TRUE',
+  both: `${HAS_ORIGINAL} AND ${HAS_PDF}`,
+  dwg_only: `${HAS_ORIGINAL} AND NOT ${HAS_PDF}`,
+  pdf_only: `${HAS_PDF} AND NOT ${HAS_ORIGINAL}`,
 }
 
 const SELECT_MDB = `
@@ -29,14 +96,19 @@ const SELECT_MDB = `
          m.folder_id      AS "folderId",
          f.name           AS "folderName",
          m.file_ext       AS "fileExt",
-         b.byte_size      AS "byteSize",
+         ${SIBLING_BYTES} AS "byteSize",
          m.equipment_type AS "equipmentType",
          m.doc_type       AS "docType",
          p.name           AS "projectName",
          m.year,
          m.is_shared      AS "isShared",
          m.needs_check    AS "needsCheck",
-         (SELECT count(*)::int FROM mdb_file_tags t WHERE t.mdb_file_id = m.id) AS "tagCount",
+         ${SIBLING_TAGS}  AS "tagCount",
+         ${SIBLING_FILES} AS "files",
+         ${HAS_DWG}  AS "hasDwg",
+         ${HAS_XLSX} AS "hasXlsx",
+         ${HAS_ETC}  AS "hasEtc",
+         ${HAS_PDF}  AS "hasPdf",
          m.updated_at     AS "updatedAt"
     FROM mdb_files m
     JOIN folders f  ON f.id = m.folder_id
@@ -68,7 +140,7 @@ export function sortValueOf(row: MdbRow, sort: string): string {
 }
 
 function filters(qp: MdbListQuery, folderIds: number[], params: unknown[]): string[] {
-  const where = ['NOT m.is_archived']
+  const where = ['NOT m.is_archived', REP_ONLY]
   params.push(folderIds)
   where.push(`m.folder_id = ANY($${params.length}::bigint[])`)
 
@@ -77,7 +149,10 @@ function filters(qp: MdbListQuery, folderIds: number[], params: unknown[]): stri
     const i = params.length
     if (qp.searchTarget === 'folder') where.push(`f.name ILIKE $${i}`)
     else if (qp.searchTarget === 'tag')
-      where.push(`EXISTS (SELECT 1 FROM mdb_file_tags t WHERE t.mdb_file_id = m.id AND t.tag_no ILIKE $${i})`)
+      // Tag 는 파일마다 붙어 있다 — 자료 안 어느 파일에 붙어 있어도 그 자료가 걸려야 한다
+      where.push(`EXISTS (SELECT 1 FROM mdb_files s JOIN mdb_file_tags t ON t.mdb_file_id = s.id
+                           WHERE s.folder_id = m.folder_id AND s.title = m.title
+                             AND NOT s.is_archived AND t.tag_no ILIKE $${i})`)
     else where.push(`m.search_text ILIKE $${i}`)
   }
   if (qp.equipmentType) { params.push(qp.equipmentType); where.push(`m.equipment_type = $${params.length}`) }
@@ -86,6 +161,7 @@ function filters(qp: MdbListQuery, folderIds: number[], params: unknown[]): stri
   if (qp.year !== undefined)      { params.push(qp.year);      where.push(`m.year = $${params.length}`) }
   if (qp.shared !== undefined)    { params.push(qp.shared);    where.push(`m.is_shared = $${params.length}`) }
   if (qp.needsCheck !== undefined){ params.push(qp.needsCheck);where.push(`m.needs_check = $${params.length}`) }
+  if (qp.hold && qp.hold !== 'all') where.push(HOLD_SQL[qp.hold] ?? 'TRUE')
   return where
 }
 

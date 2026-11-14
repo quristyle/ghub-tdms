@@ -258,12 +258,13 @@ async function save() {
 <template>
   <main class="app-main menus">
     <!-- 헤더 -->
-    <div class="panel head">
-      <div class="head-title">
-        <h1>메뉴 관리</h1>
-        <span class="head-sub">카테고리 분류 및 메뉴 순서·경로 설정</span>
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">
+          메뉴 관리<span class="page-title-sub">카테고리 분류 및 메뉴 순서·경로 설정</span>
+        </h1>
       </div>
-      <span style="flex:1" />
+      <div class="page-actions">
       <div class="view-toggle">
         <button
           class="btn btn-sm"
@@ -286,10 +287,11 @@ async function save() {
           전체 순서 보기
         </button>
       </div>
+      </div>
     </div>
 
     <!-- 알림 메시지 -->
-    <div v-if="message" class="panel msg" :class="message.kind">
+    <div v-if="message" class="msg" :class="message.kind">
       {{ message.text }}
       <span style="flex:1" />
       <button class="btn btn-sm" @click="message = null">닫기</button>

@@ -442,11 +442,18 @@ const sectionNo = (id: string) => SECTIONS.findIndex((s) => s.id === id) + 1
 
 <template>
   <main class="app-main help">
-    <div class="panel head">
-      <h1>도움말</h1>
-      <span class="muted sub">화면별 사용법과 업무 흐름 안내 · {{ session.me?.name }} 님이 쓸 수 있는 화면 {{ session.menu.length }}개</span>
-      <span style="flex:1" />
-      <button class="btn btn-sm no-print" type="button" @click="printPage">인쇄 · PDF로 저장</button>
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">
+          도움말<span class="page-title-sub">화면별 사용법과 업무 흐름 안내</span>
+        </h1>
+        <p class="page-desc">
+          {{ session.me?.name }} 님이 쓸 수 있는 화면 {{ session.menu.length }}개
+        </p>
+      </div>
+      <div class="page-actions no-print">
+        <button type="button" @click="printPage">인쇄 · PDF로 저장</button>
+      </div>
     </div>
 
     <div class="panel search no-print">

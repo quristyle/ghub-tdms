@@ -7,11 +7,13 @@ import type {
   PartialItem, RegisterResult, ReplaceBulkResult, ReplaceResult, ZipRegisterCheck,
 } from '@tdms/contracts'
 import LazyTree from '@/ui/LazyTree.vue'
+import FolderTreePanel from '@/ui/FolderTreePanel.vue'
 import DataTable, { type Column, type SortDir } from '@/ui/DataTable.vue'
 import Modal from '@/ui/Modal.vue'
 import JobProgress from '@/ui/JobProgress.vue'
 import ProjectManager from '@/ui/ProjectManager.vue'
 import { api, ApiError, qs } from '@/lib/api'
+import { DOC_STATUS_BADGE, DOC_STATUS_LABEL } from '@/lib/labels'
 import { qk, staleTime } from '@/lib/queryKeys'
 import { useSession } from '@/lib/session'
 
@@ -46,10 +48,32 @@ const sort = ref<'updatedAt' | 'drawingNo' | 'title' | 'currentRev'>('updatedAt'
 const dir = ref<SortDir>('desc')
 function onSort(key: string, d: SortDir) { sort.value = key as typeof sort.value; dir.value = d }
 
+/** 조회 조건 — 기존 화면(editor.html)의 필터 바와 같은 항목 */
+const searchTarget = ref<'title' | 'folder'>('title')
+const status = ref<'all' | 'normal' | 'review' | 'distributed' | 'archived'>('all')
+const hold = ref<'all' | 'both' | 'dwg_only' | 'pdf_only'>('all')
+const recursive = ref(false)
+/** 숨김 폴더 보기 — 껍데기만 남은 DWG·PDF 폴더를 트리에 드러낸다 */
+const showHidden = ref(false)
+
+function resetFilter() {
+  keyword.value = ''
+  searchTarget.value = 'title'
+  status.value = 'all'
+  hold.value = 'all'
+  recursive.value = false
+  showHidden.value = false
+  includeIsometric.value = false
+}
+
 const params = computed(() => ({
   folderId: folder.value?.id,
+  recursive: recursive.value,
   q: keyword.value || undefined,
+  searchTarget: searchTarget.value,
   includeIsometric: includeIsometric.value,
+  status: status.value,
+  hold: hold.value,
   sort: sort.value,
   dir: dir.value,
   limit: 200,
@@ -74,13 +98,23 @@ function toggleAll(on: boolean) {
   picked.value = new Set(picked.value)
 }
 
+/* 기존 화면(editor.html)은 TDB 조회와 같은 열을 쓴다:
+   자료명 · 분류 · 경로 · Rev · 상태 · DWG · XLSX · ETC · PDF · 최종수정 */
+const yn = (on: boolean) => (on ? 'Y' : '\u00b7')
+
 const columns = computed<Column<DocumentListItem>[]>(() => [
-  { key: 'drawingNo', label: '자료명', width: '168px', sortable: true },
-  { key: 'title', label: '내용', sortable: true },
-  { key: 'folderName', label: '폴더', width: '160px', sortable: false },
-  { key: 'currentRev', label: 'Rev', width: '62px', align: 'center', sortable: true,
-    render: (r) => `Rev${r.currentRev}` },
-  { key: 'updatedAt', label: '최종수정', width: '104px', align: 'center', sortable: true,
+  { key: 'drawingNo', label: '자료명', width: '220px', sortable: true },
+  { key: 'docType', label: '분류', width: '100px', sortable: true, render: (r) => r.docType ?? '\u00b7' },
+  { key: 'folderName', label: '경로', sortable: false },
+  { key: 'currentRev', label: 'Rev', width: '50px', align: 'center', sortable: true,
+    render: (r) => String(r.currentRev) },
+  { key: 'status', label: '상태', width: '92px', align: 'center', sortable: false,
+    render: (r) => (r.lentTo ? `${r.lentTo} 대여중` : DOC_STATUS_LABEL[r.status] ?? r.status) },
+  { key: 'hasDwg', label: 'DWG', width: '58px', align: 'center', sortable: false, render: (r) => yn(r.hasDwg) },
+  { key: 'hasXlsx', label: 'XLSX', width: '58px', align: 'center', sortable: false, render: (r) => yn(r.hasXlsx) },
+  { key: 'hasEtc', label: 'ETC', width: '58px', align: 'center', sortable: false, render: (r) => yn(r.hasEtc) },
+  { key: 'hasPdf', label: 'PDF', width: '58px', align: 'center', sortable: false, render: (r) => yn(r.hasPdf) },
+  { key: 'updatedAt', label: '최종수정', width: '134px', align: 'center', sortable: true,
     render: (r) => r.updatedAt.slice(0, 10) },
 ])
 
@@ -561,79 +595,154 @@ const catalogOpen = ref<'projects' | 'vendors' | null>(null)
 </script>
 
 <template>
-  <aside class="app-side">
-    <LazyTree doc-class="TDB" :selected-id="folder?.id ?? null" @select="(f) => (folder = f)" />
-  </aside>
-
-  <main class="app-main editor">
-    <div class="panel bar-panel">
-      <div class="bar">
-        <strong>TDB 폴더 및 디렉토리 구조 관리</strong>
-        <span style="flex:1" />
-        <button class="btn btn-sm" @click="catalogOpen = 'projects'">공사 관리</button>
-        <button class="btn btn-sm" @click="catalogOpen = 'vendors'">업체 관리</button>
-        <button class="btn btn-sm" @click="boxOpen = 'RETIRE'">
-          폐기 보관함 <span class="cnt">{{ retireBox?.count ?? 0 }}</span>
+  <main class="app-main">
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">
+          TDB 관리<span class="page-title-sub">TDB 폴더 및 디렉토리 구조 관리</span>
+        </h1>
+      </div>
+      <div class="page-actions">
+        <button type="button" @click="catalogOpen = 'projects'">공사 관리</button>
+        <button type="button" @click="catalogOpen = 'vendors'">업체 관리</button>
+        <button type="button" @click="boxOpen = 'RETIRE'">
+          폐기 보관함 <span class="tree-count">({{ retireBox?.count ?? 0 }})</span>
         </button>
-        <button class="btn btn-sm" @click="boxOpen = 'TRASH'">
-          삭제 보관함 <span class="cnt">{{ trashBox?.count ?? 0 }}</span>
+        <button type="button" @click="boxOpen = 'TRASH'">
+          삭제 보관함 <span class="tree-count">({{ trashBox?.count ?? 0 }})</span>
         </button>
       </div>
+    </div>
 
-      <div class="bar">
+    <!-- 검색·편집 — 기존 화면의 필터 바 자리. 폴더 편집·자료 편집 묶음이 그 아래 줄에 붙는다. -->
+    <div class="filter-bar">
+      <div class="filter-row">
+        <div class="filter-fields">
+          <div class="field">
+            <label for="kind_scope">검색대상</label>
+            <select id="kind_scope" v-model="searchTarget">
+              <option value="title">자료명</option>
+              <option value="folder">폴더명</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="status">상태</label>
+            <select id="status" v-model="status">
+              <option value="all">전체</option>
+              <option value="normal">정상</option>
+              <option value="distributed">반출</option>
+              <option value="review">검수</option>
+              <option value="archived">삭제</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="holding">원본/사본</label>
+            <select id="holding" v-model="hold">
+              <option value="all">전체</option>
+              <option value="both">원본/사본 있음</option>
+              <option value="dwg_only">원본만 있음</option>
+              <option value="pdf_only">사본만 있음</option>
+            </select>
+          </div>
+          <label class="check-inline field-check">
+            <input v-model="includeIsometric" type="checkbox" /> Isometric 보기
+          </label>
+          <label class="check-inline field-check" title="고른 폴더 아래 모든 하위 폴더의 자료까지 보여줍니다">
+            <input v-model="recursive" type="checkbox" /> 하위폴더 전체보기
+          </label>
+          <!-- 평소에는 감춰두는 DWG·PDF 폴더를 트리에 그대로 드러낸다. 켜면 원본·사본이
+               각각 실제로 들어있는 폴더 밑에 보인다. -->
+          <label class="check-inline field-check">
+            <input v-model="showHidden" type="checkbox" /> 숨김 폴더 보기
+          </label>
+          <input v-model="keyword" type="text" class="filter-search" placeholder="자료명 검색" />
+        </div>
+        <div class="filter-actions">
+          <button type="button" @click="resetFilter">조건 초기화</button>
+        </div>
+      </div>
+
+      <div class="edit-row">
         <span class="group-label">폴더 편집</span>
-        <button class="btn btn-sm" :disabled="!canFolder" @click="folderDialog = 'create'; folderName = ''">
+        <button type="button" class="small" :disabled="!canFolder" @click="folderDialog = 'create'; folderName = ''">
           새 폴더
         </button>
-        <button class="btn btn-sm" :disabled="!canFolder || !folder"
+        <button type="button" class="small" :disabled="!canFolder || !folder"
                 @click="folderDialog = 'rename'; folderName = folder?.name ?? ''">이름 변경</button>
-        <button class="btn btn-sm" :disabled="!canFolder || !folder"
+        <button type="button" class="small" :disabled="!canFolder || !folder"
                 @click="folderDialog = 'move'; moveTargetId = null">위치 이동</button>
-        <button class="btn btn-sm" :disabled="!canRestore || !folder" @click="sendTo('TRASH', true)">
+        <button type="button" class="small" :disabled="!canRestore || !folder" @click="sendTo('TRASH', true)">
           폴더 삭제
         </button>
-        <button class="btn btn-sm" :disabled="!canFolder" @click="pairOpen = true">원본·사본 폴더 병합</button>
+        <button type="button" class="small" :disabled="!canFolder" @click="pairOpen = true">원본·사본 폴더 병합</button>
       </div>
 
-      <div class="bar">
+      <div class="edit-row">
         <span class="group-label">자료 편집</span>
-        <input v-model="keyword" type="text" placeholder="검색어" style="width:180px" />
-        <label class="chk"><input v-model="includeIsometric" type="checkbox" /> Isometric 보기</label>
-        <span class="muted">선택 {{ picked.size }}건</span>
-        <span style="flex:1" />
-        <button class="btn btn-sm" :disabled="!canDocument || picked.size !== 1" @click="openRename">
+        <button type="button" class="small" :disabled="!canDocument || picked.size !== 1" @click="openRename">
           이름 변경
         </button>
-        <button class="btn btn-sm" :disabled="!canDocument || !picked.size" @click="openReplace">
+        <button type="button" class="small" :disabled="!canDocument || !picked.size" @click="openReplace">
           {{ picked.size > 1 ? '일괄 교체' : '자료 교체' }}
         </button>
-        <button class="btn btn-sm" :disabled="!canDocument || !folder" @click="openRegister">신규 등록</button>
-        <button class="btn btn-sm" :disabled="!canDocument || !picked.size"
+        <button type="button" class="small" :disabled="!canDocument || !folder" @click="openRegister">신규 등록</button>
+        <button type="button" class="small" :disabled="!canDocument || !picked.size"
                 @click="moveDocsOpen = true; docTargetId = null">자료 이동</button>
-        <button class="btn btn-sm" :disabled="!canRetire || !picked.size" @click="sendTo('RETIRE', false)">
+        <button type="button" class="small" :disabled="!canRetire || !picked.size" @click="sendTo('RETIRE', false)">
           폐기
         </button>
-        <button class="btn btn-sm" :disabled="!canRestore || !picked.size" @click="sendTo('TRASH', false)">
+        <button type="button" class="small" :disabled="!canRestore || !picked.size" @click="sendTo('TRASH', false)">
           삭제
         </button>
-        <button class="btn btn-sm" :disabled="!canZip || !folder" @click="openZip">Zip 폴더 업로드</button>
+        <button type="button" class="small" :disabled="!canZip || !folder" @click="openZip">Zip 폴더 업로드</button>
       </div>
 
       <JobProgress :job-id="zipJobId" @done="onZipDone" />
     </div>
 
-    <div v-if="message" class="panel msg" :class="message.kind">
+    <div v-if="message" class="msg" :class="message.kind">
       {{ message.text }}
       <span style="flex:1" />
-      <button class="btn btn-sm" @click="message = null">닫기</button>
+      <button class="small" @click="message = null">닫기</button>
     </div>
 
-    <div class="panel table-panel">
-      <DataTable
-        :columns="columns" :rows="rows" selectable :selected="picked" :loading="isFetching"
-        :total="data?.total ?? null" :sort-key="sort" :sort-dir="dir" storage-key="tdb-editor" excel-name="TDB 관리"
-        @toggle="toggle" @toggle-all="toggleAll" @sort="onSort"
+    <div class="main-layout">
+      <FolderTreePanel
+        doc-class="TDB" :selected-id="folder?.id ?? null" :show-hidden="showHidden"
+        storage-key="tdb-editor" @select="(f) => (folder = f)"
       />
+
+      <div class="main-content">
+        <div class="status-bar">
+          <span class="status-bar-left">
+            <span class="selected-folder-name">{{ folder?.name ?? '전체 폴더' }}</span>
+            <span class="total-count">전체 {{ (data?.total ?? 0).toLocaleString() }}건</span>
+            <button
+              v-if="picked.size" class="clear-selection-btn" type="button"
+              title="체크해둔 자료를 모두 해제합니다" @click="picked = new Set()"
+            >선택 초기화 ({{ picked.size }})</button>
+          </span>
+        </div>
+
+        <div class="table-box">
+          <DataTable
+            :columns="columns" :rows="rows" selectable :selected="picked" :loading="isFetching"
+            :total="data?.total ?? null" :sort-key="sort" :sort-dir="dir" storage-key="tdb-editor" excel-name="TDB 관리"
+            @toggle="toggle" @toggle-all="toggleAll" @sort="onSort"
+          >
+            <template #cell:status="{ row }">
+              <span v-if="row.lentTo" class="badge badge-warning">{{ row.lentTo }} 대여중</span>
+              <span v-else class="badge" :class="DOC_STATUS_BADGE[row.status] ?? 'badge-neutral'">
+                {{ DOC_STATUS_LABEL[row.status] ?? row.status }}
+              </span>
+            </template>
+            <template #cell:hasDwg="{ row }"><span :class="row.hasDwg ? 'yn-y' : 'yn-n'">{{ yn(row.hasDwg) }}</span></template>
+            <template #cell:hasXlsx="{ row }"><span :class="row.hasXlsx ? 'yn-y' : 'yn-n'">{{ yn(row.hasXlsx) }}</span></template>
+            <template #cell:hasEtc="{ row }"><span :class="row.hasEtc ? 'yn-y' : 'yn-n'">{{ yn(row.hasEtc) }}</span></template>
+            <template #cell:hasPdf="{ row }"><span :class="row.hasPdf ? 'yn-y' : 'yn-n'">{{ yn(row.hasPdf) }}</span></template>
+          </DataTable>
+        </div>
+      </div>
     </div>
 
     <!-- 폴더 편집 -->
@@ -880,32 +989,34 @@ const catalogOpen = ref<'projects' | 'vendors' | null>(null)
 </template>
 
 <style scoped>
-.editor { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
-.bar-panel { padding: 10px 12px; flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; }
-.bar { display: flex; gap: var(--gap-sm); align-items: center; flex-wrap: wrap; }
+.edit-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .group-label {
-  font-size: var(--fs-sm); color: var(--text-muted); min-width: 62px;
-  border-right: 1px solid var(--border); padding-right: 8px;
+  font-size: 11.5px; font-weight: 700; color: var(--text-dark-gray); min-width: 62px;
+  border-right: 1px solid var(--border); padding-right: 8px; margin-right: 2px;
 }
-.cnt {
-  display: inline-block; min-width: 17px; padding: 0 4px; margin-left: 3px;
-  background: var(--accent); color: var(--primary-fg); border-radius: 9px; font-size: 10px; text-align: center;
+.table-box {
+  flex: 1 1 auto;
+  min-height: 240px;
+  display: flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
 }
-.chk { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
-.btn.disabled { opacity: .45; cursor: not-allowed; }
+.table-box > * { flex: 1; min-width: 0; }
+
+@media (max-width: 900px) {
+  .main-layout { flex-direction: column; }
+  .main-layout :deep(.tree-panel) { flex: 0 0 auto !important; max-height: 240px; }
+  .main-layout :deep(.tree-resize-handle) { display: none; }
+}
+
+.tree-count { color: var(--text-faint); font-size: 11px; font-weight: 400; }
 .form { display: flex; flex-direction: column; gap: 8px; }
-.form label { display: flex; align-items: center; gap: 8px; }
+.form label { display: flex; align-items: center; gap: 8px; margin-top: 0; }
 .form label input[type='text'] { flex: 1; }
-.note { font-size: var(--fs-sm); color: var(--accent); margin: 0; }
+.note { font-size: 11.5px; color: var(--accent); margin: 0; }
 .ask-line { margin: 0 0 6px; white-space: pre-wrap; word-break: break-all; }
 .partial { margin-top: 8px; }
 .note-cell { display: flex; align-items: center; gap: 6px; justify-content: space-between; }
-.table-panel {
-  flex: 1; min-width: 0;
-  display: flex; flex-direction: column;
-  min-height: 0; overflow: hidden;
-}
-.table-panel > * {
-  flex: 1; min-width: 0;
-}
 </style>

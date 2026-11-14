@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { DocClass } from './common.js'
+import { BoolParam, DocClass } from './common.js'
 
 /**
  * 폴더 트리.
@@ -28,6 +28,11 @@ export const FolderTreeQuery = z.object({
   parentId: z.coerce.number().int().optional(),
   /** 화면 복원용: 이 폴더까지의 경로를 한 번에 펼쳐서 내려준다 */
   expandTo: z.coerce.number().int().optional(),
+  /**
+   * 숨김 폴더 보기 — 원본·사본을 합치고 껍데기만 남은 DWG·PDF 폴더를 트리에 드러낸다.
+   * 기본은 끔: 합쳐진 자료는 부모 폴더에 1건으로 보이고, 빈 껍데기는 보이지 않는다.
+   */
+  showHidden: BoolParam.default(false),
 })
 
 export const FolderTreeResponse = z.object({

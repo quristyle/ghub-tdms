@@ -6,6 +6,7 @@ import type {
   MdbRegisterResult, MdbReplaceResult,
 } from '@tdms/contracts'
 import LazyTree from '@/ui/LazyTree.vue'
+import FolderTreePanel from '@/ui/FolderTreePanel.vue'
 import DataTable, { type Column, type SortDir } from '@/ui/DataTable.vue'
 import Modal from '@/ui/Modal.vue'
 import JobProgress from '@/ui/JobProgress.vue'
@@ -48,8 +49,45 @@ const sort = ref<'updatedAt' | 'title' | 'equipmentType' | 'docType' | 'year'>('
 const dir = ref<SortDir>('desc')
 function onSort(key: string, d: SortDir) { sort.value = key as typeof sort.value; dir.value = d }
 
+/** 조회 조건 — 기존 화면(mdb-editor.html)의 필터 바와 같은 항목 */
+const category = ref('')
+const equipmentType = ref('')
+const docTypeFilter = ref('')
+const projectId = ref('')
+const year = ref('')
+/** 원본/사본 보유 — 자료 단위로 본다 (원본 = PDF 아닌 파일, 사본 = PDF) */
+const hold = ref<'all' | 'both' | 'dwg_only' | 'pdf_only'>('all')
+const searchTarget = ref<'title' | 'folder' | 'tag'>('title')
+const recursive = ref(false)
+/** 숨김 폴더 보기 — 껍데기만 남은 DWG·PDF 폴더를 트리에 드러낸다 */
+const showHidden = ref(false)
+
+function resetFilter() {
+  keyword.value = ''
+  category.value = ''
+  equipmentType.value = ''
+  docTypeFilter.value = ''
+  projectId.value = ''
+  year.value = ''
+  hold.value = 'all'
+  searchTarget.value = 'title'
+  recursive.value = false
+  showHidden.value = false
+}
+
 const params = computed(() => ({
-  folderId: folder.value?.id, q: keyword.value || undefined,
+  folderId: folder.value?.id,
+  recursive: recursive.value,
+  q: keyword.value || undefined,
+  searchTarget: searchTarget.value,
+  equipmentType: equipmentType.value || undefined,
+  docType: docTypeFilter.value || undefined,
+  projectId: projectId.value ? Number(projectId.value) : undefined,
+  year: year.value ? Number(year.value) : undefined,
+  hold: hold.value,
+  // 분류 — 공용/전용은 shared, 확인필요는 needsCheck 로 서버가 나눠 받는다
+  shared: category.value === '공용' ? true : category.value === '전용' ? false : undefined,
+  needsCheck: category.value === '확인필요' ? true : undefined,
   sort: sort.value, dir: dir.value, limit: 200,
 }))
 
@@ -76,17 +114,33 @@ const { data: meta } = useQuery({
   staleTime: staleTime.types,
 })
 
+const yn = (on: boolean) => (on ? 'Y' : '\u00b7')
+
 const columns = computed<Column<MdbListItem>[]>(() => [
-  { key: 'title', label: '자료명', width: '288px', sortable: true },
-  { key: 'folderName', label: '폴더', sortable: false },   // 남는 자리를 받는 칸
-  { key: 'equipmentType', label: '설비유형', width: '124px', sortable: true,
-    render: (r) => r.equipmentType ?? '-' },
-  { key: 'docType', label: '자료유형', width: '176px', sortable: true,
-    render: (r) => r.docType ?? '-' },
-  { key: 'year', label: '연도', width: '64px', align: 'center', sortable: true,
-    render: (r) => String(r.year ?? '-') },
+  { key: 'title', label: '자료명', width: '220px', sortable: true },
+  { key: 'year', label: '연도', width: '60px', align: 'center', sortable: true,
+    render: (r) => String(r.year ?? '\u00b7') },
+  { key: 'projectName', label: '공사', width: '150px', sortable: true,
+    render: (r) => r.projectName ?? '\u00b7' },
+  { key: 'folderName', label: '경로', sortable: false },   // 남는 자리를 받는 칸
+  { key: 'equipmentType', label: '설비유형', width: '110px', sortable: true,
+    render: (r) => r.equipmentType ?? '\u00b7' },
+  { key: 'docType', label: '자료유형', width: '110px', sortable: true,
+    render: (r) => r.docType ?? '\u00b7' },
+  { key: 'isShared', label: '분류', width: '84px', align: 'center', sortable: false,
+    render: (r) => (r.needsCheck ? '확인필요' : r.isShared ? '공용' : '전용') },
+  { key: 'hasDwg', label: 'DWG', width: '58px', align: 'center', sortable: false, filterable: false,
+    render: (r) => yn(r.hasDwg) },
+  { key: 'hasXlsx', label: 'XLSX', width: '58px', align: 'center', sortable: false, filterable: false,
+    render: (r) => yn(r.hasXlsx) },
+  { key: 'hasEtc', label: 'ETC', width: '58px', align: 'center', sortable: false, filterable: false,
+    render: (r) => yn(r.hasEtc) },
+  { key: 'hasPdf', label: 'PDF', width: '58px', align: 'center', sortable: false, filterable: false,
+    render: (r) => yn(r.hasPdf) },
   { key: 'tagCount', label: 'Tag', width: '56px', align: 'center', sortable: false, filterable: false,
     render: (r) => String(r.tagCount) },
+  { key: 'updatedAt', label: '최종수정', width: '134px', align: 'center', sortable: true,
+    render: (r) => r.updatedAt.slice(0, 10) },
 ])
 
 // ── 폴더 편집 ─────────────────────────────────────────────────────────
@@ -125,7 +179,7 @@ async function submitMoveDocs() {
   if (docTargetId.value === null) return
   try {
     const r = await api.post<{ updated: number; skipped: { reason: string }[] }>(
-      '/mdb-editor/files/move', { fileIds: [...picked.value], targetFolderId: docTargetId.value })
+      '/mdb-editor/files/move', { fileIds: pickedFileIds.value, targetFolderId: docTargetId.value })
     say(r.skipped.length ? 'err' : 'ok',
       r.skipped.length ? `${r.updated}건 이동, ${r.skipped.length}건 건너뜀 — ${r.skipped[0]!.reason}`
                        : `${r.updated}건을 옮겼습니다.`)
@@ -138,7 +192,7 @@ async function submitEquip() {
   equipOpen.value = false
   try {
     const r = await api.post<{ updated: number }>('/mdb-editor/files/equipment-type',
-      { fileIds: [...picked.value], equipmentType: newEquip.value || null })
+      { fileIds: pickedFileIds.value, equipmentType: newEquip.value || null })
     say('ok', `${r.updated}건의 설비유형을 바꿨습니다.`)
     picked.value = new Set()
     refreshAll()
@@ -166,7 +220,7 @@ async function sendTo(kind: 'TRASH' | 'RETIRE', fromFolder: boolean) {
   try {
     const body = fromFolder
       ? { folderId: folder.value?.id ?? null, documentIds: [], reason: null }
-      : { documentIds: [...picked.value], folderId: null, reason: null }
+      : { documentIds: pickedFileIds.value, folderId: null, reason: null }
     const r = await api.post<{ archived: number }>(
       kind === 'TRASH' ? '/mdb-editor/trash' : '/mdb-editor/retired', body)
     say('ok', `${kind === 'TRASH' ? '삭제' : '폐기'} 보관함으로 ${r.archived}건을 보냈습니다.`)
@@ -230,6 +284,15 @@ const unclassifiedOpen = ref(false)
 const pairOpen = ref(false)
 const infoId = ref<number | null>(null)
 const onePicked = computed(() => (picked.value.size === 1 ? [...picked.value][0]! : null))
+
+/**
+ * 체크한 자료에 속한 **파일 id 전부**.
+ *
+ * 목록 한 줄은 자료 한 건이고 줄의 id 는 그중 대표 파일이다. 옮기기·설비유형 변경·
+ * 보관은 원본과 사본이 따로 놀면 안 되므로 자료 통째로 보낸다.
+ */
+const pickedFileIds = computed(() =>
+  rows.value.filter((r) => picked.value.has(r.id)).flatMap((r) => r.files.map((f) => f.id)))
 const pickedRow = computed(() => rows.value.find((r) => r.id === onePicked.value) ?? null)
 
 function onInfoSaved() {
@@ -339,56 +402,126 @@ async function uploadZip(ev: Event) {
 </script>
 
 <template>
-  <aside class="app-side">
-    <LazyTree doc-class="MDB" :selected-id="folder?.id ?? null" @select="(f) => (folder = f)" />
-  </aside>
-
-  <main class="app-main editor">
-    <div class="panel bar-panel">
-      <div class="bar">
-        <strong>MDB 폴더 및 디렉토리 구조 관리</strong>
-        <span style="flex:1" />
-        <button class="btn btn-sm" @click="unclassifiedOpen = true">미분류 정리</button>
-        <button class="btn btn-sm" @click="typesOpen = true">목록 관리</button>
-        <button class="btn btn-sm" @click="tagOpen = true">Tag 이력</button>
-        <button class="btn btn-sm" @click="boxOpen = 'RETIRE'">
-          폐기 보관함 <span class="cnt">{{ retireBox?.count ?? 0 }}</span>
+  <main class="app-main">
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">
+          MDB 관리<span class="page-title-sub">MDB 폴더 및 디렉토리 구조 관리</span>
+        </h1>
+      </div>
+      <div class="page-actions">
+        <button type="button" @click="unclassifiedOpen = true">미분류 정리</button>
+        <button type="button" @click="typesOpen = true">목록 관리</button>
+        <button type="button" @click="tagOpen = true">Tag 이력</button>
+        <button type="button" @click="boxOpen = 'RETIRE'">
+          폐기 보관함 <span class="tree-count">({{ retireBox?.count ?? 0 }})</span>
         </button>
-        <button class="btn btn-sm" @click="boxOpen = 'TRASH'">
-          삭제 보관함 <span class="cnt">{{ trashBox?.count ?? 0 }}</span>
+        <button type="button" @click="boxOpen = 'TRASH'">
+          삭제 보관함 <span class="tree-count">({{ trashBox?.count ?? 0 }})</span>
         </button>
       </div>
+    </div>
 
-      <div class="bar">
+    <div class="filter-bar">
+      <div class="filter-row">
+        <div class="filter-fields">
+          <div class="field">
+            <label for="category">분류</label>
+            <select id="category" v-model="category">
+              <option value="">전체</option>
+              <option value="전용">전용</option>
+              <option value="공용">공용</option>
+              <option value="확인필요">확인필요</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="equipment_type">설비유형</label>
+            <select id="equipment_type" v-model="equipmentType">
+              <option value="">전체</option>
+              <option v-for="e in meta?.equipmentTypes ?? []" :key="e" :value="e">{{ e }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="doc_type">자료유형</label>
+            <select id="doc_type" v-model="docTypeFilter">
+              <option value="">전체</option>
+              <option v-for="d in meta?.docTypes ?? []" :key="d" :value="d">{{ d }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="project_id">공사</label>
+            <select id="project_id" v-model="projectId">
+              <option value="">전체</option>
+              <option v-for="p in meta?.projects ?? []" :key="p.id" :value="String(p.id)">{{ p.name }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="mdbe-holding">원본/사본</label>
+            <select id="mdbe-holding" v-model="hold">
+              <option value="all">전체</option>
+              <option value="both">원본/사본 있음</option>
+              <option value="dwg_only">원본만 있음</option>
+              <option value="pdf_only">사본만 있음</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="mdbe-year">연도</label>
+            <select id="mdbe-year" v-model="year">
+              <option value="">전체</option>
+              <option v-for="y in meta?.years ?? []" :key="y" :value="String(y)">{{ y }}</option>
+            </select>
+          </div>
+          <label class="check-inline field-check">
+            <input v-model="recursive" type="checkbox" /> 하위폴더 전체보기
+          </label>
+          <!-- 평소에는 감춰두는 DWG·PDF 폴더를 트리에 그대로 드러낸다. 켜면 원본·사본이
+               각각 실제로 들어있는 폴더 밑에 보인다. -->
+          <label class="check-inline field-check">
+            <input v-model="showHidden" type="checkbox" /> 숨김 폴더 보기
+          </label>
+          <div class="field search-lead">
+            <label for="search-target">검색대상</label>
+            <select id="search-target" v-model="searchTarget">
+              <option value="title">자료명</option>
+              <option value="folder">폴더명</option>
+              <option value="tag">Tag No</option>
+            </select>
+          </div>
+          <input v-model="keyword" type="text" class="filter-search" placeholder="자료명 검색" />
+        </div>
+        <div class="filter-actions">
+          <button type="button" @click="resetFilter">조건 초기화</button>
+        </div>
+      </div>
+
+      <div class="edit-row">
         <span class="group-label">폴더 편집</span>
-        <button class="btn btn-sm" :disabled="!canFolder" @click="folderDialog = 'create'; folderName = ''">새 폴더</button>
-        <button class="btn btn-sm" :disabled="!canFolder || !folder"
+        <button type="button" class="small" :disabled="!canFolder" @click="folderDialog = 'create'; folderName = ''">새 폴더</button>
+        <button type="button" class="small" :disabled="!canFolder || !folder"
                 @click="folderDialog = 'rename'; folderName = folder?.name ?? ''">이름 변경</button>
-        <button class="btn btn-sm" :disabled="!canFolder || !folder"
+        <button type="button" class="small" :disabled="!canFolder || !folder"
                 @click="folderDialog = 'move'; moveTargetId = null">위치 이동</button>
-        <button class="btn btn-sm" :disabled="!canRestore || !folder" @click="sendTo('TRASH', true)">폴더 삭제</button>
-        <button class="btn btn-sm" :disabled="!canFolder" @click="pairOpen = true">원본·사본 폴더 병합</button>
+        <button type="button" class="small" :disabled="!canRestore || !folder" @click="sendTo('TRASH', true)">폴더 삭제</button>
+        <button type="button" class="small" :disabled="!canFolder" @click="pairOpen = true">원본·사본 폴더 병합</button>
       </div>
 
-      <div class="bar">
+      <div class="edit-row">
         <span class="group-label">자료 편집</span>
-        <input v-model="keyword" type="text" placeholder="검색어" style="width:170px" />
-        <span class="muted">선택 {{ picked.size }}건</span>
-        <span style="flex:1" />
-        <button class="btn btn-sm" :disabled="!canDoc || !folder"
+        <button type="button" class="small" :disabled="!canDoc || !folder"
                 :title="folder ? '' : '왼쪽에서 등록할 폴더를 고르세요'"
                 @click="registerOpen = true; registerFiles = []">신규추가</button>
-        <button class="btn btn-sm" :disabled="!canDoc || onePicked === null"
+        <button type="button" class="small" :disabled="!canDoc || onePicked === null"
                 @click="infoId = onePicked">정보 수정</button>
-        <button class="btn btn-sm" :disabled="!canDoc || onePicked === null"
+        <button type="button" class="small" :disabled="!canDoc || onePicked === null"
                 @click="replaceOpen = true; replaceFile = null">파일 교체</button>
-        <button class="btn btn-sm" :disabled="!canDoc || !picked.size"
+        <button type="button" class="small" :disabled="!canDoc || !picked.size"
                 @click="moveDocsOpen = true; docTargetId = null">자료 이동</button>
-        <button class="btn btn-sm" :disabled="!canDoc || !picked.size"
+        <button type="button" class="small" :disabled="!canDoc || !picked.size"
                 @click="equipOpen = true; newEquip = ''">설비유형 일괄변경</button>
-        <button class="btn btn-sm" :disabled="!canRetire || !picked.size" @click="sendTo('RETIRE', false)">폐기</button>
-        <button class="btn btn-sm" :disabled="!canRestore || !picked.size" @click="sendTo('TRASH', false)">삭제</button>
-        <label class="btn btn-sm" :class="{ disabled: !canZip || busy }">
+        <button type="button" class="small" :disabled="!canRetire || !picked.size" @click="sendTo('RETIRE', false)">폐기</button>
+        <button type="button" class="small" :disabled="!canRestore || !picked.size" @click="sendTo('TRASH', false)">삭제</button>
+        <label class="small zip-label" :class="{ 'perm-disabled': !canZip || busy }">
           Zip 폴더 업로드
           <input type="file" accept=".zip" hidden :disabled="!canZip || busy" @change="uploadZip" />
         </label>
@@ -397,16 +530,41 @@ async function uploadZip(ev: Event) {
       <JobProgress v-if="zipJobId !== null" :job-id="zipJobId" @done="refreshAll" />
     </div>
 
-    <div v-if="message" class="panel msg" :class="message.kind">
+    <div v-if="message" class="msg" :class="message.kind">
       {{ message.text }}<span style="flex:1" />
-      <button class="btn btn-sm" @click="message = null">닫기</button>
+      <button class="small" @click="message = null">닫기</button>
     </div>
 
-    <div class="panel table-panel">
-      <DataTable
-        :columns="columns" :rows="rows" selectable :selected="picked" :loading="isFetching"
-        :total="data?.total ?? null" :sort-key="sort" :sort-dir="dir" storage-key="mdb-editor" excel-name="MDB 관리"
-        @toggle="toggle" @toggle-all="toggleAll" @sort="onSort" />
+    <div class="main-layout">
+      <FolderTreePanel
+        doc-class="MDB" :selected-id="folder?.id ?? null" :show-hidden="showHidden"
+        storage-key="mdb-editor" @select="(f) => (folder = f)"
+      />
+
+      <div class="main-content">
+        <div class="status-bar">
+          <span class="status-bar-left">
+            <span class="selected-folder-name">{{ folder?.name ?? '전체 폴더' }}</span>
+            <span class="total-count">전체 {{ (data?.total ?? 0).toLocaleString() }}건</span>
+            <button
+              v-if="picked.size" class="clear-selection-btn" type="button"
+              title="체크해둔 자료를 모두 해제합니다" @click="picked = new Set()"
+            >선택 초기화 ({{ picked.size }})</button>
+          </span>
+        </div>
+
+        <div class="table-box">
+          <DataTable
+            :columns="columns" :rows="rows" selectable :selected="picked" :loading="isFetching"
+            :total="data?.total ?? null" :sort-key="sort" :sort-dir="dir" storage-key="mdb-editor" excel-name="MDB 관리"
+              @toggle="toggle" @toggle-all="toggleAll" @sort="onSort">
+            <template #cell:hasDwg="{ row }"><span :class="row.hasDwg ? 'yn-y' : 'yn-n'">{{ yn(row.hasDwg) }}</span></template>
+            <template #cell:hasXlsx="{ row }"><span :class="row.hasXlsx ? 'yn-y' : 'yn-n'">{{ yn(row.hasXlsx) }}</span></template>
+            <template #cell:hasEtc="{ row }"><span :class="row.hasEtc ? 'yn-y' : 'yn-n'">{{ yn(row.hasEtc) }}</span></template>
+            <template #cell:hasPdf="{ row }"><span :class="row.hasPdf ? 'yn-y' : 'yn-n'">{{ yn(row.hasPdf) }}</span></template>
+          </DataTable>
+        </div>
+      </div>
     </div>
 
     <!-- 폴더 편집 -->
@@ -555,28 +713,44 @@ async function uploadZip(ev: Event) {
 </template>
 
 <style scoped>
-.editor { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
-.bar-panel { padding: 10px 12px; flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; }
-.bar { display: flex; gap: var(--gap-sm); align-items: center; flex-wrap: wrap; }
+/* 검색대상 드롭박스와 검색칸이 한 묶음으로 오른쪽 끝에 붙게 한다 (MDB 조회와 같은 규칙) */
+.search-lead { margin-left: auto; }
+.filter-search { margin-left: 0; }
+
+.edit-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .group-label {
-  font-size: var(--fs-sm); color: var(--text-muted); min-width: 62px;
-  border-right: 1px solid var(--border); padding-right: 8px;
+  font-size: 11.5px; font-weight: 700; color: var(--text-dark-gray); min-width: 62px;
+  border-right: 1px solid var(--border); padding-right: 8px; margin-right: 2px;
 }
-.cnt {
-  display: inline-block; min-width: 17px; padding: 0 4px; margin-left: 3px;
-  background: var(--accent); color: var(--primary-fg); border-radius: 9px; font-size: 10px; text-align: center;
+/* <label> 을 버튼처럼 쓰는 Zip 업로드 — 일반 버튼과 같은 모양으로 */
+.zip-label {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 26px; padding: 0 10px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius);
+  background: var(--surface); color: var(--text);
+  font-size: 11.5px; cursor: pointer; white-space: nowrap;
 }
-.btn.disabled { opacity: .45; cursor: not-allowed; }
-.table-panel {
-  flex: 1; min-width: 0;
-  display: flex; flex-direction: column;
-  min-height: 0; overflow: hidden;
+.zip-label:hover { border-color: var(--text-faint); background: var(--surface-alt); }
+
+.table-box {
+  flex: 1 1 auto;
+  min-height: 240px;
+  display: flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
 }
-.table-panel > * {
-  flex: 1; min-width: 0;
+.table-box > * { flex: 1; min-width: 0; }
+
+@media (max-width: 900px) {
+  .main-layout { flex-direction: column; }
+  .main-layout :deep(.tree-panel) { flex: 0 0 auto !important; max-height: 240px; }
+  .main-layout :deep(.tree-resize-handle) { display: none; }
 }
-.small { font-size: var(--fs-sm); }
+
+.tree-count { color: var(--text-faint); font-size: 11px; font-weight: 400; }
 .note-cell { min-width: 140px; }
 .note-cell > * { vertical-align: middle; }
-.note-cell .btn { margin-left: 4px; padding: 0 6px; }
+.note-cell button { margin-left: 4px; padding: 0 6px; }
 </style>

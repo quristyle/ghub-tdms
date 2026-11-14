@@ -18,6 +18,21 @@ export interface FolderRow {
   isPlaceholder: boolean
 }
 
+/**
+ * 숨김 폴더 — 원본·사본을 부모 폴더로 합치고 껍데기만 남은 DWG·PDF 폴더.
+ *
+ * 합치고 나면 자료는 부모 폴더에 1건으로 보이므로, 빈 껍데기까지 트리에 두면
+ * "폴더는 있는데 아무것도 없다" 가 된다. 그래서 기본은 감추고, [숨김 폴더 보기] 를
+ * 켤 때만 드러낸다 (기존 화면 2026-08-16 CM 확정).
+ *
+ * 그 안에 만들어 둔 빈 폴더도 같이 감춘다 — 안 그러면 숨은 폴더 안의 폴더만 튀어나온다.
+ */
+const HIDDEN_PAIR_FOLDER = `
+  EXISTS (SELECT 1 FROM folders h
+           WHERE h.is_placeholder
+             AND lower(h.name) IN ('dwg', 'pdf')
+             AND h.path @> f.path)`
+
 const SELECT_FOLDER = `
   SELECT f.id,
          f.parent_id      AS "parentId",
@@ -26,19 +41,25 @@ const SELECT_FOLDER = `
          f.depth,
          f.doc_count      AS "docCount",
          EXISTS (SELECT 1 FROM folders c
-                  WHERE c.parent_id = f.id AND NOT c.is_archived) AS "hasChildren",
+                  WHERE c.parent_id = f.id AND NOT c.is_archived
+                    AND ($3::boolean OR NOT EXISTS (
+                          SELECT 1 FROM folders h
+                           WHERE h.is_placeholder
+                             AND lower(h.name) IN ('dwg', 'pdf')
+                             AND h.path @> c.path))) AS "hasChildren",
          f.is_placeholder AS "isPlaceholder"
     FROM folders f`
 
 /** 직계 자식만 — 트리 지연 로딩의 기본 동작 */
-export function listChildren(docClass: string, parentId: number | null) {
+export function listChildren(docClass: string, parentId: number | null, showHidden = false) {
   return many<FolderRow>(
     `${SELECT_FOLDER}
       WHERE f.doc_class = $1
         AND f.parent_id IS NOT DISTINCT FROM $2
         AND NOT f.is_archived
+        AND ($3::boolean OR NOT ${HIDDEN_PAIR_FOLDER})
       ORDER BY coalesce(f.sort_key, f.name), f.id`,
-    [docClass, parentId],
+    [docClass, parentId, showHidden],
     'folder_children',
   )
 }
@@ -47,17 +68,18 @@ export function listChildren(docClass: string, parentId: number | null) {
  * 특정 폴더까지의 경로를 한 번에 펼친다 (화면 복원용).
  * 조상들의 형제까지 모두 가져와야 트리가 제대로 그려진다.
  */
-export function listExpandedTo(docClass: string, targetId: number) {
+export function listExpandedTo(docClass: string, targetId: number, showHidden = false) {
   return many<FolderRow>(
     `WITH target AS (SELECT path FROM folders WHERE id = $2)
      ${SELECT_FOLDER}, target t
       WHERE f.doc_class = $1
         AND NOT f.is_archived
+        AND ($3::boolean OR NOT ${HIDDEN_PAIR_FOLDER})
         AND (f.parent_id IS NULL
              OR f.parent_id IN (SELECT fa.id FROM folders fa, target tt
                                  WHERE fa.path @> tt.path))
       ORDER BY f.depth, coalesce(f.sort_key, f.name), f.id`,
-    [docClass, targetId],
+    [docClass, targetId, showHidden],
     'folder_expanded',
   )
 }

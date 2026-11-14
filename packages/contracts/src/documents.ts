@@ -25,6 +25,16 @@ export const SearchTarget = z.enum(['title', 'folder'])
 export const DocumentSort = z.enum(['updatedAt', 'drawingNo', 'title', 'currentRev', 'docType'])
 export type DocumentSort = z.infer<typeof DocumentSort>
 
+/** 수정일 구간 — 목록 '최종수정' 색 단계와 정확히 같은 구간을 쓴다 */
+export const ModifiedScope = z.enum(['D30', 'D31_90', 'D91'])
+export type ModifiedScope = z.infer<typeof ModifiedScope>
+
+/** 쿼리스트링의 같은 이름 여러 개(?modified=D30&modified=D91) — 하나만 오면 문자열로 온다 */
+const ModifiedParam = z.preprocess(
+  (v) => (v === undefined || v === '' ? undefined : Array.isArray(v) ? v : [v]),
+  z.array(ModifiedScope).max(3).optional(),
+)
+
 export const DocumentListQuery = PageQuery.extend({
   sort: DocumentSort.default('updatedAt'),
   dir: SortDir.default('desc'),
@@ -40,6 +50,11 @@ export const DocumentListQuery = PageQuery.extend({
   projectId: z.coerce.number().int().optional(),
   rev: z.coerce.number().int().optional(),
   docType: z.string().max(100).optional(),
+  /**
+   * 수정일 — 여러 구간을 함께 고를 수 있다. 셋을 다 고르면 전체와 같다.
+   * 세 구간은 겹치지 않는다(오늘~30일 / 31~90일 / 91일 이전).
+   */
+  modified: ModifiedParam.optional(),
 })
 export type DocumentListQuery = z.infer<typeof DocumentListQuery>
 
@@ -58,6 +73,11 @@ export const DocumentListItem = z.object({
   hasXlsx: z.boolean(),
   hasEtc: z.boolean(),
   updatedAt: z.string(),
+  /**
+   * 등록 뒤 실제로 손댄 적이 있는가 — 목록 '최종수정' 색을 칠할지 가른다.
+   * 등록만 되고 손댄 적 없는 자료는 그 날짜가 '등록한 날'이라 색을 칠하지 않는다.
+   */
+  isModified: z.boolean(),
   /** 대여중 표시 — LATERAL 로 목록 쿼리 한 번에 가져온다(N+1 금지) */
   lentTo: z.string().nullable(),
   lentAt: z.string().nullable(),

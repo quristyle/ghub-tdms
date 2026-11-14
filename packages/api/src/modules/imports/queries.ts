@@ -61,6 +61,12 @@ export interface PendingRow {
   drawingNo: string
   title: string
   folderName: string
+  /** 자료의 분류 — 기존 화면 '분류' 칸 */
+  category: string | null
+  /** 루트부터의 폴더 이름 — 기존 화면 '경로' 칸 */
+  folderNames: string[]
+  /** 반출 시점(rev_at_distribution) 파일 확장자 — 기존 화면 '반출자료' 칸 */
+  distributedExts: string[]
   rev: number
   branch: string | null
   fileExt: string
@@ -99,6 +105,12 @@ export function listPending(filters: { q?: string; vendorId?: number; projectId?
             d.drawing_no         AS "drawingNo",
             d.title,
             f.name               AS "folderName",
+            d.category,
+            fp.names             AS "folderNames",
+            coalesce((SELECT array_agg(DISTINCT lower(df.file_ext)) FROM files df
+                       WHERE df.document_id = d.id
+                         AND df.rev = coalesce(lastdist.rev_at_distribution, 0)
+                         AND df.review_status IN ('APPROVED','MERGED')), '{}') AS "distributedExts",
             fl.rev, fl.branch,
             fl.file_ext          AS "fileExt",
             fl.display_name      AS "displayName",
@@ -124,6 +136,8 @@ export function listPending(filters: { q?: string; vendorId?: number; projectId?
   LEFT JOIN LATERAL (SELECT rev_at_distribution FROM distributions
                       WHERE document_id = d.id
                       ORDER BY distributed_at DESC LIMIT 1) lastdist ON true
+     CROSS JOIN LATERAL (SELECT array_agg(a.name ORDER BY a.depth) AS names
+                           FROM folders a WHERE a.path @> f.path) fp
       WHERE ${where.join(' AND ')}
       ORDER BY fl.uploaded_at DESC, fl.document_id, fl.rev, fl.branch NULLS FIRST, fl.file_ext`,
     params,
@@ -155,16 +169,48 @@ export async function fileForReview(c: pg.PoolClient, fileId: number) {
   return r.rows[0]
 }
 
-/** 분기 진행률: 미반납 수정용 반출 몇 건 중 몇 건이 들어왔는가 */
+/**
+ * 분기(중복반출) 진행률의 기준 — '아직 안 끝난' 수정용 반출만 센다.
+ *
+ *   · 아직 안 돌아온 것, 또는
+ *   · 돌아왔지만 그 반납본이 검수 전이거나, 승인됐어도 분기본이라 병합을 기다리는 것.
+ *
+ * 분기 글자 없이 승인된 반납본은 이미 현재본이 된 '끝난' 반출이라 세지 않는다 —
+ * 세면 한 번 반입을 마친 자료가 다음 반입 때 중복반출로 잘못 보인다.
+ * 승인 가로막기와 화면 표기가 같은 수를 보도록 규칙을 여기 한 곳에만 둔다.
+ */
+const OPEN_MODIFY_DIST = `
+       FROM distributions x
+  LEFT JOIN files rf ON rf.id = x.returned_file_id
+      WHERE x.purpose = 'MODIFY'
+        AND (x.returned_at IS NULL
+             OR rf.review_status = 'PENDING'
+             OR (rf.review_status IN ('APPROVED','MERGED') AND rf.branch IS NOT NULL))`
+
+/** 분기 진행률 (한 자료) — 승인 가로막기에 쓴다 */
 export async function branchProgress(c: pg.PoolClient, documentId: number) {
   const r = await c.query<{ expected: number; arrived: number }>(
     `SELECT count(*)::int AS expected,
-            count(*) FILTER (WHERE returned_at IS NOT NULL)::int AS arrived
-       FROM distributions
-      WHERE document_id = $1 AND purpose = 'MODIFY'`,
+            count(*) FILTER (WHERE x.returned_at IS NOT NULL)::int AS arrived
+     ${OPEN_MODIFY_DIST} AND x.document_id = $1`,
     [documentId],
   )
   return r.rows[0] ?? { expected: 0, arrived: 0 }
+}
+
+export interface BranchProgressRow { documentId: number; expected: number; arrived: number }
+
+/** 분기 진행률 (여러 자료 한 번에) — 검수대기 목록의 '1-a(2/3)' 표기에 쓴다 */
+export function branchProgressMany(documentIds: number[]) {
+  return many<BranchProgressRow>(
+    `SELECT x.document_id AS "documentId",
+            count(*)::int AS expected,
+            count(*) FILTER (WHERE x.returned_at IS NOT NULL)::int AS arrived
+     ${OPEN_MODIFY_DIST} AND x.document_id = ANY($1::bigint[])
+      GROUP BY x.document_id`,
+    [documentIds],
+    'branch_progress',
+  )
 }
 
 // ── 승인·반려 ───────────────────────────────────────────────────────────
