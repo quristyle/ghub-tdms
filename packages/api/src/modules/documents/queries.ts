@@ -256,6 +256,8 @@ export function findDocument(id: number) {
             d.has_dwg AS "hasDwg", d.has_pdf AS "hasPdf",
             d.has_xlsx AS "hasXlsx", d.has_etc AS "hasEtc",
             d.updated_at AS "updatedAt",
+            -- 목록과 같은 기준 (상세도 DocumentListItem 을 그대로 늘린 모양이다)
+            ${MODIFIED_SQL} AS "isModified",
             d.category, d.discipline, d.isbl_osbl AS "isblOsbl",
             d.elevation, d.area, d.equipment_tag AS "equipmentTag",
             p.name AS "projectName", d.note,
