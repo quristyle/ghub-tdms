@@ -17,6 +17,8 @@ export interface MenuRouteDef {
   component: () => Promise<any>
   permission: string
   defaultTitle: string
+  /** 같은 화면을 여러 메뉴가 나눠 쓸 때 어느 쪽인지 알려 주는 값 (공사/업체 관리) */
+  meta?: Record<string, unknown>
 }
 
 export const MENU_ROUTE_DEFINITIONS: Record<string, MenuRouteDef> = {
@@ -97,6 +99,22 @@ export const MENU_ROUTE_DEFINITIONS: Record<string, MenuRouteDef> = {
     permission: 'screen.users.access',
     defaultTitle: '접속권한 관리',
   },
+  projects: {
+    code: 'projects',
+    defaultPath: '/projects',
+    component: () => import('@/pages/CatalogPage.vue'),
+    permission: 'screen.users.access',
+    defaultTitle: '공사 관리',
+    meta: { catalogKind: 'projects' },
+  },
+  vendors: {
+    code: 'vendors',
+    defaultPath: '/vendors',
+    component: () => import('@/pages/CatalogPage.vue'),
+    permission: 'screen.users.access',
+    defaultTitle: '업체 관리',
+    meta: { catalogKind: 'vendors' },
+  },
   stamps: {
     code: 'stamps',
     defaultPath: '/stamps',
@@ -138,6 +156,7 @@ for (const def of Object.values(MENU_ROUTE_DEFINITIONS)) {
     path: def.defaultPath,
     component: def.component,
     meta: {
+      ...def.meta,
       menuCode: def.code,
       permission: def.permission,
       title: def.defaultTitle,
@@ -182,6 +201,7 @@ export function syncDynamicRoutes(menus: { code?: string; path: string; label?: 
         path: m.path,
         component: def.component,
         meta: {
+          ...def.meta,
           menuCode: code,
           permission: def.permission,
           title: m.label || def.defaultTitle,

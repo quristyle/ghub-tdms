@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/vue-query'
+import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { useRouter } from 'vue-router'
 import type {
-  ArchiveBatch, ArchiveListResponse, CreateDistributionResult, DocumentListItem,
-  DocumentListResponse, FilterOptions, FolderDocumentsResponse, FolderNode, JobCreated,
+  ArchiveBatch, ArchiveListResponse, CatalogItem, CatalogListResponse,
+  CreateDistributionResult, DocumentListItem, DocumentListResponse,
+  FolderDocumentsResponse, FolderNode, JobCreated,
 } from '@tdms/contracts'
 import FolderTreePanel from '@/ui/FolderTreePanel.vue'
 import DataTable, { type Column, type SortDir } from '@/ui/DataTable.vue'
 import Modal from '@/ui/Modal.vue'
+import ProjectManager from '@/ui/ProjectManager.vue'
 import JobProgress from '@/ui/JobProgress.vue'
 import { api, ApiError, qs } from '@/lib/api'
 import { qk, staleTime } from '@/lib/queryKeys'
@@ -95,23 +97,79 @@ const filters = computed(() => ({
 }))
 const params = computed(() => ({ ...filters.value, limit: limit.value }))
 
-const {
-  data,
-  isFetching,
-  isFetchingNextPage,
-  hasNextPage,
-  fetchNextPage,
-} = useInfiniteQuery({
-  queryKey: computed(() => qk.documents.list(params.value)),
-  queryFn: ({ pageParam }) =>
-    api.get<DocumentListResponse>(`/documents${qs({ ...params.value, cursor: pageParam ?? undefined })}`),
-  initialPageParam: null as string | null,
-  getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
-  staleTime: staleTime.list,
-  enabled: computed(() => !cartView.value),
-})
+/**
+ * 목록은 **창(窓) 방식**으로 받는다 — 전체를 다 받지 않고 보는 자리만 받는다.
+ *
+ * 3만 건짜리 목록에서 50쪽으로 갈 때 앞의 49쪽을 받지 않으려는 것이다.
+ * 서버에 offset 을 주면 그 쪽만 한 번에 오므로(0.3초) 먼 쪽도 바로 열린다.
+ * 스크롤로 빈 자리에 닿으면 그 자리의 쪽만 받아 채운다.
+ *
+ * 받아 둔 쪽은 react-query 가 들고 있으므로(쪽마다 열쇠가 따로다) 왔다 갔다 해도
+ * 다시 받지 않는다. 조건이나 정렬이 바뀌면 열쇠가 통째로 바뀌어 저절로 비워진다.
+ */
+const PAGE_SPAN = 2   // 보이는 자리 앞뒤로 이만큼 더 받아 둔다 (스크롤이 끊기지 않게)
 
-const serverRows = computed(() => data.value?.pages.flatMap((p) => p.items) ?? [])
+/** 받아 둔 쪽 — 쪽 번호(0부터) → 줄 목록. 조건이 바뀌면 통째로 비운다. */
+const loaded = ref(new Map<number, DocumentListItem[]>())
+const loadingPages = ref(new Set<number>())
+const windowTotal = ref(0)
+const firstLoad = ref(true)
+
+watch(params, () => {
+  loaded.value = new Map()
+  loadingPages.value = new Set()
+  windowTotal.value = 0
+  firstLoad.value = true
+  void loadPage(0)
+}, { immediate: true })
+
+async function loadPage(page: number) {
+  if (cartView.value || page < 0) return
+  if (loaded.value.has(page) || loadingPages.value.has(page)) return
+  if (windowTotal.value && page * limit.value >= windowTotal.value) return
+
+  loadingPages.value = new Set(loadingPages.value).add(page)
+  const snapshot = params.value
+  try {
+    const r = await qc.fetchQuery({
+      queryKey: qk.documents.list({ ...snapshot, offset: page * limit.value }),
+      queryFn: () => api.get<DocumentListResponse>(
+        `/documents${qs({ ...snapshot, offset: page * limit.value })}`),
+      staleTime: staleTime.list,
+    })
+    // 받는 사이 조건이 바뀌었으면 버린다 — 옛 조건의 줄을 섞으면 안 된다
+    if (JSON.stringify(snapshot) !== JSON.stringify(params.value)) return
+    if (r.total !== null && r.total !== undefined) windowTotal.value = r.total
+    const next = new Map(loaded.value)
+    next.set(page, r.items)
+    loaded.value = next
+  } catch (e) {
+    message.value = { kind: 'err', text: e instanceof ApiError ? e.message : '목록을 불러오지 못했습니다.' }
+  } finally {
+    const n = new Set(loadingPages.value)
+    n.delete(page)
+    loadingPages.value = n
+    firstLoad.value = false
+  }
+}
+
+/** 그리드가 보고 있는 자리 — 그 둘레의 쪽을 받아 둔다 */
+function onNeedRange(start: number, end: number) {
+  const from = Math.max(0, Math.floor(start / limit.value) - PAGE_SPAN)
+  const to = Math.floor(end / limit.value) + PAGE_SPAN
+  for (let p = from; p <= to; p++) void loadPage(p)
+}
+
+/** i번째 줄 — 아직 안 받았으면 undefined (그리드가 빈 줄로 그린다) */
+function rowAt(i: number): DocumentListItem | undefined {
+  return loaded.value.get(Math.floor(i / limit.value))?.[i % limit.value]
+}
+
+/** 받아 둔 줄 전부 — 체크·엑셀·대기함 담기가 쓴다 */
+const serverRows = computed(() =>
+  [...loaded.value.entries()].sort((a, b) => a[0] - b[0]).flatMap(([, v]) => v))
+
+const isFetching = computed(() => firstLoad.value && loadingPages.value.size > 0)
 
 // ── 반출대기함 ─────────────────────────────────────────────────────────
 // 기존 화면처럼 **줄 체크와 대기함은 따로다** — 체크한 줄을 [선택 반출] 로 담고,
@@ -171,10 +229,10 @@ const cartViewRows = computed(() => {
 })
 
 const rows = computed(() => (cartView.value ? cartViewRows.value : serverRows.value))
-const total = computed(() =>
-  (cartView.value ? cartViewRows.value.length : data.value?.pages[0]?.total ?? 0))
 
-// ── 줄 체크 — [선택 반출] 로 대기함에 담을 후보 ───────────────────────
+const total = computed(() =>
+  (cartView.value ? cartViewRows.value.length : windowTotal.value))
+
 const checked = ref(new Set<number>())
 
 function toggle(id: number) {
@@ -370,8 +428,17 @@ const canModify = computed(() => session.can('screen.tdb_list.distribute.modify'
 
 function openDistribute() {
   if (!cart.value.size) return
-  // 수정용 권한이 없으면 참조용으로 시작한다 — 수정용은 고를 수 없게 잠근다
-  if (!canModify.value && dist.value.purpose === 'MODIFY') dist.value.purpose = 'REFERENCE'
+  // 열 때마다 처음 상태로 — 지난번에 고른 공사·업체가 남아 있으면 엉뚱한 곳으로 나간다
+  dist.value = {
+    vendorId: '', vendorName: '', projectId: '',
+    // 수정용 권한이 없으면 참조용으로 시작한다 — 수정용은 고를 수 없게 잠근다
+    purpose: canModify.value ? 'MODIFY' : 'REFERENCE',
+    purposeNote: '', keepPaths: true, dateFrom: '', dateTo: '',
+  }
+  newProject.value = ''
+  newVendor.value = ''
+  distError.value = ''
+  warnings.value = []
   cartOpen.value = false
   distOpen.value = true
 }
@@ -386,21 +453,122 @@ const dist = ref({
   purpose: 'MODIFY' as 'MODIFY' | 'REFERENCE' | 'ETC',
   purposeNote: '',
   keepPaths: true,
+  /** 공사 등록기간 — 후보를 좁히는 검색 보조다. 서버로 보내지 않는다. */
+  dateFrom: '',
+  dateTo: '',
 })
 
-const { data: distOpts } = useQuery({
-  queryKey: ['dist-filter-options'],
-  queryFn: () => api.get<FilterOptions>('/distributions/filter-options'),
+/**
+ * 공사·업체 목록은 카탈로그에서 받는다 — 반출이력 거르개(filter-options)가 아니다.
+ * 카탈로그에는 등록일이 함께 와서 아래 '공사 등록기간' 으로 후보를 좁힐 수 있고,
+ * 숨긴 것은 빠져 있어 고르는 자리에 안 나온다.
+ */
+const { data: projectList } = useQuery({
+  queryKey: qk.catalog.list('projects', false),
+  queryFn: () => api.get<CatalogListResponse>('/projects'),
+  staleTime: staleTime.types,
+  enabled: computed(() => distOpen.value),
+})
+const { data: vendorList } = useQuery({
+  queryKey: qk.catalog.list('vendors', false),
+  queryFn: () => api.get<CatalogListResponse>('/vendors'),
   staleTime: staleTime.types,
   enabled: computed(() => distOpen.value),
 })
 
+/**
+ * 공사 후보를 등록기간으로 좁힌다 — 공사가 많아지면 스크롤로 찾기 번거로우므로,
+ * 대략 언제 등록했는지만 알아도 후보가 줄어든다 (기존 applyProjectDateFilter).
+ */
+const projectOptions = computed(() => (projectList.value?.items ?? []).filter((p) => {
+  const made = p.createdAt.slice(0, 10)
+  if (dist.value.dateFrom && made < dist.value.dateFrom) return false
+  if (dist.value.dateTo && made > dist.value.dateTo) return false
+  return true
+}))
+
+// 골라 둔 공사가 기간에 걸러지면 선택을 지운다 — 보이는 것과 실제 값이 어긋나지 않게
+watch(projectOptions, (list) => {
+  const cur = dist.value.projectId
+  if (cur && !list.some((p) => String(p.id) === String(cur))) dist.value.projectId = ''
+})
+
 function onVendorPick(id: string) {
   dist.value.vendorId = id
-  dist.value.vendorName = distOpts.value?.vendors.find((v) => String(v.id) === id)?.name ?? ''
+  dist.value.vendorName = (vendorList.value?.items ?? []).find((v) => String(v.id) === id)?.name ?? ''
+}
+
+/**
+ * 반출 목적이 '수정용' 일 때만 공사·업체를 고른다 — 참조용·기타는 대상이 불명확해도 된다.
+ * 수정용은 업체가 받은 폴더 구조 그대로 돌려줘야 하므로 [폴더 경로 유지]를 켠 채 잠근다.
+ */
+watch(() => dist.value.purpose, (p) => {
+  const isModify = p === 'MODIFY'
+  if (isModify) {
+    dist.value.keepPaths = true
+    return
+  }
+  dist.value.projectId = ''
+  dist.value.vendorId = ''
+  dist.value.vendorName = ''
+  dist.value.dateFrom = ''
+  dist.value.dateTo = ''
+})
+
+const isModify = computed(() => dist.value.purpose === 'MODIFY')
+
+/**
+ * 수정용은 공사·업체가 있어야 내보낼 수 있다 (기존 화면과 같은 규칙).
+ * 모자란 것을 단추에 적어 둔다 — 눌리지 않는 단추만 두면 왜 못 누르는지 알 수 없다.
+ */
+const distMissing = computed(() => {
+  if (!isModify.value) return ''
+  const miss = [
+    !dist.value.projectId ? '공사' : '',
+    !dist.value.vendorName ? '업체' : '',
+  ].filter(Boolean)
+  return miss.length ? `${miss.join('·')}를 먼저 고르세요` : ''
+})
+const distReady = computed(() => distMissing.value === '')
+
+// ── 창 안에서 바로 공사·업체 추가 ──────────────────────────────────────
+const newProject = ref('')
+const newVendor = ref('')
+const addingCatalog = ref(false)
+const distError = ref('')
+/** 공사·업체 관리 팝업 (이름 변경·숨김) — 화면(공사 관리·업체 관리)과 같은 부품이다 */
+const catalogManage = ref<'projects' | 'vendors' | null>(null)
+
+async function addCatalog(kind: 'projects' | 'vendors') {
+  const name = (kind === 'projects' ? newProject.value : newVendor.value).trim()
+  if (!name || addingCatalog.value) return
+  addingCatalog.value = true
+  distError.value = ''
+  try {
+    const made = await api.post<CatalogItem>(`/${kind}`, { name })
+    await qc.invalidateQueries({ queryKey: qk.catalog.all })
+    if (kind === 'projects') {
+      // 방금 만든 공사가 기간에 걸려 안 보이면 곤란하니 기간을 지우고 고른다
+      dist.value.dateFrom = ''
+      dist.value.dateTo = ''
+      dist.value.projectId = String(made.id)
+      newProject.value = ''
+    } else {
+      dist.value.vendorId = String(made.id)
+      dist.value.vendorName = made.name
+      newVendor.value = ''
+    }
+  } catch (e) {
+    distError.value = e instanceof ApiError ? e.message : `${kind === 'projects' ? '공사' : '업체'}를 추가하지 못했습니다.`
+  } finally {
+    addingCatalog.value = false
+  }
 }
 
 async function submitDistribution() {
+  distError.value = ''
+  if (isModify.value && !dist.value.projectId) { distError.value = '공사를 선택해주세요.'; return }
+  if (isModify.value && !dist.value.vendorName) { distError.value = '업체를 선택해주세요.'; return }
   try {
     const r = await api.post<CreateDistributionResult>('/distributions', {
       documentIds: [...cart.value.keys()],
@@ -409,7 +577,8 @@ async function submitDistribution() {
       projectId: dist.value.projectId ? Number(dist.value.projectId) : null,
       purpose: dist.value.purpose,
       purposeNote: dist.value.purposeNote || null,
-      keepPaths: dist.value.keepPaths,
+      // 수정용은 폴더 구조 그대로 돌려받아야 하므로 늘 켠 채로 보낸다
+      keepPaths: isModify.value ? true : dist.value.keepPaths,
     })
     distOpen.value = false
     distJobId.value = r.jobId
@@ -423,7 +592,7 @@ async function submitDistribution() {
     clearCart()
     void qc.invalidateQueries({ queryKey: qk.documents.all })
   } catch (e) {
-    message.value = { kind: 'err', text: e instanceof ApiError ? e.message : '반출하지 못했습니다.' }
+    distError.value = e instanceof ApiError ? e.message : '반출하지 못했습니다.'
   }
 }
 
@@ -581,7 +750,7 @@ function recentClass(r: DocumentListItem): string {
               v-if="checked.size" class="clear-selection-btn" type="button"
               title="체크해둔 자료를 모두 해제합니다" @click="clearChecked"
             >선택 초기화 ({{ checked.size }})</button>
-            <span v-if="!cartView && isFetching && !isFetchingNextPage" class="muted">&nbsp;· 조회 중…</span>
+            <span v-if="!cartView && loadingPages.size" class="muted">&nbsp;· 불러오는 중…</span>
           </span>
           <span class="cart-status">
             <button
@@ -601,13 +770,16 @@ function recentClass(r: DocumentListItem): string {
         </div>
 
         <div class="table-box">
+          <!-- 목록은 창(窓) 방식 — 보는 자리만 받는다. 반출대기함 보기는 이미 손에 있는
+               목록이라 그냥 넘긴다. -->
           <DataTable
             :columns="columns" :rows="rows" selectable :selected="checked"
-            :loading="!cartView && isFetching && !isFetchingNextPage && !rows.length"
+            :page-size="limit"
+            :windowed="!cartView" :window-count="total" :row-at="rowAt"
+            :loading="!cartView && isFetching"
             :total="total" :sort-key="sort" :sort-dir="dir" storage-key="tdb-list" excel-name="TDB 자료목록"
-            :has-more="!cartView && hasNextPage" :loading-more="isFetchingNextPage"
             :empty-text="cartView ? '반출대기함이 비어 있습니다.' : undefined"
-            @load-more="() => { if (hasNextPage && !isFetchingNextPage) fetchNextPage() }"
+            @need-range="onNeedRange"
             @toggle="toggle" @toggle-all="toggleAll" @sort="onSort"
             @row-hover="prefetch"
             @row-click="openDetail"
@@ -629,6 +801,7 @@ function recentClass(r: DocumentListItem): string {
             </template>
           </DataTable>
         </div>
+
       </div>
     </div>
 
@@ -706,19 +879,49 @@ function recentClass(r: DocumentListItem): string {
 
     <!-- 반출하기 -->
     <Modal v-if="distOpen" title="반출하기" @close="distOpen = false">
-      <p class="page-desc">반출대기함의 {{ cart.size }}건을 업체에 내보냅니다. Zip 은 뒤에서 만듭니다.</p>
-
-      <div class="modal-box-label">업체</div>
-      <select :value="dist.vendorId" @change="onVendorPick(($event.target as HTMLSelectElement).value)">
-        <option value="">업체 선택</option>
-        <option v-for="v in distOpts?.vendors ?? []" :key="v.id" :value="v.id">{{ v.name }}</option>
-      </select>
+      <div class="dist-head">
+        <p class="page-desc">반출대기함의 {{ cart.size }}건을 업체에 내보냅니다. Zip 은 뒤에서 만듭니다.</p>
+        <!-- 끄면 폴더 경로 없이 자료와 엑셀 목록이 Zip 바로 밑에 평평하게 담긴다.
+             수정용은 업체가 받은 폴더 구조 그대로 돌려줘야 하므로 켠 채로 잠근다. -->
+        <label class="dist-keep-paths" :class="{ 'is-locked': isModify }"
+               :title="isModify ? '수정용은 폴더 구조 그대로 돌려받아야 해서 끌 수 없습니다' : ''">
+          <input v-model="dist.keepPaths" type="checkbox" :disabled="isModify" /> 폴더 경로 유지
+        </label>
+      </div>
 
       <div class="modal-box-label">공사</div>
-      <select v-model="dist.projectId">
-        <option value="">공사 선택</option>
-        <option v-for="p in distOpts?.projects ?? []" :key="p.id" :value="p.id">{{ p.name }}</option>
+      <div class="dist-daterange-row" title="공사 등록기간으로 아래 목록을 좁힙니다">
+        <input v-model="dist.dateFrom" type="date" :disabled="!isModify" title="공사 등록일(시작)" />
+        <span class="dist-daterange-sep">~</span>
+        <input v-model="dist.dateTo" type="date" :disabled="!isModify" title="공사 등록일(종료)" />
+      </div>
+      <select v-model="dist.projectId" :disabled="!isModify">
+        <option value="">선택</option>
+        <option v-for="p in projectOptions" :key="p.id" :value="String(p.id)">{{ p.name }}</option>
       </select>
+      <div class="inline-add">
+        <input v-model="newProject" type="text" placeholder="새 공사명" maxlength="200"
+               :disabled="!isModify" @keydown.enter.prevent="addCatalog('projects')" />
+        <button type="button" :disabled="!isModify || !newProject.trim() || addingCatalog"
+                @click="addCatalog('projects')">＋추가</button>
+        <button type="button" :disabled="!isModify" title="이름 변경·숨김"
+                @click="catalogManage = 'projects'">관리</button>
+      </div>
+
+      <div class="modal-box-label">업체</div>
+      <select :value="String(dist.vendorId)" :disabled="!isModify"
+              @change="onVendorPick(($event.target as HTMLSelectElement).value)">
+        <option value="">선택</option>
+        <option v-for="v in vendorList?.items ?? []" :key="v.id" :value="String(v.id)">{{ v.name }}</option>
+      </select>
+      <div class="inline-add">
+        <input v-model="newVendor" type="text" placeholder="새 업체명" maxlength="200"
+               :disabled="!isModify" @keydown.enter.prevent="addCatalog('vendors')" />
+        <button type="button" :disabled="!isModify || !newVendor.trim() || addingCatalog"
+                @click="addCatalog('vendors')">＋추가</button>
+        <button type="button" :disabled="!isModify" title="이름 변경·숨김"
+                @click="catalogManage = 'vendors'">관리</button>
+      </div>
 
       <div class="modal-box-label">반출 목적</div>
       <fieldset class="purpose-row">
@@ -731,23 +934,53 @@ function recentClass(r: DocumentListItem): string {
       </fieldset>
       <textarea v-model="dist.purposeNote" placeholder="필요 시 사유를 입력해주세요" />
 
-      <div class="modal-box-label">Zip 구성</div>
-      <label class="check-inline"><input v-model="dist.keepPaths" type="checkbox" /> 폴더 경로 유지</label>
-
-      <div class="warning-box">
-        수정용으로 내보낼 때 이미 다른 업체가 수정 중이면 경고합니다 — 막지는 않습니다.
+      <p class="page-desc" style="margin-top:10px">
+        수정용으로 내보낼 때 이미 다른 업체가 수정 중이면 알려 줍니다 — 막지는 않습니다.
         두 업체가 같은 자료를 고치면 분기 리비전으로 각각 보관되고, 사람이 CAD 로 통합해야 합니다.
+      </p>
+
+      <div v-if="distMissing" class="warning-box">{{ distMissing }}.</div>
+      <div v-if="distError" class="warning-box dist-error">{{ distError }}</div>
+      <div v-if="warnings.length" class="warning-box">
+        이미 반출 중(미반입)인 자료가 있습니다:
+        {{ warnings.map((w) => w.drawingNo).join(', ') }}
       </div>
 
       <template #footer>
         <button @click="distOpen = false">취소</button>
-        <button class="primary" :disabled="!dist.vendorName" @click="submitDistribution">반출 실행</button>
+        <button class="primary" :disabled="!distReady" :title="distMissing"
+                @click="submitDistribution">반출 실행</button>
       </template>
+    </Modal>
+
+    <!-- 공사·업체 관리 (반출하기 창 안에서 바로) — 화면과 같은 부품을 쓴다 -->
+    <Modal
+      v-if="catalogManage" wide
+      :title="catalogManage === 'projects' ? '공사 관리' : '업체 관리'"
+      @close="catalogManage = null"
+    >
+      <ProjectManager :kind="catalogManage" />
     </Modal>
   </main>
 </template>
 
 <style scoped>
+/* 반출하기 창 — 제목줄 오른쪽에 [폴더 경로 유지] (기존 distribute.css) */
+.dist-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.dist-head .page-desc { margin: 0; }
+.dist-keep-paths {
+  display: inline-flex; align-items: center; gap: 5px; margin: 0;
+  font-size: 12px; color: var(--text-muted); white-space: nowrap; cursor: pointer;
+}
+.dist-keep-paths.is-locked { color: var(--text-faint); cursor: default; }
+
+.dist-daterange-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.dist-daterange-row input[type="date"] { flex: 1; min-width: 0; margin-top: 0; }
+.dist-daterange-sep { color: var(--text-faint); font-size: 12.5px; }
+
+.inline-add button { margin-top: 4px; flex: 0 0 auto; }
+.dist-error { background: var(--danger-soft); border-color: #eccecb; color: var(--danger); }
+
 /* 결과 표 — 폴더트리가 더 길어서 남는 높이가 생기면 그만큼 늘어난다 (기존 tree.css 규칙) */
 .table-box {
   flex: 1 1 auto;

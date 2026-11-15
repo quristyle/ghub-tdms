@@ -55,6 +55,14 @@ export const DocumentListQuery = PageQuery.extend({
    * 세 구간은 겹치지 않는다(오늘~30일 / 31~90일 / 91일 이전).
    */
   modified: ModifiedParam.optional(),
+  /**
+   * 건너뛸 줄 수 — 쪽 번호로 **바로 그 쪽만** 받을 때 쓴다.
+   *
+   * 끌어내려 이어 보는 길(cursor)과는 다른 길이다. 이어 보기는 앞쪽을 차례로 받아야
+   * 해서 50쪽으로 가려면 49쪽을 먼저 받아야 하지만, 이쪽은 한 번에 그 자리만 받는다.
+   * cursor 와 함께 주면 cursor 가 이긴다.
+   */
+  offset: z.coerce.number().int().min(0).max(1_000_000).optional(),
 })
 export type DocumentListQuery = z.infer<typeof DocumentListQuery>
 

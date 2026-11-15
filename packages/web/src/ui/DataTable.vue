@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="T extends { id: number }">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import { downloadXlsx } from '@/lib/xlsx'
 import { compareRows, getCellValue, isSortable, type SortDir } from './gridSort'
@@ -113,11 +113,30 @@ const props = withDefaults(defineProps<{
   serverExporting?: boolean
   /** 행 드래그 가능 여부 */
   draggableRows?: boolean
+  /**
+   * 쪽 넘기기 한 쪽에 담을 줄 수. 서버에서 한 번에 받아 오는 수(limit)와 맞추면
+   * 쪽 번호가 서버가 준 묶음과 그대로 들어맞는다.
+   */
+  pageSize?: number
+  /**
+   * 창(窓) 방식 — 전체를 다 받지 않고 **보는 자리만** 받는다.
+   *
+   * 3만 건짜리 목록에서 50쪽으로 갈 때 앞의 49쪽을 받지 않으려고 쓴다.
+   * 줄 수는 windowCount 가 말하고, 줄 내용은 rowAt 가 자리마다 꺼내 준다.
+   * 아직 안 받은 자리는 빈 줄로 그리고, 보이는 범위를 needRange 로 알려
+   * 쓰는 쪽이 그 자리만 받아 채운다.
+   */
+  windowed?: boolean
+  /** 창 방식일 때 전체 줄 수 */
+  windowCount?: number
+  /** 창 방식일 때 i번째 줄 — 아직 안 받았으면 undefined */
+  rowAt?: (index: number) => T | undefined
 }>(), {
   rowNumber: true,
   filterRow: true,
   excel: true,
   maxHeight: 420,
+  pageSize: 200,
 })
 
 const emit = defineEmits<{
@@ -130,6 +149,8 @@ const emit = defineEmits<{
   sort: [key: string, dir: SortDir]
   loadMore: []
   exportServer: []
+  /** 창 방식 — 지금 보이는 자리. 쓰는 쪽이 이 범위를 받아 채운다. */
+  needRange: [start: number, end: number]
 }>()
 
 const rowH = computed(() => props.rowHeight ?? 36)
@@ -139,7 +160,7 @@ const scrollStyle = computed(() =>
   props.autoHeight ? { maxHeight: `${props.maxHeight}px` } : undefined,
 )
 const showNo = computed(() => props.rowNumber)
-const showFilter = computed(() => props.filterRow)
+const showFilter = computed(() => props.filterRow && !props.windowed)
 
 // ── 거르기 및 정렬 ───────────────────────────────────────────────────────
 const filters = ref<Record<string, string>>({})
@@ -292,9 +313,18 @@ function onHeaderClick(col: Column<T>) {
 // ── 가상 스크롤 ─────────────────────────────────────────────────────────
 const scrollEl = ref<HTMLElement | null>(null)
 
+/** 가상 스크롤이 셀 줄 수 — 창 방식이면 아직 안 받은 자리까지 모두 센다 */
+const rowCount = computed(() =>
+  (props.windowed ? props.windowCount ?? 0 : visible.value.length))
+
+/** i번째 줄 — 창 방식이면 쓰는 쪽에서 꺼내 온다(아직 안 받았으면 undefined) */
+function rowOf(i: number): T | undefined {
+  return props.windowed ? props.rowAt?.(i) : visible.value[i]
+}
+
 const virtualizer = useVirtualizer(
   computed(() => ({
-    count: visible.value.length,
+    count: rowCount.value,
     getScrollElement: () => scrollEl.value,
     estimateSize: () => rowH.value,
     overscan: 12,
@@ -302,6 +332,39 @@ const virtualizer = useVirtualizer(
 )
 const items = computed(() => virtualizer.value.getVirtualItems())
 const totalSize = computed(() => virtualizer.value.getTotalSize())
+
+/**
+ * 어느 줄을 화면에 띄운다 — 쪽 번호를 눌렀을 때 그 자리로 옮기는 데 쓴다.
+ * 거르기가 걸려 있으면 보이는 목록 기준으로 찾는다(안 보이는 줄로는 못 간다).
+ *
+ * 줄 높이가 고정이라 자리는 i × 줄높이로 바로 셈한다 — 가상 스크롤이 쓰는 셈과 같다.
+ * 옮긴 뒤 scroll 사건을 직접 알린다: 프로그램으로 옮기면 가상 스크롤이 알아차리지
+ * 못해 **스크롤만 내려가고 줄은 그대로**인 일이 있었다.
+ */
+function scrollToRow(id: number): boolean {
+  const i = visible.value.findIndex((r) => r.id === id)
+  if (i < 0) return false
+  void scrollToIndex(i)
+  return true
+}
+
+defineExpose({ scrollToRow, goToPage })
+
+/**
+ * 맨 위에 보이는 줄의 자리.
+ *
+ * items[0] 을 쓰면 안 된다: 미리 그려 두는 몫(overscan)만큼 실제보다 앞선 줄이라
+ * 쪽 번호가 늘 한 쪽 뒤처진다. 스크롤 자리에서 바로 셈한다(줄 높이가 고정이다).
+ */
+const viewIndex = ref(0)
+watch(items, (cur) => {
+  const el = scrollEl.value
+  if (el) viewIndex.value = Math.round(el.scrollTop / rowH.value)
+  // 창 방식 — 지금 보이는 자리를 알려 아직 안 받은 곳을 채우게 한다
+  if (props.windowed && cur.length) {
+    emit('needRange', cur[0]!.index, cur[cur.length - 1]!.index)
+  }
+})
 
 // 목록 조건이 바뀌었을 때만 맨 위로 (무한 스크롤 추가 적재 시에는 스크롤 위치 유지)
 watch(
@@ -312,6 +375,93 @@ watch(
     }
   },
 )
+
+// ── 쪽 넘기기 ──────────────────────────────────────────────────────────
+// 끌어내려 이어 붙이는 방식은 그대로 두고, 여기 쪽 번호는 **자리를 옮기는 길잡이**다.
+// 아직 안 불러온 쪽을 누르면 거기까지 이어서 불러온 뒤 그 자리로 옮긴다.
+//
+// 불러오기는 쓰는 쪽이 한다(loadMore). 그리드는 기다릴 수 없으므로 '가려는 쪽'을
+// 적어 두고, 줄이 늘 때마다 다 왔는지 다시 본다 — 다 왔으면 옮기고 지운다.
+
+/**
+ * 쪽을 셀 기준 — **실제로 갈 수 있는 줄 수**다.
+ *
+ *   · 거르는 중   : 거른 결과 안에서만 움직인다(더 받아도 늘지 않는다)
+ *   · 더 받을 수 있으면 : 서버가 말한 전체 건수 (아직 안 받은 쪽도 누를 수 있다)
+ *   · 더 못 받으면 : 지금 가진 줄 수
+ *
+ * 마지막 갈래가 없으면, 한 번만 받아 오는 화면(TDB 관리처럼 커서 페이징을 안 쓰는 곳)이
+ * 191쪽을 내걸고도 200줄 밖으로는 못 가는 거짓말이 된다.
+ */
+const pageBase = computed(() => {
+  if (props.windowed) return rowCount.value
+  if (filtering.value) return visible.value.length
+  if (props.hasMore) return props.total ?? props.rows.length
+  return visible.value.length
+})
+
+const pageCount = computed(() => Math.max(1, Math.ceil(pageBase.value / props.pageSize)))
+const currentPage = computed(() =>
+  Math.min(pageCount.value, Math.floor(viewIndex.value / props.pageSize) + 1))
+
+/** 쪽 번호 칸 — 손으로 고쳐 넣는 동안에는 그 값을 그대로 둔다 */
+const pageInput = ref('1')
+watch(currentPage, (p) => { pageInput.value = String(p) })
+
+/** 가려는 쪽 (불러오는 중이면 값이 있다) */
+const jumpTo = ref<number | null>(null)
+
+async function scrollToIndex(i: number) {
+  // 줄이 막 늘어난 직후면 아직 그려지기 전이라 내용이 짧다 —
+  // 그대로 옮기면 브라우저가 그 높이에 맞춰 잘라 버린다(200쪽으로 가려다 186쪽에 섰다).
+  await nextTick()
+  const el = scrollEl.value
+  if (!el) return
+  // 줄 높이가 고정이라 자리를 바로 셈한다. 옮긴 뒤 scroll 사건을 직접 알린다 —
+  // 프로그램으로 옮기면 가상 스크롤이 알아차리지 못해 줄이 그대로인 일이 있었다.
+  el.scrollTop = Math.max(0, i) * rowH.value
+  el.dispatchEvent(new Event('scroll'))
+}
+
+/** 다 왔으면 옮기고, 모자라면 더 불러오라고 알린다 */
+function tryJump() {
+  const n = jumpTo.value
+  if (n === null) return
+  const want = (n - 1) * props.pageSize
+  // 창 방식은 어느 자리든 바로 갈 수 있다 — 그 자리 줄은 needRange 로 채워진다
+  if (props.windowed) {
+    jumpTo.value = null
+    void scrollToIndex(want)
+    return
+  }
+  if (visible.value.length > want) {
+    jumpTo.value = null
+    void scrollToIndex(want)
+    return
+  }
+  // 거르는 중에는 더 받아도 늘지 않는다. 받을 것이 없으면 끝줄로 간다.
+  if (filtering.value || !props.hasMore) {
+    jumpTo.value = null
+    void scrollToIndex(Math.max(0, visible.value.length - 1))
+    return
+  }
+  if (!props.loadingMore && !props.loading) emit('loadMore')
+}
+
+function goToPage(n: number) {
+  const target = Math.min(Math.max(1, Math.floor(n) || 1), pageCount.value)
+  jumpTo.value = target
+  tryJump()
+}
+
+function submitPage() {
+  const n = Number(pageInput.value)
+  if (Number.isFinite(n)) goToPage(n)
+  else pageInput.value = String(currentPage.value)
+}
+
+// 줄이 늘거나 불러오기가 끝나면 다 왔는지 다시 본다
+watch([() => props.rows.length, () => props.loadingMore], () => { tryJump() })
 
 // ── 무한 스크롤 트리거 ──────────────────────────────────────────────────
 function checkLoadMore() {
@@ -499,8 +649,8 @@ async function exportExcel() {
 
       <!-- 본문 -->
         <div v-if="loading" class="dt-empty muted">불러오는 중…</div>
-        <div v-else-if="!rows.length" class="dt-empty muted">{{ emptyText ?? '자료가 없습니다.' }}</div>
-        <div v-else-if="!visible.length" class="dt-empty muted">
+        <div v-else-if="!rowCount" class="dt-empty muted">{{ emptyText ?? '자료가 없습니다.' }}</div>
+        <div v-else-if="!windowed && !visible.length" class="dt-empty muted">
           거른 결과가 없습니다.
           <button class="btn btn-sm" style="margin-left:8px" @click="clearFilters">거르기 지우기</button>
         </div>
@@ -509,47 +659,61 @@ async function exportExcel() {
           v-else class="dt-rows" :style="{ height: `${totalSize}px` }"
           @mouseleave="cancelHover"
         >
-          <div
-            v-for="v in items" :key="visible[v.index]!.id"
-            class="dt-row"
-            :class="[
-              rowClass?.(visible[v.index]!),
-              {
-                active: visible[v.index]!.id === activeId,
-                'is-draggable': draggableRows,
-              },
-            ]"
-            :style="{ height: `${v.size}px`, transform: `translateY(${v.start}px)` }"
-            :draggable="draggableRows ? true : undefined"
-            @click="onRowClick(visible[v.index]!)"
-            @mouseenter="onRowEnter(visible[v.index]!)"
-            @dragstart="draggableRows ? onRowDragStart($event, visible[v.index]!) : undefined"
-            @dragend="draggableRows ? onRowDragEnd($event, visible[v.index]!) : undefined"
-          >
-            <div v-if="showNo" class="dt-cell dt-no">{{ v.index + 1 }}</div>
-
-            <div v-if="selectable" class="dt-cell dt-check" @click.stop>
-              <input
-                type="checkbox" :checked="selected?.has(visible[v.index]!.id)"
-                :aria-label="`${v.index + 1}번째 줄 선택`"
-                @change="emit('toggle', visible[v.index]!.id)"
-              />
+          <template v-for="v in items" :key="rowOf(v.index)?.id ?? `_${v.index}`">
+            <!-- 아직 안 받은 자리 — 창 방식에서만 생긴다. 자리는 지키고 글만 비운다. -->
+            <div
+              v-if="!rowOf(v.index)" class="dt-row dt-row-blank"
+              :style="{ height: `${v.size}px`, transform: `translateY(${v.start}px)` }"
+            >
+              <div v-if="showNo" class="dt-cell dt-no">{{ v.index + 1 }}</div>
+              <div v-if="selectable" class="dt-cell dt-check" />
+              <div v-for="col in columns" :key="col.key" class="dt-cell" :style="cellStyle(col)">
+                <span class="dt-skeleton" />
+              </div>
             </div>
 
             <div
-              v-for="col in columns" :key="col.key" class="dt-cell"
-              :class="{ 'dt-slot': !!$slots[`cell:${col.key}`] }"
-              :style="cellStyle(col)"
-              :title="$slots[`cell:${col.key}`] ? undefined : cell(visible[v.index]!, col)"
+              v-else
+              class="dt-row"
+              :class="[
+                rowClass?.(rowOf(v.index)!),
+                {
+                  active: rowOf(v.index)!.id === activeId,
+                  'is-draggable': draggableRows,
+                },
+              ]"
+              :style="{ height: `${v.size}px`, transform: `translateY(${v.start}px)` }"
+              :draggable="draggableRows ? true : undefined"
+              @click="onRowClick(rowOf(v.index)!)"
+              @mouseenter="onRowEnter(rowOf(v.index)!)"
+              @dragstart="draggableRows ? onRowDragStart($event, rowOf(v.index)!) : undefined"
+              @dragend="draggableRows ? onRowDragEnd($event, rowOf(v.index)!) : undefined"
             >
-              <slot
-                :name="`cell:${col.key}`"
-                :row="visible[v.index]!"
-                :value="cell(visible[v.index]!, col)"
-                :index="v.index"
-              >{{ cell(visible[v.index]!, col) }}</slot>
+              <div v-if="showNo" class="dt-cell dt-no">{{ v.index + 1 }}</div>
+
+              <div v-if="selectable" class="dt-cell dt-check" @click.stop>
+                <input
+                  type="checkbox" :checked="selected?.has(rowOf(v.index)!.id)"
+                  :aria-label="`${v.index + 1}번째 줄 선택`"
+                  @change="emit('toggle', rowOf(v.index)!.id)"
+                />
+              </div>
+
+              <div
+                v-for="col in columns" :key="col.key" class="dt-cell"
+                :class="{ 'dt-slot': !!$slots[`cell:${col.key}`] }"
+                :style="cellStyle(col)"
+                :title="$slots[`cell:${col.key}`] ? undefined : cell(rowOf(v.index)!, col)"
+              >
+                <slot
+                  :name="`cell:${col.key}`"
+                  :row="rowOf(v.index)!"
+                  :value="cell(rowOf(v.index)!, col)"
+                  :index="v.index"
+                >{{ cell(rowOf(v.index)!, col) }}</slot>
+              </div>
             </div>
-          </div>
+          </template>
         </div>
       </div>
     </div>
@@ -584,6 +748,38 @@ async function exportExcel() {
       >
         더 불러오기
       </button>
+      <span style="flex:1" />
+
+      <!-- 쪽 넘기기 — 아래줄 한가운데. 끌어내려 이어 붙이는 방식은 그대로 둔다. -->
+      <span v-if="pageCount > 1" class="dt-pager">
+        <button
+          class="dt-page-btn" type="button" title="맨 처음 쪽"
+          :disabled="!!jumpTo || currentPage === 1" @click="goToPage(1)"
+        >◀◀</button>
+        <button
+          class="dt-page-btn" type="button" title="이전 쪽"
+          :disabled="!!jumpTo || currentPage === 1" @click="goToPage(currentPage - 1)"
+        >◀</button>
+
+        <input
+          v-model="pageInput" type="text" inputmode="numeric" class="dt-page-input"
+          title="쪽 번호를 넣고 Enter" :disabled="!!jumpTo"
+          @keyup.enter="submitPage" @blur="pageInput = String(currentPage)"
+        />
+        <span class="dt-page-total">/ {{ n(pageCount) }}</span>
+
+        <button
+          class="dt-page-btn" type="button" title="다음 쪽"
+          :disabled="!!jumpTo || currentPage >= pageCount" @click="goToPage(currentPage + 1)"
+        >▶</button>
+        <button
+          class="dt-page-btn" type="button" title="맨 끝 쪽"
+          :disabled="!!jumpTo || currentPage >= pageCount" @click="goToPage(pageCount)"
+        >▶▶</button>
+
+        <span v-if="jumpTo" class="dt-page-note">{{ n(jumpTo) }}쪽 불러오는 중…</span>
+      </span>
+
       <span style="flex:1" />
       <span v-if="activeIndex !== null" class="muted">{{ n(activeIndex) }}번째 줄</span>
       <span v-if="selectable && selectedCount > 0" class="dt-foot-sel">
@@ -636,6 +832,46 @@ async function exportExcel() {
 </template>
 
 <style scoped>
+/* 아직 안 받은 자리 — 자리만 지키고 옅은 띠로 '곧 온다'를 알린다 */
+.dt-row-blank { cursor: default; }
+.dt-skeleton {
+  display: block; height: 9px; width: 70%;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  animation: dt-blank 1.1s ease-in-out infinite;
+}
+@keyframes dt-blank { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .dt-skeleton { animation: none; } }
+
+/* ── 쪽 넘기기 (아래줄 한가운데) ───────────────────────────────────
+   [더 불러오기] 와 [엑셀] 사이 빈 자리를 쓴다. 아래줄 높이(30px)를 넘기지 않게
+   단추를 작게 두고, 글자는 기존 화면의 처음·이전·다음·끝 표기를 따른다. */
+.dt-pager {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 11.5px; color: var(--text-muted); white-space: nowrap;
+}
+.dt-page-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 22px; height: 21px; padding: 0 5px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius);
+  background: var(--surface); color: var(--text-muted);
+  font-size: 10px; line-height: 1;
+  letter-spacing: -0.2em; text-indent: -0.2em;   /* ◀◀ 를 살짝 겹쳐 폭을 줄인다 */
+}
+.dt-page-btn:hover:not(:disabled) {
+  border-color: var(--text-faint); background: var(--surface-alt); color: var(--text);
+}
+.dt-page-btn:disabled { opacity: .4; cursor: var(--cursor-forbidden); }
+
+.dt-page-input {
+  width: 5ch; height: 21px; padding: 0 2px; margin: 0 1px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius);
+  background: var(--surface); color: var(--text);
+  font-size: 11.5px; text-align: center;
+}
+.dt-page-total { margin-right: 2px; }
+.dt-page-note { margin-left: 6px; color: var(--text-muted); }
+
 .dt {
   --dt-head-h: 38px;   /* 거르기 줄이 머리글 바로 아래에 붙는 높이 */
   display: flex; flex-direction: column; height: 100%; width: 100%;

@@ -210,12 +210,20 @@ export async function listDocuments(
     )
   }
   params.push(qp.limit + 1)
+  const limitAt = params.length
+
+  // 쪽 번호로 바로 건너뛸 때만 OFFSET 을 쓴다 — 이어 보기(cursor)와는 섞지 않는다.
+  let skip = ''
+  if (!cur && qp.offset) {
+    params.push(qp.offset)
+    skip = ` OFFSET $${params.length}`
+  }
 
   return many<DocumentListRow>(
     `${LIST_SELECT}
       WHERE ${where.join('\n        AND ')}
       ORDER BY ${order.sql}
-      LIMIT $${params.length}`,
+      LIMIT $${limitAt}${skip}`,
     params,
   )
 }
