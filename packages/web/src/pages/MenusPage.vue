@@ -777,7 +777,7 @@ async function save() {
   transition: background-color 0.15s ease;
 }
 .folder-group-header:hover {
-  background: var(--surface-hover, rgba(0, 0, 0, 0.05));
+  background: var(--surface-sunken);
 }
 .folder-header-left {
   display: flex;
@@ -842,7 +842,7 @@ async function save() {
 }
 .flat-row td {
   padding: 5px 8px;
-  border-bottom: 1px solid var(--border-light, rgba(0, 0, 0, 0.05));
+  border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
 .flat-row:last-child td {

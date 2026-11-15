@@ -619,7 +619,7 @@ async function toggleEnabled(s: StampItem) {
   font-size: var(--fs-xs);
   padding: 3px 8px;
   border-radius: 4px;
-  background: var(--bg-card);
+  background: var(--surface-alt);
   border: 1px solid var(--border);
 }
 .count-badge.active { background: var(--ok-soft); border-color: var(--ok-line); color: var(--ok); }
@@ -760,7 +760,7 @@ async function toggleEnabled(s: StampItem) {
   flex-direction: column;
   gap: 8px;
   padding: 10px;
-  background: var(--bg-card);
+  background: var(--surface-alt);
   border-radius: 4px;
   border: 1px solid var(--border);
 }
@@ -770,7 +770,7 @@ async function toggleEnabled(s: StampItem) {
   align-items: center;
   gap: 6px;
   padding: 16px;
-  background: var(--bg-card);
+  background: var(--surface-alt);
   border: 1px dashed var(--border);
   border-radius: 4px;
 }
