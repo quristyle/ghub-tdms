@@ -170,6 +170,36 @@ table, .tabnum { font-variant-numeric: tabular-nums; }
   white-space: nowrap;
 }
 
+@media (max-width: 900px) {
+  .app-header-inner {
+    padding: 0 14px;
+    gap: 12px;
+    justify-content: space-between;
+  }
+  .app-nav {
+    display: none;
+  }
+  .app-user {
+    gap: 6px;
+  }
+  .app-user .fav-btn-box,
+  .app-user button.small {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-header-inner {
+    padding: 0 10px;
+  }
+  .app-brand-text {
+    font-size: 11px;
+  }
+  .app-brand-text strong {
+    font-size: 13px;
+  }
+}
+
 /* 묶음 메뉴 ([시스템]) — 올리거나 누르면 하위 메뉴가 펼쳐진다.
    단추 모양은 옆의 메뉴 링크와 한 글자도 다르지 않아야 한다(높이·글꼴·밑줄). */
 .app-nav-group { position: relative; height: 100%; display: flex; align-items: center; }

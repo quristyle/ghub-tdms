@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSession } from '@/lib/session'
 import { useQuery } from '@tanstack/vue-query'
@@ -7,6 +7,7 @@ import type { FavoriteCountResponse } from '@tdms/contracts'
 import FavoritesHost from '@/ui/FavoritesHost.vue'
 import NoticeButtons from '@/ui/NoticeButtons.vue'
 import MyPageModal from '@/ui/MyPageModal.vue'
+import MobileNavSidebar from '@/ui/MobileNavSidebar.vue'
 import { api } from '@/lib/api'
 import { countVersion, listOpen as favListOpen } from '@/lib/favorites'
 
@@ -16,6 +17,7 @@ import { countVersion, listOpen as favListOpen } from '@/lib/favorites'
  * 기존 TDMS 화면의 상단 바를 그대로 옮겨 온 것이다.
  *   [SK가스 로고 + TDMS 기술자료 관리 시스템] [가로 메뉴] … [TDB 수정][TDB 반출][보관][이름][로그아웃]
  *
+ * 모바일 환경에서는 상단 로고를 클릭하면 왼쪽에서 트리 형태의 메뉴 사이드바가 슬라이드로 나타난다.
  * 메뉴의 목록과 순서는 서버(/auth/me)가 주는 그대로다 — 정본은 DB 의 menus 이고
  * 운영자가 [메뉴 관리] 화면에서 바꾼다.
  * 권한 없는 메뉴는 서버가 이미 빼고 내려주므로 화면이 거르지 않는다.
@@ -24,6 +26,36 @@ import { countVersion, listOpen as favListOpen } from '@/lib/favorites'
 const session = useSession()
 const route = useRoute()
 const router = useRouter()
+
+/** 모바일 환경 판정 및 사이드바 열림 상태 */
+const isMobile = ref(false)
+const mobileSidebarOpen = ref(false)
+
+function updateMobileState() {
+  if (typeof window !== 'undefined') {
+    isMobile.value = window.innerWidth <= 900
+    if (!isMobile.value) {
+      mobileSidebarOpen.value = false
+    }
+  }
+}
+
+onMounted(() => {
+  updateMobileState()
+  window.addEventListener('resize', updateMobileState)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateMobileState)
+})
+
+/** 모바일에서 상단 로고 클릭 시 트리 사이드바 열고 닫기 */
+function handleLogoClick(e: MouseEvent) {
+  if (isMobile.value || (typeof window !== 'undefined' && window.innerWidth <= 900)) {
+    e.preventDefault()
+    mobileSidebarOpen.value = !mobileSidebarOpen.value
+  }
+}
 
 /** 지금 보는 화면 — 상세·도움말처럼 메뉴에 없는 화면은 들어온 메뉴를 켜 두지 않는다 */
 function isOn(path: string) {
@@ -89,7 +121,10 @@ const activeGroup = computed(() =>
   navGroups.value.find((g) => g.items.some((m) => isOn(m.path)))?.key ?? null)
 
 // 화면을 옮기면 닫는다 — 눌러서 들어간 뒤 목록이 남아 있으면 가린다
-watch(() => route.fullPath, () => { openGroup.value = null })
+watch(() => route.fullPath, () => {
+  openGroup.value = null
+  mobileSidebarOpen.value = false
+})
 
 // ── 사용자 보관 [보관 (N)] ─────────────────────────────────────────────
 // 건수만 따로 받는다(목록 전체를 받지 않는다). 보관·삭제하면 countVersion 이 올라 다시 받는다.
@@ -115,9 +150,23 @@ async function logout() {
   <div class="app-shell">
     <header class="app-header">
       <div class="app-header-inner">
-        <RouterLink to="/" class="app-brand" title="TDMS 기술자료 관리 시스템">
+        <!-- 상단 로고: 모바일에서는 클릭 시 트리 메뉴 사이드바를 열고 닫는다 -->
+        <RouterLink
+          to="/"
+          class="app-brand"
+          :class="{ 'is-mobile': isMobile }"
+          :title="isMobile ? '메뉴 열기 (사이드바)' : 'TDMS 기술자료 관리 시스템'"
+          @click="handleLogoClick"
+        >
           <img class="app-brand-logo" src="/assets/skgas-logo.png" alt="SK gas" />
           <span class="app-brand-text"><strong>TDMS</strong> 기술자료 관리 시스템</span>
+          <span v-if="isMobile" class="app-brand-mobile-indicator" title="메뉴 열기" aria-label="메뉴 열기">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </span>
         </RouterLink>
 
         <nav class="app-nav" aria-label="주 메뉴">
@@ -175,6 +224,18 @@ async function logout() {
 
     <FavoritesHost />
     <MyPageModal v-if="mypageOpen" @close="mypageOpen = false" />
+
+    <!-- 모바일 트리 사이드바 메뉴 (왼쪽에서 슬라이드) -->
+    <MobileNavSidebar
+      :open="mobileSidebarOpen"
+      :nav-groups="navGroups"
+      :loose-menu="looseMenu"
+      :fav-count="favCount"
+      @close="mobileSidebarOpen = false"
+      @open-favorites="openFavorites"
+      @open-mypage="mypageOpen = true"
+      @logout="logout"
+    />
   </div>
 </template>
 
@@ -184,4 +245,32 @@ async function logout() {
    기본 활성 클래스가 밑줄을 두 번 긋지 않게만 정리한다. */
 .app-nav a.router-link-active:not(.active) { text-decoration-line: none; color: var(--text-muted); }
 .mypage-link { cursor: pointer; }
+
+/* 모바일 로고 클릭 표시 */
+.app-brand.is-mobile {
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.app-brand.is-mobile:hover {
+  opacity: 0.85;
+}
+.app-brand-mobile-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-dark-gray);
+  margin-left: 6px;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+.app-brand-mobile-indicator:hover {
+  background: var(--surface-sunken);
+  color: var(--text);
+}
 </style>
