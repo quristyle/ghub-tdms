@@ -743,12 +743,6 @@ async function uploadZip(ev: Event) {
 }
 .table-box > * { flex: 1; min-width: 0; }
 
-@media (max-width: 900px) {
-  .main-layout { flex-direction: column; }
-  .main-layout :deep(.tree-panel) { flex: 0 0 auto !important; max-height: 240px; }
-  .main-layout :deep(.tree-resize-handle) { display: none; }
-}
-
 .tree-count { color: var(--text-faint); font-size: 11px; font-weight: 400; }
 .note-cell { min-width: 140px; }
 .note-cell > * { vertical-align: middle; }

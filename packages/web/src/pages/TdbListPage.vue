@@ -993,13 +993,6 @@ function recentClass(r: DocumentListItem): string {
 }
 .table-box > * { flex: 1; min-width: 0; }
 
-/* 좁은 화면에서는 세로로 쌓는다 — 트리 폭을 빼면 그리드가 읽히지 않는다 */
-@media (max-width: 900px) {
-  .main-layout { flex-direction: column; }
-  .main-layout :deep(.tree-panel) { flex: 0 0 auto !important; max-height: 240px; }
-  .main-layout :deep(.tree-resize-handle) { display: none; }
-}
-
 /* 창 안의 그리드 — 스크롤은 DataTable 이 맡으므로 높이만 내준다 */
 .cart-grid { height: 60vh; min-height: 280px; display: flex; }
 .cart-grid > * { flex: 1; min-width: 0; }

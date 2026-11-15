@@ -551,12 +551,6 @@ const columns = computed<Column<MdbListItem>[]>(() => [
 }
 .table-box > * { flex: 1; min-width: 0; }
 
-@media (max-width: 900px) {
-  .main-layout { flex-direction: column; }
-  .main-layout :deep(.tree-panel) { flex: 0 0 auto !important; max-height: 240px; }
-  .main-layout :deep(.tree-resize-handle) { display: none; }
-}
-
 /* 검색대상 드롭박스와 검색칸이 한 묶음으로 오른쪽 끝에 붙게 한다 (기존 style.css 규칙) */
 .search-lead { margin-left: auto; }
 .filter-search { margin-left: 0; }
