@@ -19,7 +19,7 @@
 .login-body {
   min-height: 100vh; height: 100%;
   display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(160deg, #eef2f7 0%, #f6f8fa 60%, #eaeef4 100%);
+  background: linear-gradient(160deg, var(--auth-bg-1) 0%, var(--auth-bg-2) 60%, var(--auth-bg-3) 100%);
   padding: 20px;
 }
 .login-box {

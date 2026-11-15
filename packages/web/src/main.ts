@@ -4,9 +4,11 @@ import { VueQueryPlugin } from '@tanstack/vue-query'
 import App from './App.vue'
 import { router } from './router'
 import { installPreloadErrorHandler } from './lib/chunkReload'
+import { initTheme } from './lib/theme'
 import './styles/base.css'
 
 installPreloadErrorHandler()
+initTheme()
 
 createApp(App)
   .use(createPinia())

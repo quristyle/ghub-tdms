@@ -622,7 +622,7 @@ async function toggleEnabled(s: StampItem) {
   background: var(--bg-card);
   border: 1px solid var(--border);
 }
-.count-badge.active { background: #e8f5e9; border-color: #c8e6c9; color: #2e7d32; }
+.count-badge.active { background: var(--ok-soft); border-color: var(--ok-line); color: var(--ok); }
 .count-badge.muted { color: var(--text-muted); }
 
 .thumb-cell {
@@ -639,6 +639,8 @@ async function toggleEnabled(s: StampItem) {
   object-fit: contain;
   border: 1px solid var(--border);
   border-radius: var(--r-sm, 4px);
+  /* 도장 그림 자체가 흰 종이 위에 그려진 것이다 — 미리보기 바탕은 어두운 테마에서도
+     종이로 남겨 둔다. 여기를 어둡게 하면 도장이 허공에 뜬 것처럼 보인다. */
   background: #ffffff;
   padding: 2px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
@@ -659,6 +661,18 @@ async function toggleEnabled(s: StampItem) {
 .cat-tag.표 { background: #f3e8ff; color: #6b21a8; border-color: #d8b4fe; }
 .cat-tag.서명 { background: #e0f2fe; color: #075985; border-color: #7dd3fc; }
 .cat-tag.기타 { background: #f1f5f9; color: #475569; }
+
+/* 분류 꼬리표는 네 갈래를 **색으로** 가른다 — 무채색 토큰으로 바꾸면 구별이 사라진다.
+   그래서 토큰을 쓰지 않고 어두운 쪽 값을 따로 둔다. 색상(hue)은 같게 두고
+   밝기만 뒤집어, 어느 테마에서나 같은 갈래가 같은 색으로 읽히게 한다.
+
+   :root 는 이 컴포넌트 바깥이지만 :global() 로 감싸지 않는다 — 감싸면 Vue 가
+   뒤따르는 자손 선택자를 **버리고** :root 에만 거는 규칙으로 만들어, 이 색이
+   화면 전체에 칠해진다. 그냥 두면 꼬리표 쪽에 범위 속성이 붙어 제대로 좁혀진다. */
+:root[data-theme="dark"] .cat-tag.도장 { background: #3b1f1f; color: #f0a8a3; border-color: #6d3a37; }
+:root[data-theme="dark"] .cat-tag.표   { background: #2e2140; color: #d2b0f0; border-color: #4e3a68; }
+:root[data-theme="dark"] .cat-tag.서명 { background: #16303f; color: #91ccea; border-color: #2f5269; }
+:root[data-theme="dark"] .cat-tag.기타 { background: #26282c; color: #a7b2c0; border-color: #3c4049; }
 
 .switch-cell {
   display: flex;
@@ -769,7 +783,7 @@ async function toggleEnabled(s: StampItem) {
   border: 2px solid transparent;
   cursor: pointer;
 }
-.color-btn.selected { border-color: #000; box-shadow: 0 0 0 1px #fff inset; }
+.color-btn.selected { border-color: var(--text); box-shadow: 0 0 0 1px var(--surface) inset; }
 
 .preview-col {
   display: flex;
@@ -786,7 +800,7 @@ async function toggleEnabled(s: StampItem) {
   justify-content: center;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: #f8fafc;
+  background: #f8fafc;   /* 위 .table-thumb 와 같은 까닭 — 종이 자리다 */
   padding: 8px;
   overflow: hidden;
 }
@@ -808,10 +822,10 @@ async function toggleEnabled(s: StampItem) {
   z-index: 1000;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
-.toast.ok { background: #166534; color: #fff; }
-.toast.err { background: #991b1b; color: #fff; }
-.btn-danger { background: #ef4444; color: #fff; }
-.btn-danger:hover { background: #dc2626; }
+.toast.ok  { background: var(--ok); color: var(--surface); }
+.toast.err { background: var(--danger); color: var(--surface); }
+.btn-danger { background: var(--danger); color: var(--primary-fg); }
+.btn-danger:hover { filter: brightness(0.9); }
 .fs-xs { font-size: 11px; }
 .fs-sm { font-size: 12px; }
 </style>

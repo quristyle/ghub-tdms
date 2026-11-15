@@ -123,7 +123,7 @@ async function change() {
 
 .login-error {
   margin-top: 14px; padding: 8px 10px;
-  background: var(--danger-soft); border: 1px solid #f3c9c7;
+  background: var(--danger-soft); border: 1px solid var(--danger-line-soft);
   border-radius: var(--radius); color: var(--danger);
   font-size: 12.5px; text-align: center;
 }

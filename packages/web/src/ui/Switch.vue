@@ -123,7 +123,7 @@ function toggle() {
   left: 2px;
   width: 16px;
   height: 16px;
-  background: #ffffff;
+  background: var(--surface);
   border-radius: 50%;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 1px 1px rgba(0, 0, 0, 0.08);
   display: flex;

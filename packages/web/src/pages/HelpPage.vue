@@ -518,7 +518,7 @@ h3 { font-size: var(--fs-base, var(--fs)); margin: 16px 0 6px; }
 .content :deep(.note) {
   padding: 6px 10px; border-left: 3px solid var(--primary); background: var(--bg); font-size: var(--fs-sm);
 }
-.body :deep(mark) { background: #ffe58a; color: inherit; padding: 0 1px; }
+.body :deep(mark) { background: var(--mark-bg); color: inherit; padding: 0 1px; }
 .foot { border-top: 1px solid var(--border); margin-top: 0; }
 .pad { padding: 12px 20px; }
 @media (max-width: 900px) {

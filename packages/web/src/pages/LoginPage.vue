@@ -72,7 +72,7 @@ async function submit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(160deg, #eef2f7 0%, #f6f8fa 60%, #eaeef4 100%);
+  background: linear-gradient(160deg, var(--auth-bg-1) 0%, var(--auth-bg-2) 60%, var(--auth-bg-3) 100%);
   padding: 20px;
 }
 
@@ -112,7 +112,7 @@ async function submit() {
   margin-top: 14px;
   padding: 8px 10px;
   background: var(--danger-soft);
-  border: 1px solid #f3c9c7;
+  border: 1px solid var(--danger-line-soft);
   border-radius: var(--radius);
   color: var(--danger);
   font-size: 12.5px;

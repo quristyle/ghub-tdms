@@ -298,7 +298,7 @@ table, .tabnum { font-variant-numeric: tabular-nums; }
 .page-title-sub {
   font-size: 12.5px;
   font-weight: 700;
-  color: #64645d;
+  color: var(--text-muted-strong);
   letter-spacing: normal;
   margin-left: 14px;
 }
@@ -471,7 +471,7 @@ button.primary,
 .btn-primary {
   background: var(--text-dark-gray);
   border-color: var(--text-dark-gray);
-  color: #fff;
+  color: var(--primary-fg);
 }
 button.primary:hover:not(:disabled),
 .btn-primary:hover:not(:disabled) { background: var(--text); border-color: var(--text); }
@@ -490,7 +490,7 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
 .btn-ghost:hover:not(:disabled) { background: var(--surface-alt); border-color: transparent; }
 
 .btn-danger { color: var(--danger); border-color: var(--danger-line); }
-.btn-danger:hover:not(:disabled) { background: var(--danger-soft); border-color: #e0b4b0; }
+.btn-danger:hover:not(:disabled) { background: var(--danger-soft); border-color: var(--danger-line-strong); }
 
 .btn-icon { width: 32px; padding: 0; }
 .btn-icon.btn-sm { width: 26px; }
@@ -661,7 +661,7 @@ tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover td { background: var(--surface-alt); }
 tbody tr.iso-row td { color: var(--text-muted); }
 tbody tr.warning-row td { background: var(--danger-soft); }
-tbody tr.warning-row:hover td { background: #f5e6e4; }
+tbody tr.warning-row:hover td { background: var(--danger-soft-hover); }
 
 .col-no, td.tc, .tc { text-align: center; }
 .tr { text-align: right; }
@@ -715,7 +715,7 @@ td.path-jump:hover { text-decoration: underline; color: var(--text); }
 .badge-warning, .tag-warn, .tag.warn-tag { background: var(--warn-soft); color: var(--warn); }
 .badge-danger, .tag-danger { background: var(--danger-soft); color: var(--danger); }
 .badge-info, .tag-info   { background: var(--info-soft);   color: var(--info); }
-.tag-primary             { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tag-primary             { background: var(--accent); border-color: var(--accent); color: var(--primary-fg); }
 
 /* 보유 여부 — 있으면 진하게, 없으면 흐린 점 */
 .yn-y { color: var(--text); }
@@ -723,7 +723,7 @@ td.path-jump:hover { text-decoration: underline; color: var(--text); }
 
 /* 최근 수정 표시 (2026-08-14 CM 확정) */
 .recent-strong { color: var(--warn); font-weight: 600; }
-.recent-soft { color: #b09468; }
+.recent-soft { color: var(--warn-soft-text); }
 
 /* 개수 배지 */
 .cnt {
@@ -752,7 +752,7 @@ td.path-jump:hover { text-decoration: underline; color: var(--text); }
   text-align: center;
 }
 .notice-btn:hover:not(:disabled) { background: var(--surface-sunken); border-color: var(--border-strong); }
-.notice-btn.is-strong { color: var(--warn); background: var(--warn-soft); border-color: #e2cfa9; }
+.notice-btn.is-strong { color: var(--warn); background: var(--warn-soft); border-color: var(--warn-line); }
 
 .fav-btn-box { display: inline-flex; margin-right: 6px; }
 
@@ -900,7 +900,7 @@ input.nav-pos-input {
 
 .warning-box {
   margin-top: 12px; padding: 9px 11px;
-  background: var(--warn-soft); border: 1px solid #f3d9a8;
+  background: var(--warn-soft); border: 1px solid var(--warn-line-soft);
   border-radius: var(--radius); font-size: 12.5px; color: var(--warn); line-height: 1.5;
 }
 
@@ -1025,7 +1025,7 @@ input.nav-pos-input {
 
 .no-pdf-notice {
   margin: 16px; padding: 18px;
-  background: var(--warn-soft); border: 1px solid #f3d9a8;
+  background: var(--warn-soft); border: 1px solid var(--warn-line-soft);
   border-radius: var(--radius); color: var(--warn);
   font-size: 13px; line-height: 1.6;
 }

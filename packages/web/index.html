@@ -13,6 +13,24 @@
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="theme-color" content="#1c1c1b" />
 
+    <!-- 테마를 첫 칠 전에 건다. 번들을 기다리면 어두운 테마인데도 흰 화면이 한 번 번쩍인다.
+         고른 값(system|light|dark)은 localStorage 에 있고, 여기서 light|dark 로 풀어 적는다.
+         푸는 규칙의 정본은 src/lib/theme.ts 다 — 이 조각은 그것을 첫 칠에만 앞당겨 쓴다. -->
+    <script>
+      (function () {
+        try {
+          var m = localStorage.getItem('tdms.theme');
+          if (m !== 'light' && m !== 'dark') {
+            m = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
+          document.documentElement.dataset.theme = m;
+          if (m === 'dark') {
+            document.querySelector('meta[name="theme-color"]').setAttribute('content', '#1a1a18');
+          }
+        } catch (e) { /* 저장소를 못 읽으면 밝은 쪽으로 둔다 */ }
+      })();
+    </script>
+
     <!-- 메신저 인앱 브라우저(카카오톡·라인 등) 감지 시 사용자의 기본 외부 브라우저로 전환.
          HTML 파싱 즉시 실행되어 무거운 번들을 다운로드하기 전에 빠르게 외부 브라우저를 호출한다. -->
     <script>

@@ -7,6 +7,7 @@ import type { FavoriteCountResponse } from '@tdms/contracts'
 import FavoritesHost from '@/ui/FavoritesHost.vue'
 import NoticeButtons from '@/ui/NoticeButtons.vue'
 import MyPageModal from '@/ui/MyPageModal.vue'
+import ThemeToggle from '@/ui/ThemeToggle.vue'
 import MobileNavSidebar from '@/ui/MobileNavSidebar.vue'
 import { api } from '@/lib/api'
 import { countVersion, listOpen as favListOpen } from '@/lib/favorites'
@@ -230,6 +231,8 @@ async function logout() {
               @click="openFavorites"
             >보관 ({{ favCount?.count ?? 0 }})</button>
           </span>
+
+          <ThemeToggle />
 
           <a href="#" class="mypage-link" @click.prevent="mypageOpen = true">{{ session.me?.name }}</a>
           <button type="button" class="small" @click="logout">로그아웃</button>

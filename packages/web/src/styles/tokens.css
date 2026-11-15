@@ -38,6 +38,23 @@
   --danger: #97453e;  --danger-soft: #f8eeed;  --danger-line: #eccecb;
   --info:   #45607d;  --info-soft:   #eef1f5;  --info-line:   #c7d2de;
 
+  /* ── base.css 에 숫자로 박혀 있던 색 ───────────────────────
+     값은 그대로 옮겨 온 것이라 밝은 테마의 모양은 한 점도 바뀌지 않는다.
+     토큰으로 꺼내 두어야 어두운 테마가 이 자리들을 덮을 수 있다. */
+  --text-muted-strong:  #64645d;   /* 페이지 제목 옆 설명 */
+  --danger-line-strong: #e0b4b0;   /* 위험 단추 hover 테두리 */
+  --danger-soft-hover:  #f5e6e4;   /* 경고 줄 hover 바탕 */
+  --warn-line-soft:     #f3d9a8;   /* 주의 상자 테두리 */
+  --warn-soft-text:     #b09468;   /* 최근 수정 — 옅은 쪽 */
+  --warn-soft-hover:    #f2ecdf;   /* 주의 줄 hover 바탕 */
+  --danger-line-soft:   #f3c9c7;   /* 오류 안내 상자 테두리 */
+
+  /* 로그인·비밀번호 변경·권한 없음 — 본문이 없는 화면의 바탕 그라데이션 */
+  --auth-bg-1: #eef2f7;
+  --auth-bg-2: #f6f8fa;
+  --auth-bg-3: #eaeef4;
+  --mark-bg:   #ffe58a;            /* 도움말 본문의 찾은 말 표시 */
+
   /* ── 형태 ─────────────────────────────────────────────── */
   --radius:    4px;
   --radius-sm: 3px;
@@ -103,3 +120,72 @@
 
   --topbar-h:  var(--header-h);
 }
+
+/* ===========================================================
+   어두운 테마
+   밝은 쪽의 '종이에 먹' 성격을 뒤집은 것이다 — 순수 회색이 아니라
+   같은 정도로 따뜻한 쪽에 치우친 어두운 회색을 쓴다.
+
+   여기 적는 것은 **값뿐**이다. 모양 규칙(base.css)은 한 벌만 두고,
+   색은 전부 이 토큰을 거쳐 가므로 그쪽은 손대지 않는다.
+
+   data-theme 은 lib/theme.ts 가 적는다. '시스템 설정 따름'도 JS 가 light/dark 중
+   하나로 풀어서 적으므로, 여기에는 어두운 값 한 벌만 있으면 된다.
+   =========================================================== */
+:root[data-theme="dark"] {
+  /* ── 바탕 · 면 ─────────────────────────────────────────── */
+  --bg:             #1a1a18;
+  --surface:        #222220;
+  --surface-alt:    #2a2a27;   /* 줄 hover, 트리 머리글 */
+  --surface-sunken: #141413;   /* 비활성 입력칸, 중립 배지 */
+
+  /* ── 선 ───────────────────────────────────────────────── */
+  --border:        #33332f;
+  --border-strong: #46463f;
+
+  /* ── 글자 ─────────────────────────────────────────────── */
+  --text:           #e8e8e3;
+  --text-dark-gray: #cfcfc8;
+  --text-muted:     #9a9a91;
+  --text-faint:     #6f6f67;
+
+  /* ── 주조색 — 밝은 쪽의 먹색을 뒤집어 '밝은 먹'으로 ────── */
+  --accent:       #e8e8e3;
+  --accent-hover: #ffffff;
+  --accent-soft:  #2e2e2a;
+
+  /* ── 상태색 — 어두운 바탕에서 읽히도록 밝기를 올린다 ────── */
+  --ok:     #83b89a;  --ok-soft:     #1d2a23;  --ok-line:     #35533f;
+  --warn:   #d2a868;  --warn-soft:   #2b2518;  --warn-line:   #574522;
+  --danger: #e0918a;  --danger-soft: #2f1e1c;  --danger-line: #5d3531;
+  --info:   #93b2d4;  --info-soft:   #1c232c;  --info-line:   #36475b;
+
+  /* base.css 에서 꺼내 온 자리들 — 어두운 쪽 값 */
+  --text-muted-strong:  #b0b0a7;
+  --danger-line-strong: #76433e;
+  --danger-soft-hover:  #3a2522;
+  --warn-line-soft:     #4f4021;
+  --warn-soft-text:     #bb9a63;
+  --warn-soft-hover:    #352d1d;
+  --danger-line-soft:   #5e3632;
+  --auth-bg-1: #15171a;
+  --auth-bg-2: #1b1d20;
+  --auth-bg-3: #121417;
+  --mark-bg:   #5a4a14;
+
+  /* ── 그림자 — 어두운 바탕에선 더 짙어야 떠 보인다 ──────── */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.32);
+  --shadow:    0 4px 14px rgba(0, 0, 0, 0.46);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.62);
+
+  /* 주조색이 밝아졌으므로 그 위의 글자는 어두워야 한다 */
+  --primary-fg: #1a1a18;
+
+  /* 금지 표시 — 밝은 쪽은 검정 선이라 어두운 바탕에서 보이지 않는다 */
+  --cursor-forbidden: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 22 22'%3E%3Ccircle cx='11' cy='11' r='8.5' fill='none' stroke='%23e8e8e3' stroke-width='2'/%3E%3Cline x1='5' y1='17' x2='17' y2='5' stroke='%23e8e8e3' stroke-width='2'/%3E%3C/svg%3E") 11 11, not-allowed;
+
+  /* 브라우저 기본 UI(스크롤막대·기본 폼 위젯)도 함께 어두워진다 */
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] { color-scheme: light; }

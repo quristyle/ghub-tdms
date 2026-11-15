@@ -979,7 +979,7 @@ function recentClass(r: DocumentListItem): string {
 .dist-daterange-sep { color: var(--text-faint); font-size: 12.5px; }
 
 .inline-add button { margin-top: 4px; flex: 0 0 auto; }
-.dist-error { background: var(--danger-soft); border-color: #eccecb; color: var(--danger); }
+.dist-error { background: var(--danger-soft); border-color: var(--danger-line); color: var(--danger); }
 
 /* 결과 표 — 폴더트리가 더 길어서 남는 높이가 생기면 그만큼 늘어난다 (기존 tree.css 규칙) */
 .table-box {

@@ -1409,7 +1409,7 @@ async function confirmDeletePartner() {
 }
 .btn-add-group:hover {
   background: var(--primary);
-  color: #fff;
+  color: var(--primary-fg);
 }
 .glist-search {
   padding: 8px 10px;
@@ -1513,9 +1513,9 @@ async function confirmDeletePartner() {
   border-color: var(--primary-line);
 }
 .g-btn-icon.delete-btn:hover {
-  color: var(--danger, #be123c);
-  background: #fee2e2;
-  border-color: #fca5a5;
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: var(--danger-line);
 }
 .badge {
   font-size: var(--fs-xs);
@@ -1528,7 +1528,7 @@ async function confirmDeletePartner() {
 }
 .grow.sel .badge {
   background: var(--primary);
-  color: #fff;
+  color: var(--primary-fg);
   border-color: var(--primary);
 }
 .sub {
@@ -1644,9 +1644,9 @@ async function confirmDeletePartner() {
 .warn-notice {
   padding: 10px 12px;
   border-radius: var(--r-sm, 4px);
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  color: #92400e;
+  background: var(--warn-soft);
+  border: 1px solid var(--warn-line-soft);
+  color: var(--warn);
   font-size: var(--fs-sm);
   line-height: 1.5;
 }
@@ -1659,12 +1659,12 @@ async function confirmDeletePartner() {
   font-size: 12px;
 }
 .btn-danger {
-  background: var(--danger, #ef4444);
-  color: #fff;
-  border-color: var(--danger, #ef4444);
+  background: var(--danger);
+  color: var(--primary-fg);
+  border-color: var(--danger);
 }
+/* hover 는 색을 따로 두지 않고 같은 색을 한 단 짙게 한다 — 테마마다 값을 또 만들지 않으려는 것 */
 .btn-danger:hover {
-  background: #dc2626;
-  border-color: #dc2626;
+  filter: brightness(0.9);
 }
 </style>

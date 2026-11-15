@@ -1012,8 +1012,8 @@ async function exportExcel() {
 .dt-row.issue { background: var(--danger-soft); }
 .dt-row.off   { color: var(--text-faint); }
 .dt-row.cur   { background: var(--accent-soft); }
-.dt-row.warn:hover  { background: #f2ecdf; }
-.dt-row.issue:hover { background: #f5e6e4; }
+.dt-row.warn:hover  { background: var(--warn-soft-hover); }
+.dt-row.issue:hover { background: var(--danger-soft-hover); }
 .dt-row.active, .dt-row.active:hover { background: var(--accent-soft); filter: none; }
 
 .dt-cell {
