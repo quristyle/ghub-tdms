@@ -1,20 +1,17 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useQuery, useQueryClient } from '@tanstack/vue-query'
-import type { CatalogItem, CatalogListResponse } from '@tdms/contracts'
-import { api, ApiError } from '@/lib/api'
-import { qk } from '@/lib/queryKeys'
+import { computed, ref, toRef } from 'vue'
+import type { CatalogItem } from '@tdms/contracts'
+import { useCatalog } from '@/lib/catalog'
 
 /**
- * 공사·업체 관리 — 기존 script.js 의 공사 관리 창(반출하기 ＋추가에서 열던 것)과
- * vendors.py 의 숨김·이름 변경을 한 부품으로.
+ * 공사·업체 관리 — **창 안에 넣는 좁은 목록**이다.
  *
- * 모달 틀이 없는 본문만이다 — 쓰는 쪽이 Modal 안에 넣는다(반출하기 창, TDB 관리 등).
+ * 모달 틀이 없는 본문만이라 쓰는 쪽이 Modal 안에 넣는다(반출하기 창의 [관리]).
  *
  *     <Modal title="공사 관리" @close="..."><ProjectManager kind="projects" @changed="reload" /></Modal>
  *
- * 삭제는 없고 숨김만 있다(D-6) — 숨기면 드롭다운 후보에서만 빠지고 과거 기록은 그대로다.
- * `pick` 을 받으면 줄마다 [선택] 단추가 나온다 (드롭다운 옆에서 열어 고르는 용도).
+ * 화면으로 크게 보는 쪽은 CatalogPage 다 — 거기는 조회부와 공통 그리드를 쓴다.
+ * 추가·이름 변경·숨김 규칙은 둘이 같은 것(lib/catalog)을 쓴다.
  */
 const props = withDefaults(defineProps<{
   kind?: 'projects' | 'vendors'
@@ -28,40 +25,20 @@ const emit = defineEmits<{
   pick: [item: CatalogItem]
 }>()
 
-const qc = useQueryClient()
-const label = computed(() => (props.kind === 'projects' ? '공사' : '업체'))
-const base = computed(() => `/${props.kind}`)
+const { label, all, hiddenCount, isFetching, error, add, rename, setHidden } =
+  useCatalog(toRef(props, 'kind'))
 
 const showHidden = ref(false)
-const { data, isFetching } = useQuery({
-  queryKey: computed(() => qk.catalog.list(props.kind, true)),
-  queryFn: () => api.get<CatalogListResponse>(`${base.value}?includeHidden=true`),
-})
-const rows = computed(() => (data.value?.items ?? []).filter((r) => showHidden.value || !r.isHidden))
-const hiddenCount = computed(() => (data.value?.items ?? []).filter((r) => r.isHidden).length)
+const rows = computed(() => all.value.filter((r) => showHidden.value || !r.isHidden))
 
-const error = ref('')
 const newName = ref('')
 const editingId = ref<number | null>(null)
 const editName = ref('')
 
-async function run(fn: () => Promise<unknown>) {
-  error.value = ''
-  try {
-    await fn()
-    await qc.invalidateQueries({ queryKey: qk.catalog.all })
-    emit('changed')
-    return true
-  } catch (e) {
-    error.value = e instanceof ApiError ? e.message : '처리하지 못했습니다.'
-    return false
-  }
-}
-
-async function add() {
+async function onAdd() {
   const name = newName.value.trim()
   if (!name) return
-  if (await run(() => api.post(base.value, { name }))) newName.value = ''
+  if (await add(name)) { newName.value = ''; emit('changed') }
 }
 
 function startEdit(r: CatalogItem) { editingId.value = r.id; editName.value = r.name }
@@ -70,11 +47,11 @@ async function saveEdit() {
   const id = editingId.value
   const name = editName.value.trim()
   if (id === null || !name) return
-  if (await run(() => api.patch(`${base.value}/${id}`, { name }))) editingId.value = null
+  if (await rename(id, name)) { editingId.value = null; emit('changed') }
 }
 
-function setHidden(r: CatalogItem, hidden: boolean) {
-  void run(() => api.post(`${base.value}/${r.id}/${hidden ? 'hide' : 'unhide'}`))
+async function onHide(r: CatalogItem, hidden: boolean) {
+  if (await setHidden(r.id, hidden)) emit('changed')
 }
 </script>
 
@@ -82,8 +59,8 @@ function setHidden(r: CatalogItem, hidden: boolean) {
   <div class="pm">
     <div class="pm-add">
       <input v-model="newName" type="text" :placeholder="`새 ${label}명`" maxlength="200"
-             @keydown.enter="add" />
-      <button class="btn btn-sm btn-primary" :disabled="!newName.trim()" @click="add">추가</button>
+             @keydown.enter="onAdd" />
+      <button class="btn btn-sm btn-primary" :disabled="!newName.trim()" @click="onAdd">추가</button>
       <span style="flex:1" />
       <label class="chk">
         <input v-model="showHidden" type="checkbox" /> 숨긴 {{ label }}도 보기 ({{ hiddenCount }})
@@ -115,8 +92,8 @@ function setHidden(r: CatalogItem, hidden: boolean) {
               <template v-else>
                 <button v-if="pickable && !r.isHidden" class="btn btn-sm" @click="emit('pick', r)">선택</button>
                 <button class="btn btn-sm" @click="startEdit(r)">이름 변경</button>
-                <button v-if="!r.isHidden" class="btn btn-sm" @click="setHidden(r, true)">숨김</button>
-                <button v-else class="btn btn-sm" @click="setHidden(r, false)">숨김 해제</button>
+                <button v-if="!r.isHidden" class="btn btn-sm" @click="onHide(r, true)">숨김</button>
+                <button v-else class="btn btn-sm" @click="onHide(r, false)">숨김 해제</button>
               </template>
             </td>
           </tr>
