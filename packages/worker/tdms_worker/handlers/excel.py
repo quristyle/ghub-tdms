@@ -345,14 +345,28 @@ def run(
         ws.column_dimensions[get_column_letter(i)].width = width
 
     written = 0
-    with conn.cursor(name="export_cursor") as cur:   # 서버 커서 — 전량을 메모리에 올리지 않는다
-        cur.itersize = 2000
-        cur.execute(sql, params)
-        for row in cur:
-            ws.append([neutralize(v) for v in row])
-            written += 1
-            if written % 2000 == 0:
-                progress(min(90, 5 + written // 500), f"{written:,}행 기록")
+    # 읽기는 **따로 연 연결**에서 한다.
+    #
+    # 서버 커서(name=…)는 그것을 띄운 트랜잭션 안에서만 산다. 그런데 진행률 보고는
+    # 워커의 연결에서 commit 을 한다 — 한 연결로 하면 2,000행째 진행률을 쓰는 순간
+    # 커서가 사라져 'cursor "export_cursor" does not exist' 로 죽는다.
+    # 2,000행을 넘는 내보내기에서만 터져서 작은 것만 받아 보면 멀쩡해 보였다.
+    #
+    # WITH HOLD 로도 커서를 살릴 수 있지만 commit 시점에 남은 결과를 서버가 통째로
+    # 임시 공간에 베껴 둔다. 연결을 나누면 그 복사가 없고, 진행률을 아무리 자주 써도
+    # 읽는 쪽이 끊기지 않는다. 전량을 메모리에 올리지 않는 것도 그대로다.
+    with psycopg.connect(cfg.dsn) as read_conn:
+        with read_conn.cursor() as c:
+            c.execute(f"SET search_path TO {cfg.schema}, public")
+        # search_path 를 잡은 트랜잭션 그대로 커서를 띄운다 (사이에 commit 이 없어야 한다)
+        with read_conn.cursor(name="export_cursor") as cur:
+            cur.itersize = 2000
+            cur.execute(sql, params)
+            for row in cur:
+                ws.append([neutralize(v) for v in row])
+                written += 1
+                if written % 2000 == 0:
+                    progress(min(90, 5 + written // 500), f"{written:,}행 기록")
 
     progress(92, "파일로 쓰는 중")
 
