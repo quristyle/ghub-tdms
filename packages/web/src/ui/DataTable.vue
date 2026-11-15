@@ -456,8 +456,36 @@ function goToPage(n: number) {
 
 function submitPage() {
   const n = Number(pageInput.value)
-  if (Number.isFinite(n)) goToPage(n)
+  if (Number.isFinite(n) && pageInput.value !== '') goToPage(n)
   else pageInput.value = String(currentPage.value)
+}
+
+/**
+ * 쪽 번호 칸은 숫자만 받는다.
+ *
+ * type=number 를 쓰지 않는 이유: 브라우저가 붙이는 위아래 화살표가 21px 짜리 칸에
+ * 들어가지 않고, 'e'·'+'·'-' 같은 글자가 그대로 들어온다. 글자 칸으로 두고 여기서 거른다.
+ * 자판으로 친 것뿐 아니라 붙여넣기·드래그로 들어온 것도 같이 걸린다.
+ */
+function onPageInput(e: Event) {
+  const el = e.target as HTMLInputElement
+  const digits = el.value.replace(/\D+/g, '')
+  // 글자를 걸러냈으면 칸에도 바로 되돌린다 — 안 그러면 지운 글자가 화면에 남는다
+  if (el.value !== digits) el.value = digits
+  pageInput.value = digits
+}
+
+/**
+ * 위·아래 방향키로 쪽을 넘긴다 — 위가 숫자를 올려 다음 쪽, 아래가 내려 이전 쪽.
+ * 칸에 적어 둔 값이 있으면 그것을 기준으로 올린다(아직 안 누른 숫자도 따라간다).
+ */
+function stepPage(delta: number) {
+  if (jumpTo.value) return
+  const typed = Number(pageInput.value)
+  const from = Number.isFinite(typed) && pageInput.value !== '' ? typed : currentPage.value
+  const next = Math.min(Math.max(1, from + delta), pageCount.value)
+  if (next === currentPage.value && next === from) return
+  goToPage(next)
 }
 
 // 줄이 늘거나 불러오기가 끝나면 다 왔는지 다시 본다
@@ -762,9 +790,14 @@ async function exportExcel() {
         >◀</button>
 
         <input
-          v-model="pageInput" type="text" inputmode="numeric" class="dt-page-input"
-          title="쪽 번호를 넣고 Enter" :disabled="!!jumpTo"
-          @keyup.enter="submitPage" @blur="pageInput = String(currentPage)"
+          :value="pageInput" type="text" inputmode="numeric" class="dt-page-input"
+          autocomplete="off"
+          title="쪽 번호를 넣고 Enter · ↑ 다음 쪽 · ↓ 이전 쪽" :disabled="!!jumpTo"
+          @input="onPageInput"
+          @keydown.up.prevent="stepPage(1)"
+          @keydown.down.prevent="stepPage(-1)"
+          @keyup.enter="submitPage"
+          @blur="pageInput = String(currentPage)"
         />
         <span class="dt-page-total">/ {{ n(pageCount) }}</span>
 
