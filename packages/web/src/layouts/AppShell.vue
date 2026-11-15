@@ -119,6 +119,17 @@ const openGroup = ref<string | null>(null)
 const activeGroup = computed(() =>
   navGroups.value.find((g) => g.items.some((m) => isOn(m.path)))?.key ?? null)
 
+/**
+ * 묶음 이름을 누르면 그 묶음의 첫 번째 하위 메뉴로 바로 간다.
+ * 하위 메뉴 목록은 마우스를 올리면 펼쳐지므로, 누르는 것은 "첫 화면 열기"로 쓴다.
+ * 이미 그 화면이면 경로가 바뀌지 않아 아래 감시가 돌지 않으니 여기서 직접 닫는다.
+ */
+function openFirst(g: { items: { path: string }[] }) {
+  const first = g.items[0]
+  openGroup.value = null
+  if (first) void router.push(first.path)
+}
+
 // 화면을 옮기면 닫는다 — 눌러서 들어간 뒤 목록이 남아 있으면 가린다
 watch(() => route.fullPath, () => {
   openGroup.value = null
@@ -176,7 +187,7 @@ async function logout() {
         </RouterLink>
 
         <nav class="app-nav" aria-label="주 메뉴">
-          <!-- TDB · MDB · 시스템 — 올리거나 누르면 하위 메뉴가 펼쳐진다 -->
+          <!-- TDB · MDB · 시스템 — 올리면 하위 메뉴가 펼쳐지고, 누르면 첫 번째 하위 메뉴가 열린다 -->
           <div
             v-for="g in navGroups" :key="g.key" class="app-nav-group"
             @mouseenter="openGroup = g.key" @mouseleave="openGroup = null"
@@ -184,7 +195,7 @@ async function logout() {
             <button
               type="button" class="app-nav-group-btn" :class="{ active: activeGroup === g.key }"
               aria-haspopup="menu" :aria-expanded="openGroup === g.key" :title="g.label"
-              @click="openGroup = openGroup === g.key ? null : g.key"
+              @click="openFirst(g)"
               @keydown.escape="openGroup = null"
             >
               {{ g.label }}
