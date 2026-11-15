@@ -75,5 +75,6 @@ services:
     volumes:
       # 읽기 전용 — 직송만 한다. 쓰는 쪽은 api·worker 다.
       - /srv/tdms/blobs:/srv/tdms/blobs:ro
-    depends_on:
-      api: { condition: service_healthy }
+    # api 에 depends_on 을 걸지 않는다. 걸면 배포 때 compose 가 웹을 먼저 내리고
+    # api 가 healthy 가 될 때까지(수십 초) 다시 올리지 않아 그동안 화면이 502 였다.
+    # 웹 nginx 가 api 이름을 실행 중에 다시 찾으므로(web-nginx.conf 의 resolve) 따로 떠도 된다.

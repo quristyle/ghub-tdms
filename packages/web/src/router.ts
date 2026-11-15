@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory, createMemoryHistory, type RouteRecordRaw } from 'vue-router'
 import { useSession } from '@/lib/session'
+import { isChunkLoadError, reloadForNewBuild } from '@/lib/chunkReload'
 
 /**
  * 화면 라우팅.
@@ -212,6 +213,14 @@ export function syncDynamicRoutes(menus: { code?: string; path: string; label?: 
   }
   return changed
 }
+
+/**
+ * 화면 청크를 못 받으면(배포 중 502·배포 뒤 옛 해시 404) 가려던 주소로 새로고침한다.
+ * 그냥 두면 이동이 조용히 실패해 화면이 열리지 않는다. 자세한 까닭은 lib/chunkReload.ts.
+ */
+router.onError((err, to) => {
+  if (isChunkLoadError(err)) reloadForNewBuild(to?.fullPath)
+})
 
 router.beforeEach(async (to) => {
   const session = useSession()

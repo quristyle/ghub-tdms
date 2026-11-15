@@ -3,7 +3,10 @@ import { createPinia } from 'pinia'
 import { VueQueryPlugin } from '@tanstack/vue-query'
 import App from './App.vue'
 import { router } from './router'
+import { installPreloadErrorHandler } from './lib/chunkReload'
 import './styles/base.css'
+
+installPreloadErrorHandler()
 
 createApp(App)
   .use(createPinia())

@@ -155,6 +155,14 @@ main 에 푸시하면 자동으로 돈다. 손으로 돌리려면 Actions → �
   `ErrorResponse` 모양 JSON 을 내서 화면이 사람 말로 된 메시지를 띄운다. 웹은 떠 있고
   api 만 죽은 경우는 웹 컨테이너 nginx 가 같은 JSON 을 낸다(`web-nginx.conf` `@api_down`).
   `/var/www/tdms-down/` 이 비어 있으면 그 자리에서 404 가 난다 — conf 보다 먼저 복사한다.
+- 바깥에서 **맨 "502 Bad Gateway"** 가 보이면 han 의 호스트 nginx 에 이 저장소의
+  `tdms.jsini.co.kr.conf`(점검 화면 `error_page`)가 아직 안 들어간 것이다. 그 conf 가
+  들어가 있으면 웹 컨테이너에 닿지 못할 때 503 점검 화면이 나와야 한다.
+  `grep -n error_page /etc/nginx/sites-enabled/tdms.jsini.co.kr.conf` 로 확인하고,
+  없으면 아래 「sudo 가 필요한 작업」 4번을 다시 한다.
+- 배포 때 웹 컨테이너는 api 를 기다리지 않는다(compose 에 depends_on 없음). 웹 nginx 가
+  api 주소를 실행 중에 다시 찾는다(`resolve`, nginx 1.27.3+). 이미 열린 탭이 옛 해시의
+  청크를 찾다 실패하면 화면이 스스로 한 번 새로고침한다(`packages/web/src/lib/chunkReload.ts`).
 - `deploy/systemd/`, `deploy/nginx/_참고-단독설치.conf` 는 컨테이너를 쓰지 않는
   단독 설치용 참고본이다. 지금 운영 경로는 컨테이너다.
 
