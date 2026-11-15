@@ -28,16 +28,13 @@ const route = useRoute()
 const router = useRouter()
 
 /** 모바일 환경 판정 및 사이드바 열림 상태 */
-const isMobile = ref(false)
+const MOBILE_MAX = 900
+const isMobile = ref(typeof window !== 'undefined' && window.innerWidth <= MOBILE_MAX)
 const mobileSidebarOpen = ref(false)
 
 function updateMobileState() {
-  if (typeof window !== 'undefined') {
-    isMobile.value = window.innerWidth <= 900
-    if (!isMobile.value) {
-      mobileSidebarOpen.value = false
-    }
-  }
+  isMobile.value = window.innerWidth <= MOBILE_MAX
+  if (!isMobile.value) mobileSidebarOpen.value = false
 }
 
 onMounted(() => {
@@ -49,12 +46,14 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', updateMobileState)
 })
 
-/** 모바일에서 상단 로고 클릭 시 트리 사이드바 열고 닫기 */
-function handleLogoClick(e: MouseEvent) {
-  if (isMobile.value || (typeof window !== 'undefined' && window.innerWidth <= 900)) {
-    e.preventDefault()
-    mobileSidebarOpen.value = !mobileSidebarOpen.value
-  }
+/**
+ * 모바일에서 상단 로고를 누르면 트리 사이드바를 열고 닫는다.
+ * 모바일 로고는 RouterLink 가 아니라 단추다 — 링크로 두면 라우터가 먼저 '/' 로 옮기고,
+ * 화면이 바뀌면 사이드바를 닫는 감시가 방금 연 사이드바를 곧바로 닫아 버린다
+ * (홈이 아닌 화면에서 로고를 눌러도 아무 일도 없는 것처럼 보이던 원인).
+ */
+function toggleMobileSidebar() {
+  mobileSidebarOpen.value = !mobileSidebarOpen.value
 }
 
 /** 지금 보는 화면 — 상세·도움말처럼 메뉴에 없는 화면은 들어온 메뉴를 켜 두지 않는다 */
@@ -150,23 +149,30 @@ async function logout() {
   <div class="app-shell">
     <header class="app-header">
       <div class="app-header-inner">
-        <!-- 상단 로고: 모바일에서는 클릭 시 트리 메뉴 사이드바를 열고 닫는다 -->
-        <RouterLink
-          to="/"
-          class="app-brand"
-          :class="{ 'is-mobile': isMobile }"
-          :title="isMobile ? '메뉴 열기 (사이드바)' : 'TDMS 기술자료 관리 시스템'"
-          @click="handleLogoClick"
+        <!-- 상단 로고: 모바일에서는 단추(트리 메뉴 사이드바 열고 닫기), 그 밖에는 첫 화면 링크 -->
+        <button
+          v-if="isMobile"
+          type="button"
+          class="app-brand is-mobile"
+          title="메뉴 열기"
+          aria-label="메뉴 열기"
+          aria-haspopup="dialog"
+          :aria-expanded="mobileSidebarOpen"
+          @click="toggleMobileSidebar"
         >
           <img class="app-brand-logo" src="/assets/skgas-logo.png" alt="SK gas" />
           <span class="app-brand-text"><strong>TDMS</strong> 기술자료 관리 시스템</span>
-          <span v-if="isMobile" class="app-brand-mobile-indicator" title="메뉴 열기" aria-label="메뉴 열기">
+          <span class="app-brand-mobile-indicator" aria-hidden="true">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
               <line x1="3" y1="6" x2="21" y2="6" />
               <line x1="3" y1="12" x2="21" y2="12" />
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </span>
+        </button>
+        <RouterLink v-else to="/" class="app-brand" title="TDMS 기술자료 관리 시스템">
+          <img class="app-brand-logo" src="/assets/skgas-logo.png" alt="SK gas" />
+          <span class="app-brand-text"><strong>TDMS</strong> 기술자료 관리 시스템</span>
         </RouterLink>
 
         <nav class="app-nav" aria-label="주 메뉴">
@@ -248,6 +254,12 @@ async function logout() {
 
 /* 모바일 로고 클릭 표시 */
 .app-brand.is-mobile {
+  /* 단추 기본 모양을 지우고 링크일 때와 똑같이 보이게 한다 */
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  height: auto;
   cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;

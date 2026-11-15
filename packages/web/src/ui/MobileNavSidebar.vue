@@ -363,11 +363,15 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   transform: translateX(-100%);
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  /* 닫혀 있을 때는 그림자도 비치지 않고 Tab 으로도 들어가지 않게 숨긴다(밀려 나간 뒤에) */
+  visibility: hidden;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s linear 0.25s;
   overflow: hidden;
 }
 .mobile-sidebar-drawer.is-open {
   transform: translateX(0);
+  visibility: visible;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s;
 }
 
 /* ── 머리글 (헤더) ─────────────────────────────────────────────── */
