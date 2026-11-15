@@ -914,6 +914,9 @@ async function exportExcel() {
      표 안에서 스크롤되지 않고 글자가 사라진다. */
   min-height: 0; min-width: 0;
   font-variant-numeric: tabular-nums;
+  /* 표 안 글자색을 여기서 못 박는다. 비워 두면 바깥에서 흘러든 색을 그대로 물려받는데,
+     흐린 색이 들어오면 표 전체가 읽기 어려워진다(실제로 그런 적이 있다). */
+  color: var(--text);
 }
 
 /* ── 머리글 ─────────────────────────────────────────────────────── */
@@ -1034,12 +1037,14 @@ async function exportExcel() {
 .dt-cell.dt-slot :deep(a) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dt-cell.dt-slot :deep(a:hover) { color: var(--text); text-decoration: underline; border-bottom-color: transparent; }
 
-/* No 열 — 기존 화면은 다른 칸과 같은 바탕이고 가운데 맞춤만 다르다 */
+/* No 열 — 기존 화면(.col-no)은 가운데 맞춤만 다르고 글자색은 다른 칸과 같다.
+   여기서 흐린 색을 주면 밝은 테마에서 흰 바탕 대비가 4.5:1 까지 내려가 숫자가 잘 안 읽힌다. */
 .dt-no {
   flex: 0 0 54px; width: 54px;
   justify-content: center; text-align: center;
-  color: var(--text-muted); font-size: 12px;
+  font-size: 12px;
 }
+/* 머리글은 기존 화면의 thead th 가 그렇듯 흐린 색이 맞다 */
 .dt-head .dt-no { color: var(--text-muted); }
 
 .dt-check {

@@ -1001,8 +1001,11 @@ input.nav-pos-input {
 .detail-row > div:not(:first-child) { flex: 1 1 auto; }
 .detail-path { flex: 1 1 auto; }
 
-.dt { flex: 0 0 78px; color: var(--text-muted); font-size: 12.5px; white-space: nowrap; }
-.dd { color: var(--text); word-break: break-all; min-width: 0; }
+/* 상세 화면의 '이름: 값' 짝. 반드시 .detail-row 안으로 좁혀 둔다 —
+   좁히지 않으면 이 .dt 가 공통 그리드의 바깥 상자(DataTable 의 루트도 class="dt")에
+   걸려서, 표 안 글자가 전부 --text-muted 를 물려받아 흐려진다. */
+.detail-row .dt { flex: 0 0 78px; color: var(--text-muted); font-size: 12.5px; white-space: nowrap; }
+.detail-row .dd { color: var(--text); word-break: break-all; min-width: 0; }
 
 .detail-note { white-space: pre-wrap; word-break: break-word; line-height: 1.6; }
 
