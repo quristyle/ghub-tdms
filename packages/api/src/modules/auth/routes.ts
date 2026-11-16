@@ -5,6 +5,7 @@ import {
   ErrorResponse, MENU, LEAF_KEYS,
 } from '@tdms/contracts'
 import { AUTHENTICATED, PUBLIC, defineRoute } from '../../core/route.js'
+import { AppError } from '../../core/errors.js'
 import {
   clearSessionCookie, deferPasswordChange, destroySession,
   readSessionCookie, setSessionCookie,
@@ -117,6 +118,12 @@ export function registerAuthRoutes(app: FastifyInstance): void {
     audit: { screen: '로그인', action: '비밀번호 변경 미루기' },
     schema: { response: { 200: z.object({ ok: z.literal(true) }) } },
     handler: async (req) => {
+      // 미루기는 더 받지 않는다. 변경을 요구받는 계정은 전부 아이디로 맞힐 수 있는
+      // 초기 비밀번호이거나 관리자가 건넨 임시 비밀번호다 — 미루면 그대로 열려 있다.
+      // (요청이 여기까지 왔다면 mustChangePassword 는 이미 위 경계에서 막혔거나 false 다.)
+      if (req.auth.user.mustChangePassword) {
+        throw new AppError('PASSWORD_CHANGE_REQUIRED', 403, '비밀번호를 먼저 바꿔야 합니다.')
+      }
       await deferPasswordChange(req.auth.sessionId)
       req.setAuditTarget(req.auth.user.loginId)
       return { ok: true as const }

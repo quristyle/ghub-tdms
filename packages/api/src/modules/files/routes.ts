@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type { FastifyInstance } from 'fastify'
 import { ErrorResponse } from '@tdms/contracts'
-import { AUTHENTICATED, defineRoute } from '../../core/route.js'
+import { MDB_READ, TDB_READ, defineRoute } from '../../core/route.js'
 import { Errors } from '../../core/errors.js'
 import { mimeFor, sendBlob } from '../../core/files.js'
 import * as q from './queries.js'
@@ -28,7 +28,7 @@ export function registerFileRoutes(app: FastifyInstance): void {
   defineRoute(app, {
     method: 'GET',
     url: '/files/:id/view',
-    access: AUTHENTICATED,
+    access: TDB_READ,
     audit: { screen: '자료 상세', action: '열람' },
     schema: { params: Params, response: { 404: ErrorResponse } },
     handler: async (req, reply) => {
@@ -51,7 +51,7 @@ export function registerFileRoutes(app: FastifyInstance): void {
   defineRoute(app, {
     method: 'GET',
     url: '/files/:id/rendition',
-    access: AUTHENTICATED,
+    access: TDB_READ,
     schema: { params: Params, response: { 200: Rendition, 404: ErrorResponse } },
     handler: async (req) => {
       const { id } = Params.parse(req.params)
@@ -74,7 +74,7 @@ export function registerFileRoutes(app: FastifyInstance): void {
   defineRoute(app, {
     method: 'GET',
     url: '/files/:id/preview',
-    access: AUTHENTICATED,
+    access: TDB_READ,
     audit: { screen: '자료 상세', action: '열람' },
     schema: { params: Params, response: { 404: ErrorResponse } },
     handler: async (req, reply) => {
@@ -97,7 +97,7 @@ export function registerFileRoutes(app: FastifyInstance): void {
   defineRoute(app, {
     method: 'GET',
     url: '/files/:id/download',
-    access: AUTHENTICATED,
+    access: TDB_READ,
     audit: { screen: '자료 상세', action: '다운로드' },
     schema: { params: Params, response: { 404: ErrorResponse } },
     handler: async (req, reply) => {
@@ -117,7 +117,7 @@ export function registerFileRoutes(app: FastifyInstance): void {
   defineRoute(app, {
     method: 'GET',
     url: '/mdb/files/:id/download',
-    access: AUTHENTICATED,
+    access: MDB_READ,
     audit: { screen: 'MDB 상세', action: '다운로드' },
     schema: { params: Params, response: { 404: ErrorResponse } },
     handler: async (req, reply) => {

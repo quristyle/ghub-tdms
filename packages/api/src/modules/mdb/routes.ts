@@ -17,7 +17,7 @@ import { unlink } from 'node:fs/promises'
 import { Errors } from '../../core/errors.js'
 import { PayloadTooLargeError, registerBlob, storeStream } from '../../core/blob.js'
 import { tx } from '../../core/db.js'
-import { AUTHENTICATED, defineRoute, permission } from '../../core/route.js'
+import { MDB_READ, defineRoute, permission } from '../../core/route.js'
 import * as jobs from '../jobs/service.js'
 import * as editor from '../editor/service.js'
 import * as svc from './service.js'
@@ -97,7 +97,7 @@ export function registerMdbRoutes(app: FastifyInstance): void {
   defineRoute(app, {
     method: 'GET',
     url: '/mdb/:id',
-    access: AUTHENTICATED,
+    access: MDB_READ,
     schema: { params: IdParam, response: { 200: MdbDetail, 404: ErrorResponse } },
     handler: async (req) => svc.detail(IdParam.parse(req.params).id),
   })
@@ -132,7 +132,7 @@ export function registerMdbRoutes(app: FastifyInstance): void {
     handler: async (req) => {
       const { id } = IdParam.parse(req.params)
       const b = FolderRenameRequest.parse(req.body)
-      const out = await editor.renameFolder(id, b.name)
+      const out = await editor.renameFolder('MDB', id, b.name)
       req.setAuditTarget(b.name, { folderId: id })
       return out
     },
@@ -150,7 +150,7 @@ export function registerMdbRoutes(app: FastifyInstance): void {
     handler: async (req) => {
       const { id } = IdParam.parse(req.params)
       const b = FolderReparentRequest.parse(req.body)
-      const out = await editor.moveFolder(id, b.newParentId)
+      const out = await editor.moveFolder('MDB', id, b.newParentId)
       req.setAuditTarget(`폴더 ${id}`, { affected: out.affectedFolders })
       return out
     },
@@ -449,7 +449,7 @@ export function registerMdbRoutes(app: FastifyInstance): void {
       },
       handler: async (req) => {
         const b = z.object({ batchIds: z.array(z.number().int()).min(1).max(500) }).parse(req.body)
-        const out = await svc.restore(b.batchIds, req.auth.user.id)
+        const out = await svc.restore(box.kind, b.batchIds, req.auth.user.id)
         req.setAuditTarget(`${b.batchIds.length}묶음`, { restored: out.restored })
         return out
       },
@@ -464,7 +464,7 @@ export function registerMdbRoutes(app: FastifyInstance): void {
       handler: async (req) => {
         const { id } = IdParam.parse(req.params)
         const b = NoteRequest.parse(req.body)
-        await svc.setNote(id, b.note)
+        await svc.setNote(box.kind, id, b.note)
         req.setAuditTarget(`묶음 ${id}`, { note: b.note })
         return { ok: true as const }
       },

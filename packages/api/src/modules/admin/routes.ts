@@ -10,7 +10,7 @@ import {
   PERMISSION_TREE, PartnerCompanyListResponse, PartnerCompanySaveRequest, PasswordResetResult,
   UserCreateRequest, UserListResponse, UserUpdateRequest,
 } from '@tdms/contracts'
-import { AUTHENTICATED, defineRoute, permission } from '../../core/route.js'
+import { AUTHENTICATED, defineRoute, permission, type TdmsRequest } from '../../core/route.js'
 import { contentDisposition } from '../../core/files.js'
 import { Errors } from '../../core/errors.js'
 import * as svc from './service.js'
@@ -25,6 +25,9 @@ const has = (req: unknown, key: string) => {
   const r = req as Authed
   return r.auth.user.role === 'ADMIN' || r.auth.permissions.has(key)
 }
+
+/** 서비스가 권한 상승을 가를 때 쓰는 호출자 정보 */
+const actorOf = (req: TdmsRequest): svc.Actor => ({ id: req.auth.user.id, role: req.auth.user.role })
 
 export function registerAdminRoutes(app: FastifyInstance): void {
   // ── 시스템 로그 ──────────────────────────────────────────────────────
@@ -132,11 +135,11 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     audit: { screen: '사용자 관리', action: '사용자 추가' },
     schema: {
       body: UserCreateRequest,
-      response: { 200: z.object({ id: z.number().int() }), 403: ErrorResponse, 409: ErrorResponse },
+      response: { 200: z.object({ id: z.number().int(), tempPassword: z.string() }), 403: ErrorResponse, 409: ErrorResponse },
     },
     handler: async (req) => {
       const b = UserCreateRequest.parse(req.body)
-      const out = await svc.createUser(b)
+      const out = await svc.createUser(b, actorOf(req))
       req.setAuditTarget(b.loginId, { role: b.role, groupId: b.groupId })
       return out
     },
@@ -154,7 +157,7 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     handler: async (req) => {
       const { id } = IdParam.parse(req.params)
       const b = UserUpdateRequest.parse(req.body)
-      await svc.updateUser(id, b, req.auth.user.id)
+      await svc.updateUser(id, b, actorOf(req))
       req.setAuditTarget(`사용자 ${id}`, b as Record<string, unknown>)
       return { ok: true as const }
     },
@@ -168,7 +171,7 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     schema: { params: IdParam, response: { 200: PasswordResetResult, 403: ErrorResponse } },
     handler: async (req) => {
       const { id } = IdParam.parse(req.params)
-      const out = await svc.resetPassword(id)
+      const out = await svc.resetPassword(id, actorOf(req))
       req.setAuditTarget(`사용자 ${id}`)
       return out
     },
@@ -271,7 +274,7 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     handler: async (req) => {
       const { id } = IdParam.parse(req.params)
       const b = GroupPermissionsRequest.parse(req.body)
-      const out = await svc.setPermissions(id, b.granted)
+      const out = await svc.setPermissions(id, b.granted, { ...actorOf(req), groupId: req.auth.user.groupId })
       req.setAuditTarget(`그룹 ${id}`, { count: b.granted.length })
       return out
     },
@@ -313,7 +316,7 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     handler: async (req) => {
       const { id } = IdParam.parse(req.params)
       const b = UserPermissionsRequest.parse(req.body)
-      const out = await svc.setUserPermissions(id, b.granted, req.auth.user.id)
+      const out = await svc.setUserPermissions(id, b.granted, req.auth.user.id, req.auth.user.role)
       req.setAuditTarget(`계정 ${id}`, { count: b.granted.length, granted: b.granted })
       return out
     },

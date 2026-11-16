@@ -36,8 +36,8 @@ export async function openDistributions(
 /** 자료 행을 잠근다. 잠금 순서는 언제나 '자료 먼저' — 파일부터 잠그면 같은 세트를 서로
  *  하나씩 쥐고 기다리는 교착이 생긴다 (기존 시스템의 2026-09-17 시큐어코딩 메모). */
 export function lockDocument(c: pg.PoolClient, documentId: number) {
-  return c.query<{ id: number; drawing_no: string; current_rev: number; status: string; folder_id: number }>(
-    `SELECT id, drawing_no, current_rev, status, folder_id
+  return c.query<{ id: number; drawing_no: string; current_rev: number; status: string; folder_id: number; is_archived: boolean }>(
+    `SELECT id, drawing_no, current_rev, status, folder_id, is_archived
        FROM documents WHERE id = $1 FOR UPDATE`,
     [documentId],
   )

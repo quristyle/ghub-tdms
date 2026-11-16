@@ -6,7 +6,7 @@ import {
   FolderDocumentsResponse, NoteRequest, NoteResult, RECENT_SOFT_DAYS, RecentChangesQuery,
   RecentChangesResponse, RecentChangesSummary, RevisionListResponse,
 } from '@tdms/contracts'
-import { AUTHENTICATED, defineRoute, permission } from '../../core/route.js'
+import { AUTHENTICATED, TDB_READ, defineRoute, permission } from '../../core/route.js'
 import * as svc from './service.js'
 
 const IdParam = z.object({ id: z.coerce.number().int() })
@@ -19,7 +19,7 @@ export function registerDocumentRoutes(app: FastifyInstance): void {
   defineRoute(app, {
     method: 'GET',
     url: '/documents',
-    access: AUTHENTICATED,
+    access: TDB_READ,
     schema: {
       querystring: DocumentListQuery,
       response: { 200: DocumentListResponse, 401: ErrorResponse },
@@ -31,7 +31,7 @@ export function registerDocumentRoutes(app: FastifyInstance): void {
   defineRoute(app, {
     method: 'GET',
     url: '/documents/nav',
-    access: AUTHENTICATED,
+    access: TDB_READ,
     schema: { querystring: DocumentNavQuery, response: { 200: DocumentNav, 404: ErrorResponse } },
     handler: async (req) => svc.nav(DocumentNavQuery.parse(req.query)),
   })
@@ -77,7 +77,7 @@ export function registerDocumentRoutes(app: FastifyInstance): void {
   defineRoute(app, {
     method: 'GET',
     url: '/documents/:id',
-    access: AUTHENTICATED,
+    access: TDB_READ,
     schema: { params: IdParam, response: { 200: DocumentDetail, 404: ErrorResponse } },
     handler: async (req) => svc.detail(IdParam.parse(req.params).id),
   })
@@ -86,7 +86,7 @@ export function registerDocumentRoutes(app: FastifyInstance): void {
   defineRoute(app, {
     method: 'GET',
     url: '/documents/:id/revisions',
-    access: AUTHENTICATED,
+    access: TDB_READ,
     schema: { params: IdParam, response: { 200: RevisionListResponse, 404: ErrorResponse } },
     handler: async (req) => svc.revisions(IdParam.parse(req.params).id),
   })
@@ -114,7 +114,7 @@ export function registerDocumentRoutes(app: FastifyInstance): void {
   defineRoute(app, {
     method: 'GET',
     url: '/documents/:id/distributions',
-    access: AUTHENTICATED,
+    access: TDB_READ,
     schema: { params: IdParam, response: { 200: DistributionListResponse, 404: ErrorResponse } },
     handler: async (req) => svc.distributions(IdParam.parse(req.params).id),
   })
@@ -138,7 +138,7 @@ export function registerDocumentRoutes(app: FastifyInstance): void {
   defineRoute(app, {
     method: 'GET',
     url: '/documents/:id/neighbors',
-    access: AUTHENTICATED,
+    access: TDB_READ,
     schema: {
       params: IdParam,
       response: {

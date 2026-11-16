@@ -139,3 +139,30 @@ describe('반출목록.xlsx 읽기', () => {
     ])
   })
 })
+
+describe('반출목록.xlsx — 꾸민 파일에도 API 가 멈추지 않는다', () => {
+  it('엑셀 한계(XFD)를 넘는 열 참조는 버린다 — 빈 칸을 수십억 개 채우지 않는다', async () => {
+    const sheet =
+      '<worksheet><sheetData>' +
+      '<row r="1"><c r="A1"><v>1</v></c><c r="ZZZZZZZZ1"><v>2</v></c><c r="B1"><v>3</v></c></row>' +
+      '</sheetData></worksheet>'
+    const xlsx = makeZip([{ name: 'xl/worksheets/sheet1.xml', data: Buffer.from(sheet), deflate: true }])
+    expect(await readFirstSheet(xlsx)).toEqual([[1, 3]])
+  })
+
+  it('닫는 태그 없는 <row> 가 잔뜩 있어도 곧바로 끝난다', async () => {
+    const sheet = '<worksheet><sheetData>' +
+      '<row r="1"><c r="A1"><v>7</v></c></row>' + '<row>'.repeat(200_000) + '</sheetData></worksheet>'
+    const xlsx = makeZip([{ name: 'xl/worksheets/sheet1.xml', data: Buffer.from(sheet), deflate: true }])
+    const t0 = Date.now()
+    expect(await readFirstSheet(xlsx)).toEqual([[7]])
+    expect(Date.now() - t0).toBeLessThan(2000)
+  })
+
+  it('<col>·<cols> 는 셀(<c>)로 잘못 읽지 않는다', async () => {
+    const sheet = '<worksheet><cols><col min="1" max="2"/></cols><sheetData>' +
+      '<row r="1"><c r="A1" t="inlineStr"><is><t>x</t></is></c></row></sheetData></worksheet>'
+    const xlsx = makeZip([{ name: 'xl/worksheets/sheet1.xml', data: Buffer.from(sheet), deflate: true }])
+    expect(await readFirstSheet(xlsx)).toEqual([['x']])
+  })
+})

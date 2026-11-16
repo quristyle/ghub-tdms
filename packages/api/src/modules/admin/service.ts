@@ -7,7 +7,7 @@ import { tx } from '../../core/db.js'
 import { invalidate } from '../../core/cache.js'
 import { Errors } from '../../core/errors.js'
 import { encodeCursor } from '../../core/cursor.js'
-import { hashPassword, initialPassword } from '../../core/password.js'
+import { hashPassword, temporaryPassword } from '../../core/password.js'
 import { destroyAllSessions } from '../../core/session.js'
 import * as jobs from '../jobs/service.js'
 import * as q from './queries.js'
@@ -118,23 +118,52 @@ export async function deletePartnerCompany(id: number) {
   })
 }
 
-export async function createUser(v: UserCreateRequest) {
+/** 사용자 관리를 맡긴 사람(= screen.users.access). ADMIN 인지는 역할로만 가른다. */
+export interface Actor {
+  id: number
+  role: 'ADMIN' | 'VIEWER'
+}
+
+/**
+ * 권한 상승 막기.
+ *
+ * 사용자 관리 화면은 ADMIN 이 아닌 사람에게도 맡길 수 있다(screen.users.access).
+ * 그 사람이 ① 누군가를 ADMIN 으로 만들거나 ② ADMIN 계정을 고치거나 비밀번호를
+ * 초기화하면 곧바로 관리자 권한을 손에 넣는다. ADMIN 에 닿는 일은 ADMIN 만 한다.
+ */
+function assertMayTouch(actor: Actor, target: { role: string } | null, newRole?: string): void {
+  if (actor.role === 'ADMIN') return
+  if (newRole === 'ADMIN' || target?.role === 'ADMIN') {
+    throw Errors.forbidden()
+  }
+}
+
+export async function createUser(v: UserCreateRequest, actor: Actor) {
+  assertMayTouch(actor, null, v.role)
   return tx(async (c) => {
     if ((await q.findByLoginId(c, v.loginId)).rows.length) {
       throw Errors.conflict('LOGIN_ID_TAKEN', `아이디 "${v.loginId}" 가 이미 있습니다.`)
     }
-    // 초기 비밀번호는 'ghub' + 아이디. 첫 로그인 때 변경 화면이 열린다 (기존 CM 규칙).
-    const hash = await hashPassword(initialPassword(v.loginId))
+    // 초기 비밀번호는 무작위 1회용이다. 예전 규칙('ghub' + 아이디)은 아이디만 알면
+    // 누구나 남의 계정으로 들어갈 수 있었다. 값은 이 응답으로 한 번만 돌려주고 저장하지 않는다.
+    // 첫 로그인 때 변경 화면이 열리고, 바꾸기 전에는 다른 기능을 쓸 수 없다.
+    const tempPassword = temporaryPassword()
+    const hash = await hashPassword(tempPassword)
     const id = await q.insertUser(c, { ...v, passwordHash: hash })
-    return { id }
+    return { id, tempPassword }
   })
 }
 
-export async function updateUser(id: number, v: UserUpdateRequest, actorId: number) {
+export async function updateUser(id: number, v: UserUpdateRequest, actor: Actor) {
   await tx(async (c) => {
     const found = await q.userById(c, id)
     const user = found.rows[0]
     if (!user) throw Errors.notFound('계정')
+    assertMayTouch(actor, user, v.role)
+    // 자기 그룹을 권한 많은 그룹으로 옮겨 스스로 권한을 늘리지 못하게 한다
+    if (actor.role !== 'ADMIN' && id === actor.id && v.groupId !== undefined) {
+      throw Errors.forbidden()
+    }
 
     // 재직 상태와 로그인 가능 여부가 어긋나면 "퇴직인데 로그인되는" 계정이 생긴다.
     // 상태만 바꿨으면 is_active 를 따라오게 한다(재직=사용, 퇴직·삭제=중지).
@@ -153,21 +182,26 @@ export async function updateUser(id: number, v: UserUpdateRequest, actorId: numb
 
     await q.updateUser(c, id, patch)
     if (patch.isActive === false) await destroyAllSessions(id)
-    void actorId
   })
   await invalidate('cache_perm')
 }
 
-export async function resetPassword(id: number) {
+export async function resetPassword(id: number, actor: Actor) {
+  const tempPassword = temporaryPassword()
   await tx(async (c) => {
     const found = await q.userById(c, id)
     const user = found.rows[0]
     if (!user) throw Errors.notFound('계정')
-    await q.resetPassword(c, id, await hashPassword(initialPassword(user.login_id)))
+    assertMayTouch(actor, user)
+    await q.resetPassword(c, id, await hashPassword(tempPassword))
   })
   // 비밀번호가 바뀌면 그 사람의 세션을 전부 끊는다 (기존 정책)
   await destroyAllSessions(id)
-  return { ok: true as const, rule: '초기 비밀번호는 ghub + 아이디 입니다. 첫 로그인 때 변경 화면이 열립니다.' }
+  return {
+    ok: true as const,
+    tempPassword,
+    rule: '임시 비밀번호는 지금 한 번만 보입니다. 본인에게 전달하세요. 첫 로그인 때 새 비밀번호로 바꿔야 합니다.',
+  }
 }
 
 // ── 권한 관리 ───────────────────────────────────────────────────────────
@@ -209,7 +243,9 @@ export async function permissions(groupId: number) {
  * 트리 구조는 코드에 고정되어 있으므로 **트리에 없는 키는 거부한다.**
  * 그래야 실제로 없는 기능에 권한이 생기는 일이 없다 (기존 정책).
  */
-export async function setPermissions(groupId: number, granted: string[]) {
+export async function setPermissions(groupId: number, granted: string[], actor?: Actor & { groupId: number | null }) {
+  // 자기 그룹에 권한을 얹어 스스로 넓히는 길을 막는다 (ADMIN 은 원래 전부 가진다)
+  if (actor && actor.role !== 'ADMIN' && actor.groupId === groupId) throw Errors.forbidden()
   const unknown = granted.filter((k) => !LEAF_KEY_SET.has(k))
   if (unknown.length) {
     throw Errors.invalid('UNKNOWN_PERMISSION', `권한 트리에 없는 항목입니다: ${unknown.join(', ')}`)
@@ -418,9 +454,11 @@ export async function userPermissions(userId: number) {
  * (합집합이라 결과가 같고, 나중에 그룹에서 내려도 개인 쪽이 남아 안 내려간다).
  * 그래서 **그룹에 있는 키는 받지 않는다** — 화면도 그 칸을 상속으로 잠근다.
  */
-export async function setUserPermissions(userId: number, granted: string[], actorId: number) {
+export async function setUserPermissions(userId: number, granted: string[], actorId: number, actorRole: Actor['role'] = 'VIEWER') {
   const user = await q.findUser(userId)
   if (!user) throw Errors.notFound('계정')
+  // 자기 자신에게 권한을 주는 일은 ADMIN 만 한다
+  if (actorRole !== 'ADMIN' && userId === actorId) throw Errors.forbidden()
 
   const unknown = granted.filter((k) => !LEAF_KEY_SET.has(k))
   if (unknown.length) {

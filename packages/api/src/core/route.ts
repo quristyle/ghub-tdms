@@ -22,10 +22,25 @@ export type Access =
   | { kind: 'authenticated' }
   /** 리프 권한이 필요하다 */
   | { kind: 'permission'; key: PermissionKey }
+  /** 나열한 리프 중 하나라도 있으면 된다 — 여러 화면이 함께 쓰는 조회·파일 경로 */
+  | { kind: 'anyPermission'; keys: readonly PermissionKey[] }
 
 export const PUBLIC: Access = { kind: 'public' }
 export const AUTHENTICATED: Access = { kind: 'authenticated' }
 export const permission = (key: PermissionKey): Access => ({ kind: 'permission', key })
+export const anyPermission = (...keys: PermissionKey[]): Access => ({ kind: 'anyPermission', keys })
+
+/**
+ * TDB 자료·파일을 읽는 화면들. 자료 상세·PDF 보기는 조회·반입검수·관리·반출이력 화면이
+ * 함께 쓴다. 예전에는 로그인만 보았기 때문에 권한이 하나도 없는 계정도 id 를 차례로
+ * 넣어 모든 도면을 내려받을 수 있었다.
+ */
+export const TDB_READ = anyPermission(
+  'screen.tdb_list.access', 'screen.tdb_import.access',
+  'screen.tdb_editor.access', 'screen.tdb_distributions.access',
+)
+/** MDB 자료·파일을 읽는 화면들 */
+export const MDB_READ = anyPermission('screen.mdb_list.access', 'screen.mdb_editor.access')
 
 export interface AuditSpec {
   screen: string
@@ -56,6 +71,9 @@ export interface TdmsRequest extends FastifyRequest {
 /** 기동 시 검증을 위해 모든 선언을 모아 둔다. */
 export const routeRegistry: RouteSpec[] = []
 
+/** 비밀번호를 바꿔야 하는 세션이 부를 수 있는 것 — 자기 정보·변경·로그아웃뿐 */
+const PASSWORD_CHANGE_ALLOWED: ReadonlySet<string> = new Set(['/auth/me', '/auth/password', '/auth/logout'])
+
 const MUTATING: ReadonlySet<string> = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 function isMutating(method: HTTPMethods | HTTPMethods[]): boolean {
@@ -80,8 +98,18 @@ export function defineRoute(app: FastifyInstance, spec: RouteSpec): void {
 
       if (spec.access.kind !== 'public') {
         if (!r.auth) throw Errors.unauthorized()
+        // 초기·임시 비밀번호 상태에서는 바꾸기 전까지 다른 기능을 쓰지 못한다.
+        // 화면이 변경 창을 먼저 띄우지만, 그건 화면 사정이고 경계는 여기다 —
+        // 주소를 직접 부르면 그대로 통과하던 구멍을 막는다.
+        if (r.auth.user.mustChangePassword && !PASSWORD_CHANGE_ALLOWED.has(spec.url)) {
+          throw new AppError('PASSWORD_CHANGE_REQUIRED', 403, '비밀번호를 먼저 바꿔야 합니다.')
+        }
         if (spec.access.kind === 'permission' && !hasPermission(r.auth, spec.access.key)) {
           throw Errors.forbidden(spec.access.key)
+        }
+        if (spec.access.kind === 'anyPermission') {
+          const keys = spec.access.keys
+          if (!keys.some((k) => hasPermission(r.auth, k))) throw Errors.forbidden(keys[0])
         }
       }
 
@@ -130,6 +158,12 @@ export function assertRouteDeclarations(): void {
     if (r.access.kind === 'permission' && !LEAF_KEY_SET.has(r.access.key)) {
       problems.push(`${where} — 권한 트리에 없는 키: ${r.access.key}`)
     }
+    if (r.access.kind === 'anyPermission') {
+      if (!r.access.keys.length) problems.push(`${where} — anyPermission 에 키가 없음`)
+      for (const k of r.access.keys) {
+        if (!LEAF_KEY_SET.has(k)) problems.push(`${where} — 권한 트리에 없는 키: ${k}`)
+      }
+    }
 
     // ② 쓰기 작업에 감사 선언이 있는가
     if (isMutating(r.method) && !r.audit) {
@@ -157,7 +191,7 @@ export function assertRouteDeclarations(): void {
 }
 
 export function routeSummary(): { total: number; byAccess: Record<string, number> } {
-  const byAccess: Record<string, number> = { public: 0, authenticated: 0, permission: 0 }
+  const byAccess: Record<string, number> = { public: 0, authenticated: 0, permission: 0, anyPermission: 0 }
   for (const r of routeRegistry) byAccess[r.access.kind] = (byAccess[r.access.kind] ?? 0) + 1
   return { total: routeRegistry.length, byAccess }
 }

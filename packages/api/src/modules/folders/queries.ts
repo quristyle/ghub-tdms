@@ -116,6 +116,13 @@ export function findById(id: number) {
   return one<FolderRow>(`${SELECT_FOLDER} WHERE f.id = $1`, [id], 'folder_by_id')
 }
 
+/** 폴더가 TDB·MDB 중 어디 것인가 — 화면 경계(권한)를 넘는 조작을 막을 때 쓴다 */
+export function findDocClass(id: number) {
+  return one<{ docClass: string }>(
+    'SELECT doc_class AS "docClass" FROM folders WHERE id = $1', [id], 'folder_doc_class',
+  )
+}
+
 export function rootIds(docClass: string) {
   return many<{ id: number }>(
     `SELECT id FROM folders WHERE doc_class = $1 AND NOT is_archived`,

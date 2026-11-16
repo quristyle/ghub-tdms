@@ -13,6 +13,12 @@ import { readFileSync, existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import pg from 'pg'
+// 계정 비밀번호는 환경변수로 받는다 — 'ghub'+아이디 초기 비밀번호와 [나중에 변경] 은 없어졌다(2026-11-17 보안 점검).
+// 쓰는 계정은 비밀번호를 이미 바꿔 둔 상태여야 한다(바꾸기 전에는 API 가 403 PASSWORD_CHANGE_REQUIRED).
+const ADMIN_PW = process.env.TDMS_ADMIN_PASSWORD
+const CM_PW = process.env.TDMS_CM_PASSWORD
+if (!ADMIN_PW) { console.error('TDMS_ADMIN_PASSWORD 가 없습니다 — 흐름 검증을 건너뜁니다. (0 통과 / 1 실패)'); process.exit(1) }
+
 pg.types.setTypeParser(pg.types.builtins.INT8, (v) => Number(v))
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -51,8 +57,7 @@ async function cleanup() {
 const main = async () => {
   await db.connect(); await db.query(`SET search_path TO ${process.env.PGSCHEMA}, public`)
   const admin = session()
-  await admin('POST','/auth/login',{loginId:'admin',password:'ghubadmin'})
-  await admin('POST','/auth/password/defer')
+  await admin('POST','/auth/login',{loginId:'admin',password:ADMIN_PW})
   await cleanup()
 
   const { rows:[folder] } = await db.query(`SELECT id FROM folders WHERE doc_class='TDB' ORDER BY id LIMIT 1`)
@@ -159,8 +164,7 @@ const main = async () => {
   await new Promise(r => setTimeout(r, 400))
 
   const cm = session()
-  await cm('POST','/auth/login',{loginId:'cm',password:'ghubcm'}); await cm('POST','/auth/password/defer')
-  const opts = await cm('GET','/distributions/filter-options')
+  await cm('POST','/auth/login',{loginId:'cm',password:CM_PW});  const opts = await cm('GET','/distributions/filter-options')
   check(opts.body.canSelectOtherUser === false, '권한이 없으면 다른 사용자를 고를 수 없다')
   check(opts.body.distributors.length === 1, '반출자 목록에 자기 이름만 나온다',
         opts.body.distributors[0]?.name)
@@ -181,8 +185,7 @@ const main = async () => {
   await db.query(`SELECT pg_notify('cache_perm','')`)
   await new Promise(r => setTimeout(r, 400))
   const cm2 = session()
-  await cm2('POST','/auth/login',{loginId:'cm',password:'ghubcm'}); await cm2('POST','/auth/password/defer')
-  const { rows:[open1] } = await db.query(
+  await cm2('POST','/auth/login',{loginId:'cm',password:CM_PW});  const { rows:[open1] } = await db.query(
     `SELECT id FROM distributions WHERE vendor_name='DIST-TEST 한성' AND returned_at IS NULL LIMIT 1`)
   const blocked = await cm2('POST','/distributions/return',{distributionIds:[open1.id], manual:true})
   check(blocked.status === 403, '수정없이 반납처리는 별도 권한이 막는다', blocked.body.code)

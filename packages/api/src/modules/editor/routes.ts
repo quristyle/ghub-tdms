@@ -96,7 +96,7 @@ export function registerEditorRoutes(app: FastifyInstance): void {
     handler: async (req) => {
       const { id } = IdParam.parse(req.params)
       const b = FolderRenameRequest.parse(req.body)
-      const out = await svc.renameFolder(id, b.name)
+      const out = await svc.renameFolder('TDB', id, b.name)
       req.setAuditTarget(b.name, { folderId: id })
       return out
     },
@@ -114,7 +114,7 @@ export function registerEditorRoutes(app: FastifyInstance): void {
     handler: async (req) => {
       const { id } = IdParam.parse(req.params)
       const b = FolderReparentRequest.parse(req.body)
-      const out = await svc.moveFolder(id, b.newParentId)
+      const out = await svc.moveFolder('TDB', id, b.newParentId)
       req.setAuditTarget(`폴더 ${id}`, { newParentId: b.newParentId, affected: out.affectedFolders })
       return out
     },
@@ -331,7 +331,7 @@ export function registerEditorRoutes(app: FastifyInstance): void {
     },
     handler: async (req) => {
       const b = z.object({ batchIds: z.array(z.number().int()).min(1).max(500) }).parse(req.body)
-      const out = await svc.restore(b.batchIds, req.auth.user.id)
+      const out = await svc.restore('TRASH', b.batchIds, req.auth.user.id)
       req.setAuditTarget(`${b.batchIds.length}묶음`, { restored: out.restored, blocked: out.blocked.length })
       return out
     },
@@ -361,7 +361,7 @@ export function registerEditorRoutes(app: FastifyInstance): void {
     handler: async (req) => {
       const { id } = IdParam.parse(req.params)
       const b = NoteRequest.parse(req.body)
-      await svc.setNote(id, b.note)
+      await svc.setNote('TRASH', id, b.note)
       req.setAuditTarget(`묶음 ${id}`, { note: b.note })
       return { ok: true as const }
     },
@@ -421,7 +421,7 @@ export function registerEditorRoutes(app: FastifyInstance): void {
     },
     handler: async (req) => {
       const b = z.object({ batchIds: z.array(z.number().int()).min(1).max(500) }).parse(req.body)
-      const out = await svc.restore(b.batchIds, req.auth.user.id)
+      const out = await svc.restore('RETIRE', b.batchIds, req.auth.user.id)
       req.setAuditTarget(`${b.batchIds.length}건`, { restored: out.restored })
       return out
     },
@@ -436,7 +436,7 @@ export function registerEditorRoutes(app: FastifyInstance): void {
     handler: async (req) => {
       const { id } = IdParam.parse(req.params)
       const b = NoteRequest.parse(req.body)
-      await svc.setNote(id, b.note)
+      await svc.setNote('RETIRE', id, b.note)
       req.setAuditTarget(`폐기 ${id}`, { note: b.note })
       return { ok: true as const }
     },

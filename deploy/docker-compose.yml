@@ -38,6 +38,9 @@ services:
       <<: *app-env
       API_LISTEN: 0.0.0.0:8080
       BACKUP_ROOT: /srv/tdms/backup
+      # 접속 주소(req.ip)를 고를 때 믿을 프록시 홉 수: 호스트 nginx → 웹 컨테이너 nginx.
+      # 이보다 왼쪽의 X-Forwarded-For 는 클라이언트가 꾸민 값일 수 있어 보지 않는다.
+      TRUST_PROXY: "2"
     volumes:
       - /srv/tdms/blobs:/srv/tdms/blobs
       - /srv/tdms/tmp:/srv/tdms/tmp

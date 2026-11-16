@@ -64,6 +64,18 @@ export const config = {
   /** nginx 뒤에서는 파일 전송을 X-Accel-Redirect 로 위임한다. */
   useXAccel: process.env.USE_X_ACCEL === 'true',
 
+  /**
+   * 앞단 프록시를 얼마나 믿을지 (req.ip 를 X-Forwarded-For 에서 고를 때).
+   *
+   * 예전에는 true(전부 믿음)였다 — 그러면 맨 왼쪽 값, 즉 **클라이언트가 직접 적어 보낸**
+   * 주소가 req.ip 가 되어 감사 로그의 접속 주소를 아무렇게나 꾸밀 수 있었다.
+   * 숫자면 그 홉 수만큼만 믿는다(운영: 호스트 nginx → 웹 컨테이너 nginx = 2).
+   * 아니면 proxy-addr 의 주소 목록(기본: 루프백·사설망만).
+   */
+  trustProxy: ((v) => (/^\d+$/.test(v) ? Number(v) : v))(
+    process.env.TRUST_PROXY ?? 'loopback,linklocal,uniquelocal',
+  ) as number | string,
+
   storageRoot: process.env.STORAGE_ROOT ?? '/srv/tdms',
 
   /** 백업 묶음 자리. 워커가 쓰고 API 가 내려준다 — 자료 전체를 blob 으로 한 벌 더 두지 않는다. */

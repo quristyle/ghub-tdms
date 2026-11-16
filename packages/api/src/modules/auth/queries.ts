@@ -65,6 +65,11 @@ export function updatePassword(userId: number, hash: string) {
   )
 }
 
+/** 예전 초기 비밀번호로 들어온 계정 — 변경을 강제한다 */
+export function requirePasswordChange(userId: number) {
+  return query('UPDATE users SET must_change_password = true, updated_at = now() WHERE id = $1', [userId])
+}
+
 /** 미루기 — 이번 로그인에서는 넘어가지만 다음 로그인 때 다시 묻는다 (기존 정책). */
 export function deferPasswordChange(_userId: number) {
   return Promise.resolve()

@@ -31,6 +31,8 @@ export async function sendToTrash(
     if (v.folderId !== null) {
       const f = await folders.findById(v.folderId)
       if (!f) throw Errors.notFound('폴더')
+      // MDB 관리 권한으로 TDB 폴더(또는 그 반대)를 통째로 보관함에 넣지 못하게
+      await assertFolderClass(v.folderId, docClass)
       ids = await q.itemsUnderFolder(c, docClass, v.folderId)
       label = f.name
       originalPath = await folderPathText(c, v.folderId)
@@ -103,22 +105,41 @@ export async function listBox(docClass: q.DocClass, kind: q.ArchiveKind) {
   }
 }
 
-export async function setNote(batchId: number, note: string | null) {
+/**
+ * 보관 묶음이 지금 화면의 것(TDB/MDB · 삭제/폐기)인가.
+ * 묶음 id 는 TDB·MDB·삭제·폐기가 한 표에서 번호를 나눠 쓴다. 맞춰 보지 않으면
+ * '폐기 보관함' 권한만으로 삭제 보관함 묶음을, MDB 권한으로 TDB 묶음을 되살리거나
+ * 완전 삭제(되돌릴 수 없음)할 수 있었다. 남의 칸 묶음은 '없다' 고 답한다.
+ */
+function inBox(
+  b: { doc_class: string; kind: string } | undefined,
+  docClass: q.DocClass,
+  kind: q.ArchiveKind,
+): boolean {
+  return !!b && b.doc_class === docClass && b.kind === kind
+}
+
+export async function assertFolderClass(folderId: number, docClass: q.DocClass): Promise<void> {
+  const f = await folders.findDocClass(folderId)
+  if (!f || f.docClass !== docClass) throw Errors.notFound('폴더')
+}
+
+export async function setNote(docClass: q.DocClass, kind: q.ArchiveKind, batchId: number, note: string | null) {
   await tx(async (c) => {
     const b = await q.batchById(c, batchId)
-    if (!b) throw Errors.notFound('보관 묶음')
+    if (!inBox(b, docClass, kind)) throw Errors.notFound('보관 묶음')
     await q.setBatchNote(c, batchId, note)
   })
 }
 
-export async function restore(batchIds: number[], userId: number) {
+export async function restore(docClass: q.DocClass, kind: q.ArchiveKind, batchIds: number[], userId: number) {
   const out = await tx(async (c) => {
     let restored = 0
     const blocked: { batchId: number; reason: string }[] = []
 
     for (const id of batchIds) {
       const b = await q.batchById(c, id)
-      if (!b) { blocked.push({ batchId: id, reason: '묶음을 찾을 수 없습니다.' }); continue }
+      if (!b || !inBox(b, docClass, kind)) { blocked.push({ batchId: id, reason: '묶음을 찾을 수 없습니다.' }); continue }
       if (b.purged_at) { blocked.push({ batchId: id, reason: '이미 완전 삭제되었습니다.' }); continue }
       if (b.restored_at) { blocked.push({ batchId: id, reason: '이미 복구되었습니다.' }); continue }
       if (!(await q.restoreTargetAlive(c, b.doc_class, id))) {
@@ -138,6 +159,7 @@ export async function restore(batchIds: number[], userId: number) {
  * 딸린 표를 지우는 일은 doc_class 마다 다르므로 호출하는 쪽이 넘긴다.
  */
 export async function purge(
+  docClass: q.DocClass,
   batchIds: number[],
   userId: number,
   purgeOne: (c: pg.PoolClient, batchId: number) => Promise<{ purged: number; freedBytes: number }>,
@@ -147,7 +169,7 @@ export async function purge(
     let freedBytes = 0
     for (const id of batchIds) {
       const b = await q.batchById(c, id)
-      if (!b) throw Errors.notFound('보관 묶음')
+      if (!b || b.doc_class !== docClass) throw Errors.notFound('보관 묶음')
       if (b.kind !== 'TRASH') {
         throw Errors.invalid(
           'PURGE_NOT_ALLOWED',

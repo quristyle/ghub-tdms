@@ -13,6 +13,12 @@ import { readFileSync, existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import pg from 'pg'
+// 계정 비밀번호는 환경변수로 받는다 — 'ghub'+아이디 초기 비밀번호와 [나중에 변경] 은 없어졌다(2026-11-17 보안 점검).
+// 쓰는 계정은 비밀번호를 이미 바꿔 둔 상태여야 한다(바꾸기 전에는 API 가 403 PASSWORD_CHANGE_REQUIRED).
+const ADMIN_PW = process.env.TDMS_ADMIN_PASSWORD
+const CM_PW = process.env.TDMS_CM_PASSWORD
+if (!ADMIN_PW) { console.error('TDMS_ADMIN_PASSWORD 가 없습니다 — 흐름 검증을 건너뜁니다. (0 통과 / 1 실패)'); process.exit(1) }
+
 
 // API 와 같게 bigint 를 숫자로 받는다 (안 하면 문자열로 와서 요청이 검증에 걸린다)
 pg.types.setTypeParser(pg.types.builtins.INT8, (v) => Number(v))
@@ -51,8 +57,7 @@ async function cleanup() {
 
 const main = async () => {
   await db.connect(); await db.query(`SET search_path TO ${process.env.PGSCHEMA}, public`)
-  await call('POST','/auth/login',{loginId:'admin',password:'ghubadmin'}); await call('POST','/auth/password/defer')
-  await cleanup()
+  await call('POST','/auth/login',{loginId:'admin',password:ADMIN_PW});  await cleanup()
 
   // ── ① 폴더 만들기 / 이름 변경 / 이동 ─────────────────────────────
   console.log('\n① 폴더 만들기 · 이름 변경 · 이동')

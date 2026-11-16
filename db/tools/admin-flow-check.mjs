@@ -12,6 +12,12 @@ import { readFileSync, existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import pg from 'pg'
+// 계정 비밀번호는 환경변수로 받는다 — 'ghub'+아이디 초기 비밀번호와 [나중에 변경] 은 없어졌다(2026-11-17 보안 점검).
+// 쓰는 계정은 비밀번호를 이미 바꿔 둔 상태여야 한다(바꾸기 전에는 API 가 403 PASSWORD_CHANGE_REQUIRED).
+const ADMIN_PW = process.env.TDMS_ADMIN_PASSWORD
+const CM_PW = process.env.TDMS_CM_PASSWORD
+if (!ADMIN_PW) { console.error('TDMS_ADMIN_PASSWORD 가 없습니다 — 흐름 검증을 건너뜁니다. (0 통과 / 1 실패)'); process.exit(1) }
+
 pg.types.setTypeParser(pg.types.builtins.INT8, (v) => Number(v))
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -44,8 +50,7 @@ async function cleanup(){
 const main=async()=>{
   await db.connect(); await db.query(`SET search_path TO ${process.env.PGSCHEMA}, public`)
   const admin=session()
-  await admin('POST','/auth/login',{loginId:'admin',password:'ghubadmin'})
-  await admin('POST','/auth/password/defer')
+  await admin('POST','/auth/login',{loginId:'admin',password:ADMIN_PW})
   await cleanup()
 
   // ── ① 시스템 로그 ───────────────────────────────────────────────
@@ -102,8 +107,7 @@ const main=async()=>{
   await db.query(`SELECT pg_notify('cache_perm','')`)
   await new Promise(r=>setTimeout(r,400))
   const cm=session()
-  await cm('POST','/auth/login',{loginId:'cm',password:'ghubcm'}); await cm('POST','/auth/password/defer')
-  const peek = await cm('GET','/audit-log?limit=5&userId=1')
+  await cm('POST','/auth/login',{loginId:'cm',password:CM_PW});  const peek = await cm('GET','/audit-log?limit=5&userId=1')
   check(peek.status===403, '주소로 남의 id 를 넣으면 막는다', peek.body.code)
   const mine = await cm('GET','/audit-log?limit=50')
   check(mine.body.items.every(a=>a.userName==='설비기술팀 CM' || a.userName===null),
@@ -116,13 +120,22 @@ const main=async()=>{
   // ── ② 사용자 관리 ───────────────────────────────────────────────
   console.log('\n② 사용자 관리')
   const made = await admin('POST','/users',{loginId:'admtest1', name:'시험 계정', role:'VIEWER'})
-  check(made.status===200 && made.body.id>0, '계정을 만든다', `id=${made.body.id}`)
+  check(made.status===200 && made.body.id>0 && /^[a-z0-9]{12}$/.test(made.body.tempPassword ?? ''),
+        '계정을 만들고 무작위 임시 비밀번호를 한 번 돌려준다', `id=${made.body.id}`)
 
-  // 초기 비밀번호 규칙이 실제로 통하는가
+  // 예전 규칙(ghub+아이디)은 통하지 않고, 임시 비밀번호로 들어오면 변경을 요구한다
   const probe=session()
-  const login = await probe('POST','/auth/login',{loginId:'admtest1', password:'ghubadmtest1'})
-  check(login.status===200 && login.body.mustChangePassword,
-        '초기 비밀번호 ghub+아이디 로 로그인되고 변경을 요구한다')
+  const old = await probe('POST','/auth/login',{loginId:'admtest1', password:'ghubadmtest1'})
+  check(old.status===401, '예전 초기 비밀번호 ghub+아이디 로는 들어올 수 없다', old.status)
+  const login = await probe('POST','/auth/login',{loginId:'admtest1', password:made.body.tempPassword})
+  check(login.status===200 && login.body.mustChangePassword, '임시 비밀번호로 로그인되고 변경을 요구한다')
+  const blocked = await probe('GET','/audit-log?limit=1')
+  check(blocked.status===403 && blocked.body.code==='PASSWORD_CHANGE_REQUIRED',
+        '비밀번호를 바꾸기 전에는 다른 API 를 막는다', blocked.body.code)
+  const defer = await probe('POST','/auth/password/defer')
+  check(defer.status===403, '미루기는 받지 않는다', defer.status)
+  const ADMTEST1_PW = 'Admtest1pw9x'
+  await probe('POST','/auth/password',{currentPassword:made.body.tempPassword, newPassword:ADMTEST1_PW})
 
   const dup = await admin('POST','/users',{loginId:'admtest1', name:'중복', role:'VIEWER'})
   check(dup.status===409, '같은 아이디는 거부한다', dup.body.code)
@@ -143,7 +156,8 @@ const main=async()=>{
         '마지막 관리자는 내릴 수 없다', demote.body.code)
 
   const reset = await admin('POST',`/users/${made.body.id}/reset-password`)
-  check(reset.status===200 && reset.body.rule.includes('ghub'), '비밀번호를 초기화한다')
+  check(reset.status===200 && /^[a-z0-9]{12}$/.test(reset.body.tempPassword ?? '')
+        && reset.body.tempPassword !== made.body.tempPassword, '비밀번호를 무작위 임시 비밀번호로 초기화한다')
 
   // ── ③ 권한 관리 ─────────────────────────────────────────────────
   console.log('\n③ 권한 관리')
@@ -171,9 +185,12 @@ const main=async()=>{
   await db.query(`UPDATE users SET is_active=true, group_id=$2 WHERE id=$1`,[made.body.id, grp.body.id])
   await db.query(`SELECT pg_notify('cache_perm','')`)
   await new Promise(r=>setTimeout(r,400))
+  // 위에서 초기화했으므로 임시 비밀번호로 들어와 다시 정한다 (바꾸기 전에는 다른 API 가 막힌다)
+  const again=session()
+  await again('POST','/auth/login',{loginId:'admtest1', password:reset.body.tempPassword})
+  await again('POST','/auth/password',{currentPassword:reset.body.tempPassword, newPassword:ADMTEST1_PW})
   const t=session()
-  await t('POST','/auth/login',{loginId:'admtest1', password:'ghubadmtest1'})
-  await t('POST','/auth/password/defer')
+  await t('POST','/auth/login',{loginId:'admtest1', password:ADMTEST1_PW})
   const me1 = (await t('GET','/auth/me')).body
   check(me1.menu.length===1 && me1.menu[0].label==='시스템 로그',
         '권한대로 메뉴가 내려온다', me1.menu.map(m=>m.label).join(','))
@@ -222,8 +239,8 @@ const main=async()=>{
 
     // 재직 상태를 바꾸면 로그인도 함께 막히는가
     const victim = session()
-    await admin('POST','/users',{loginId:'admtest_quit', name:'퇴직시험', role:'VIEWER', groupId:null})
-    const vlogin = await victim('POST','/auth/login',{loginId:'admtest_quit', password:'ghubadmtest_quit'})
+    const quitMade = await admin('POST','/users',{loginId:'admtest_quit', name:'퇴직시험', role:'VIEWER', groupId:null})
+    const vlogin = await victim('POST','/auth/login',{loginId:'admtest_quit', password:quitMade.body.tempPassword})
     check(vlogin.status===200, '퇴직 처리 전에는 로그인된다')
     const vid = (await admin('GET','/users')).body.items.find(u=>u.loginId==='admtest_quit').id
     await admin('PATCH',`/users/${vid}`,{ employmentStatus:'RETIRED' })

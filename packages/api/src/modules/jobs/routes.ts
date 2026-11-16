@@ -31,9 +31,12 @@ function guardExport(req: TdmsRequest, body: ExcelExportRequest): void {
     tdb_documents: 'screen.tdb_list.access',
     mdb_files: 'screen.mdb_list.access',
     audit_log: 'screen.audit.access',
+    distributions: 'screen.tdb_distributions.access',
   }
   const key = need[body.target]
-  if (key && !hasPermission(req.auth, key)) throw Errors.forbidden(key)
+  // 표에 없는 대상은 받지 않는다 — 새 대상을 늘리며 여기를 빠뜨리면 누구나 뽑게 된다
+  if (!key) throw Errors.forbidden()
+  if (!hasPermission(req.auth, key)) throw Errors.forbidden(key)
   if (body.target === 'audit_log' && !hasPermission(req.auth, 'screen.audit.viewer.other_user')) {
     const asked = body.filters.userId
     if (asked !== undefined && asked !== null && asked !== '' && Number(asked) !== req.auth.user.id) {

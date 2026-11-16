@@ -4,7 +4,7 @@ import {
   ErrorResponse, MdbIdsByFolderQuery, MdbIdsByFolderResponse, MdbNavQuery, MdbNavResponse,
   MdbRendition, MdbSourcesResponse,
 } from '@tdms/contracts'
-import { AUTHENTICATED, defineRoute, permission } from '../../core/route.js'
+import { MDB_READ, defineRoute, permission } from '../../core/route.js'
 import { Errors } from '../../core/errors.js'
 import { many, one } from '../../core/db.js'
 import { sendBlob } from '../../core/files.js'
@@ -260,7 +260,7 @@ export function registerMdbBrowseRoutes(app: FastifyInstance): void {
   defineRoute(app, {
     method: 'GET',
     url: '/mdb/:id/sources',
-    access: AUTHENTICATED,
+    access: MDB_READ,
     schema: { params: Params, response: { 200: MdbSourcesResponse, 404: ErrorResponse } },
     handler: async (req) => {
       const s = await sourcesOf(Params.parse(req.params).id)

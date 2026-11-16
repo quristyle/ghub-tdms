@@ -36,7 +36,9 @@ export async function buildApp(): Promise<FastifyInstance> {
       redact: ['req.headers.cookie', 'req.headers.authorization', '*.password', '*.password_hash'],
       transport: config.isProd ? undefined : { target: 'pino-pretty', options: { translateTime: 'HH:MM:ss' } },
     },
-    trustProxy: true,
+    // 숫자(홉 수)·문자열(주소 목록) 둘 다 받는다. 합집합 타입이면 Fastify 의 생성자 오버로드가
+    // http2 쪽으로 빠져 타입이 엉키므로 한쪽으로 적어 둔다(실행 시에는 숫자도 그대로 통한다).
+    trustProxy: config.trustProxy as string,
     bodyLimit: 32 * 1024 * 1024,
   })
 
@@ -46,7 +48,10 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   await app.register(cookie, { secret: config.session.secret })
   // 업로드는 디스크로 스트리밍한다 — 메모리에 올리지 않는다. 상한은 nginx 와 맞춘다.
-  await app.register(multipart, { limits: { fileSize: 2 * 1024 * 1024 * 1024, files: 50 } })
+  // 글자 칸도 상한을 둔다 — 기본값은 칸 수가 무제한이라 한 요청으로 메모리를 채울 수 있다.
+  await app.register(multipart, {
+    limits: { fileSize: 2 * 1024 * 1024 * 1024, files: 50, fields: 200, fieldSize: 1024 * 1024, parts: 250 },
+  })
 
   // ── 세션 복원 ────────────────────────────────────────────────────────
   // 모든 요청에 대해 한 번만. 권한은 캐시에서 온다(요청당 DB 왕복 없음).

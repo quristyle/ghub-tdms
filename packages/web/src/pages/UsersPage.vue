@@ -417,8 +417,8 @@ async function submitUser() {
     }
     const groupId = f.groupId === '' ? null : Number(f.groupId)
     if (mode === 'create') {
-      await api.post('/users', { loginId: f.loginId, name: f.name, role: f.role, groupId, ...profile })
-      say('ok', `"${f.loginId}" 계정을 만들었습니다. 초기 비밀번호는 ghub${f.loginId} 입니다.`)
+      const r = await api.post<{ id: number; tempPassword: string }>('/users', { loginId: f.loginId, name: f.name, role: f.role, groupId, ...profile })
+      say('ok', `"${f.loginId}" 계정을 만들었습니다. 임시 비밀번호: ${r.tempPassword} — 지금 한 번만 보입니다. 본인에게 전달하세요.`)
     } else {
       await api.patch(`/users/${f.id}`, {
         name: f.name, role: f.role, groupId, employmentStatus: f.employmentStatus, ...profile,
@@ -437,8 +437,8 @@ async function confirmReset() {
   resetTarget.value = null
   if (!u) return
   try {
-    const r = await api.post<{ rule: string }>(`/users/${u.id}/reset-password`)
-    say('ok', `"${u.loginId}" 의 비밀번호를 초기화했습니다. ${r.rule}`)
+    const r = await api.post<{ tempPassword: string; rule: string }>(`/users/${u.id}/reset-password`)
+    say('ok', `"${u.loginId}" 의 비밀번호를 초기화했습니다. 임시 비밀번호: ${r.tempPassword} — ${r.rule}`)
     void qc.invalidateQueries({ queryKey: ['users'] })
   } catch (e) { fail(e) }
 }
@@ -1012,8 +1012,8 @@ async function confirmDeletePartner() {
             <td>
               <input v-model="form.loginId" type="text" :disabled="userDialog === 'edit'" style="width:100%" />
               <div v-if="userDialog === 'create'" class="muted sub">
-                초기 비밀번호는 <strong>ghub{{ form.loginId || '아이디' }}</strong> 입니다.
-                첫 로그인 때 변경 화면이 열립니다(미루기 가능).
+                저장하면 무작위 임시 비밀번호가 한 번 표시됩니다.
+                첫 로그인 때 새 비밀번호로 바꿔야 다른 기능을 쓸 수 있습니다.
               </div>
             </td>
           </tr>
@@ -1097,7 +1097,7 @@ async function confirmDeletePartner() {
     <Modal v-if="resetTarget" title="비밀번호 초기화" @close="resetTarget = null">
       <p>
         <strong>{{ resetTarget.loginId }}</strong> 의 비밀번호를
-        <strong>ghub{{ resetTarget.loginId }}</strong> 로 되돌립니다.
+        무작위 임시 비밀번호로 바꿉니다(완료 후 한 번만 표시).
       </p>
       <p class="muted">그 사람의 모든 로그인이 끊기고, 다음 로그인 때 변경 화면이 열립니다.</p>
       <template #footer>

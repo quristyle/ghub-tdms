@@ -190,7 +190,9 @@ export async function unclassified(v: MdbUnclassifiedQuery) {
 export async function move(fileIds: number[], targetFolderId: number) {
   const out = await tx(async (c) => {
     const target = await folderQ.findById(targetFolderId)
-    if (!target || target.isPlaceholder === undefined) throw Errors.notFound('옮길 폴더')
+    const cls = await folderQ.findDocClass(targetFolderId)
+    // MDB 자료를 TDB 폴더로 옮기지 못하게 한다
+    if (!target || cls?.docClass !== DOC_CLASS) throw Errors.notFound('옮길 폴더')
 
     // 같은 이름이 이미 있는 건만 건너뛴다 — 전체를 막지 않는다
     const conflicts = await q.conflictingTitles(c, targetFolderId, fileIds)
@@ -241,8 +243,10 @@ export function listBox(kind: 'TRASH' | 'RETIRE') {
 }
 
 export function purge(batchIds: number[], userId: number) {
-  return archive.purge(batchIds, userId, (c, id) => q.purgeBatch(c, id))
+  return archive.purge(DOC_CLASS, batchIds, userId, (c, id) => q.purgeBatch(c, id))
 }
 
-export const setNote = archive.setNote
-export const restore = archive.restore
+export const setNote = (kind: 'TRASH' | 'RETIRE', batchId: number, note: string | null) =>
+  archive.setNote(DOC_CLASS, kind, batchId, note)
+export const restore = (kind: 'TRASH' | 'RETIRE', batchIds: number[], userId: number) =>
+  archive.restore(DOC_CLASS, kind, batchIds, userId)

@@ -27,6 +27,11 @@ export async function createFolder(
   docClass: DocClass, parentId: number | null, name: string, userId: number,
 ) {
   const id = await tx(async (c) => {
+    if (parentId !== null) {
+      const parent = await q.folderById(c, parentId)
+      // TDB 화면에서 MDB 폴더 밑에(또는 그 반대로) 만들지 못하게 한다
+      if (!parent || parent.doc_class !== docClass) throw Errors.notFound('상위 폴더')
+    }
     if ((await q.nameTaken(c, parentId, name)).rows.length) {
       throw Errors.conflict('NAME_TAKEN', `같은 자리에 "${name}" 폴더가 이미 있습니다.`)
     }
@@ -36,10 +41,14 @@ export async function createFolder(
   return { ok: true as const, folderId: id, affectedFolders: 0 }
 }
 
-export async function renameFolder(id: number, name: string) {
+/**
+ * 폴더 편집은 부른 화면의 doc_class 안에서만 한다. 예전에는 폴더 id 만 보고 바꿔서
+ * MDB '폴더 편집' 권한으로 TDB 폴더 이름을 바꾸거나 옮길 수 있었다(그 반대도).
+ */
+export async function renameFolder(docClass: DocClass, id: number, name: string) {
   await tx(async (c) => {
     const f = await q.folderById(c, id)
-    if (!f) throw Errors.notFound('폴더')
+    if (!f || f.doc_class !== docClass) throw Errors.notFound('폴더')
     if ((await q.nameTaken(c, f.parent_id, name, id)).rows.length) {
       throw Errors.conflict('NAME_TAKEN', `같은 자리에 "${name}" 폴더가 이미 있습니다.`)
     }
@@ -49,10 +58,10 @@ export async function renameFolder(id: number, name: string) {
   return { ok: true as const, folderId: id, affectedFolders: 0 }
 }
 
-export async function moveFolder(id: number, newParentId: number | null) {
+export async function moveFolder(docClass: DocClass, id: number, newParentId: number | null) {
   const affected = await tx(async (c) => {
     const f = await q.folderById(c, id)
-    if (!f) throw Errors.notFound('폴더')
+    if (!f || f.doc_class !== docClass) throw Errors.notFound('폴더')
     if (newParentId !== null) {
       const target = await q.folderById(c, newParentId)
       if (!target) throw Errors.notFound('옮길 자리')
@@ -98,7 +107,7 @@ export async function renameDocument(
 export async function moveDocuments(documentIds: number[], targetFolderId: number) {
   const out = await tx(async (c) => {
     const target = await q.folderById(c, targetFolderId)
-    if (!target || target.is_archived) throw Errors.notFound('옮길 폴더')
+    if (!target || target.is_archived || target.doc_class !== DOC_CLASS) throw Errors.notFound('옮길 폴더')
 
     // 대상 폴더에 같은 도면번호가 있으면 그 건만 건너뛴다 — 전체를 막지 않는다
     const conflicts = await q.conflictingInFolder(c, targetFolderId, documentIds)
@@ -158,11 +167,13 @@ export async function trashBatchForDownload(batchId: number) {
   })
 }
 
-export const setNote = archive.setNote
-export const restore = archive.restore
+export const setNote = (kind: 'TRASH' | 'RETIRE', batchId: number, note: string | null) =>
+  archive.setNote(DOC_CLASS, kind, batchId, note)
+export const restore = (kind: 'TRASH' | 'RETIRE', batchIds: number[], userId: number) =>
+  archive.restore(DOC_CLASS, kind, batchIds, userId)
 
 export function purge(batchIds: number[], userId: number) {
-  return archive.purge(batchIds, userId, (c, id) => q.purgeBatch(c, id))
+  return archive.purge(DOC_CLASS, batchIds, userId, (c, id) => q.purgeBatch(c, id))
 }
 
 // ── 원본·사본 분리 폴더 ─────────────────────────────────────────────────
@@ -174,7 +185,12 @@ export async function pairFolderCandidates() {
 export async function mergePairFolders(parentId: number, dwgFolderId: number, pdfFolderId: number) {
   const merged = await tx(async (c) => {
     const parent = await q.folderById(c, parentId)
-    if (!parent) throw Errors.notFound('상위 폴더')
+    if (!parent || parent.doc_class !== DOC_CLASS) throw Errors.notFound('상위 폴더')
+    // 두 폴더가 정말 이 상위 폴더의 자식인지 본다 — 아니면 아무 폴더의 자료나 끌어올 수 있다
+    const [dwg, pdf] = await Promise.all([q.folderById(c, dwgFolderId), q.folderById(c, pdfFolderId)])
+    if (!dwg || !pdf || dwg.parent_id !== parentId || pdf.parent_id !== parentId) {
+      throw Errors.notFound('원본·사본 폴더')
+    }
     return q.mergePairFolders(c, parentId, dwgFolderId, pdfFolderId)
   })
   await invalidate('cache_tree')

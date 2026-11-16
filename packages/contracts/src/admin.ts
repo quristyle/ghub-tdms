@@ -172,7 +172,9 @@ export type UserUpdateRequest = z.infer<typeof UserUpdateRequest>
 /** 비밀번호 초기화 — 초기값은 'ghub' + 아이디 (기존 CM 규칙) */
 export const PasswordResetResult = z.object({
   ok: z.literal(true),
-  /** 화면에 안내할 초기 비밀번호 규칙 (값 자체는 돌려주지 않는다) */
+  /** 무작위 1회용 임시 비밀번호 — 이 응답으로 한 번만 나간다(저장하지 않는다) */
+  tempPassword: z.string(),
+  /** 화면에 덧붙일 안내 */
   rule: z.string(),
 })
 export type PasswordResetResult = z.infer<typeof PasswordResetResult>

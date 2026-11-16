@@ -55,7 +55,13 @@ node db/tools/seed-files.mjs && node db/tools/seed-mdb.mjs   # 샘플 파일 (ST
 blob 저장소(`STORAGE_ROOT`)는 **저장소에 담지 않는다** — DB 의 `blobs` 테이블과 짝인
 런타임 상태라, git 이 한쪽만 되감으면 DB 와 어긋난다. 비어 있으면 위 두 줄로 다시 만든다.
 
-시드 계정 — 초기 비밀번호는 기존 규칙 `ghub` + 아이디. 첫 로그인 시 변경 화면이 열린다(미루기 가능).
+시드 계정 — 시드 비밀번호는 `ghub` + 아이디. 첫 로그인 때 **반드시** 바꿔야 한다
+(미루기 없음 — 바꾸기 전에는 서버가 `/auth/me`·`/auth/password`·`/auth/logout` 말고는 403 을 낸다).
+화면에서 만들거나 초기화한 계정은 무작위 임시 비밀번호를 받는다(응답으로 한 번만 보인다).
+
+흐름 검증(`./dev.sh verify`)은 비밀번호를 바꿔 둔 계정으로 돈다 — `TDMS_ADMIN_PASSWORD`,
+`TDMS_CM_PASSWORD` 를 환경에 넣어 둘 것. (`admin-flow-check` 는 `backup_runs` 를 비우므로
+운영과 같은 DB 에서는 돌리지 말 것.)
 
 | 아이디 | 역할 | 그룹 |
 |---|---|---|

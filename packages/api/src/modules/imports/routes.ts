@@ -7,7 +7,7 @@ import {
   RecheckIssueResult, RegisterNewResult, ResolveIssueRequest, ResolveIssueResult,
   ReviewRequest, ReviewResult, revName, UploadResult, ZipImportAccepted,
 } from '@tdms/contracts'
-import { AUTHENTICATED, defineRoute, permission, type TdmsRequest } from '../../core/route.js'
+import { TDB_READ, defineRoute, permission, type TdmsRequest } from '../../core/route.js'
 import { Errors } from '../../core/errors.js'
 import { registerBlob, storeStream, type StoredBlob } from '../../core/blob.js'
 import { tx } from '../../core/db.js'
@@ -16,7 +16,7 @@ import * as jobs from '../jobs/service.js'
 import * as engine from './engine.js'
 import * as q from './queries.js'
 import * as svc from './service.js'
-import { ALLOWED, contentProblem, MAX_UPLOAD } from './upload.js'
+import { ALLOWED, ALLOWED_IN_ZIP, contentProblem, MAX_UPLOAD } from './upload.js'
 
 const SCREEN = 'TDB 반입·검수'
 const IdParam = z.object({ id: z.coerce.number().int() })
@@ -73,7 +73,7 @@ export function registerImportRoutes(app: FastifyInstance): void {
     },
     handler: async (req) => {
       const { id } = IdParam.parse(req.params)
-      const { fields, files } = await readMultipart(req)
+      const { fields, files } = await readMultipart(req, ALLOWED_IN_ZIP) // 도면 파일만 — Zip 은 받지 않는다
       const vendorName = fields.vendorName ?? ''
       if (!vendorName) throw Errors.invalid('VENDOR_REQUIRED', '업체를 지정해 주세요.')
 
@@ -407,7 +407,7 @@ export function registerImportRoutes(app: FastifyInstance): void {
   defineRoute(app, {
     method: 'GET',
     url: '/documents/:id/duplicate-distributions',
-    access: AUTHENTICATED,
+    access: TDB_READ,
     schema: {
       params: IdParam,
       response: { 200: DuplicateDistributionResponse, 404: ErrorResponse },
@@ -427,7 +427,7 @@ export function registerImportRoutes(app: FastifyInstance): void {
     },
     handler: async (req) => {
       const { id } = IdParam.parse(req.params)
-      const { fields, files } = await readMultipart(req)
+      const { fields, files } = await readMultipart(req, ALLOWED_IN_ZIP) // 도면 파일만 — Zip 은 받지 않는다
       if (files.length === 0) throw Errors.invalid('NO_FILES', '통합본 파일을 첨부해 주세요.')
       const out = await svc.branchMerge(
         id,

@@ -70,7 +70,9 @@ export async function registerRevisionIn(
   {
     const locked = await q.lockDocument(c, documentId)
     const doc = locked.rows[0]
-    if (!doc) throw Errors.notFound('자료')
+    // 삭제·폐기 보관함에 든 자료에는 새 리비전을 얹지 않는다 — 보이지 않는 곳에 쌓였다가
+    // 완전 삭제 때 함께 사라진다
+    if (!doc || doc.is_archived) throw Errors.notFound('자료')
 
     const [existing, dists] = await Promise.all([
       q.filesForDecision(c, documentId),
