@@ -172,8 +172,8 @@ async function logout() {
           :aria-expanded="mobileSidebarOpen"
           @click="toggleMobileSidebar"
         >
+          <!-- 모바일에서는 시스템명을 빼고 로고만 둔다 — 좁은 화면에서 머리글이 너비를 넘치지 않게 -->
           <img class="app-brand-logo" src="/assets/skgas-logo.png" alt="SK gas" />
-          <span class="app-brand-text"><strong>TDMS</strong> 기술자료 관리 시스템</span>
           <span class="app-brand-mobile-indicator" aria-hidden="true">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
               <line x1="3" y1="6" x2="21" y2="6" />
