@@ -49,8 +49,8 @@ export const useSession = defineStore('session', () => {
    * 1단계 — 비밀번호. 2차 인증이 켜져 있으면 아직 세션이 없다:
    * mfa 가 verify/enroll 이면 인증 앱 코드를 verifyMfa 로 넘겨야 로그인이 끝난다.
    */
-  async function login(loginId: string, password: string): Promise<LoginResult> {
-    const r = await api.post<LoginResult>('/auth/login', { loginId, password })
+  async function login(loginId: string, password: string, skipMfa = false): Promise<LoginResult> {
+    const r = await api.post<LoginResult>('/auth/login', { loginId, password, skipMfa })
     if (r.mfa === 'none') await load()
     return r
   }

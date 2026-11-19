@@ -3,6 +3,11 @@ import { z } from 'zod'
 export const LoginRequest = z.object({
   loginId: z.string().min(1).max(64),
   password: z.string().min(1).max(256),
+  /**
+   * 로그인 화면의 [2차인증 없이 로그인] — true 면 인증 앱 코드를 묻지 않고 바로 세션을 만든다.
+   * 서버가 AUTH_TOTP_SKIP=off 로 막아 두면 무시된다. 보내지 않으면 false(코드를 묻는다).
+   */
+  skipMfa: z.boolean().optional(),
 })
 
 /** 인증 앱 등록에 필요한 것 — 등록 단계에서 한 번만 내려간다 */

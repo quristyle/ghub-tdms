@@ -40,9 +40,9 @@ export function registerAuthRoutes(app: FastifyInstance): void {
       response: { 200: LoginResult, 401: ErrorResponse, 429: ErrorResponse },
     },
     handler: async (req, reply) => {
-      const { loginId, password } = LoginRequest.parse(req.body)
-      const out = await svc.login(loginId, password, req.ip, req.headers['user-agent'])
-      req.setAuditTarget(loginId)
+      const { loginId, password, skipMfa } = LoginRequest.parse(req.body)
+      const out = await svc.login(loginId, password, req.ip, req.headers['user-agent'], skipMfa === true)
+      req.setAuditTarget(loginId, out.kind === 'session' && out.mfaSkipped ? { step: '2차 인증 생략' } : undefined)
       if (out.kind === 'challenge') return out.result
       setSessionCookie(reply, out.sessionId)
       return { ok: true as const, mfa: 'none' as const, mustChangePassword: out.mustChangePassword }

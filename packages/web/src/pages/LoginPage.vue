@@ -23,6 +23,8 @@ const step = ref<Step>('password')
 
 const loginId = ref('')
 const password = ref('')
+/** [2차인증 없이 로그인] — 기본은 체크. 서버가 허용하면 인증 앱 코드를 묻지 않는다. */
+const skipMfa = ref(true)
 const code = ref('')
 const challenge = ref('')
 const enrollment = ref<TotpEnrollment | null>(null)
@@ -97,7 +99,7 @@ async function submit() {
   error.value = ''
   busy.value = true
   try {
-    const r = await session.login(loginId.value, password.value)
+    const r = await session.login(loginId.value, password.value, skipMfa.value)
     if (r.mfa === 'none') {
       goIn(r.mustChangePassword)
       return
@@ -169,6 +171,10 @@ function onCodeInput(ev: Event) {
       </label>
       <label>비밀번호
         <input v-model="password" type="password" autocomplete="current-password" />
+      </label>
+      <label class="login-check">
+        <input v-model="skipMfa" type="checkbox" />
+        2차인증 없이 로그인
       </label>
       <button class="primary" type="submit" :disabled="busy || !loginId || !password">
         {{ busy ? '확인 중…' : '로그인' }}
@@ -302,6 +308,8 @@ function onCodeInput(ev: Event) {
   font-size: 12.5px;
 }
 .login-box input { width: 100%; height: 36px; margin-top: 5px; }
+.login-box .login-check { display: flex; align-items: center; gap: 6px; margin-top: 12px; cursor: pointer; user-select: none; }
+.login-box .login-check input { width: auto; height: auto; margin: 0; }
 .login-box button { width: 100%; height: 38px; margin-top: 22px; font-size: 14px; font-weight: 600; }
 
 .login-error {

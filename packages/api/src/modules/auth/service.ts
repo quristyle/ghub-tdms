@@ -12,7 +12,7 @@ import * as q from './queries.js'
 
 /** 비밀번호 단계의 결과 — 세션이 생겼거나(2차 인증 끔), 코드를 기다리거나 */
 export type LoginOutcome =
-  | { kind: 'session'; sessionId: string; mustChangePassword: boolean }
+  | { kind: 'session'; sessionId: string; mustChangePassword: boolean; mfaSkipped: boolean }
   | { kind: 'challenge'; result: Exclude<LoginResult, { mfa: 'none' }> }
 
 export interface MfaOutcome {
@@ -73,6 +73,7 @@ export async function login(
   password: string,
   ip: string | undefined,
   userAgent: string | undefined,
+  skipMfa = false,
 ): Promise<LoginOutcome> {
   if (ipBlocked(ip)) throw Errors.locked(IP_WINDOW_MS / 60_000)
 
@@ -106,11 +107,14 @@ export async function login(
     mustChange = true
   }
 
-  if (config.totp.mode === 'off') {
+  // 2차 인증을 끈 장비이거나, 로그인 화면에서 [2차인증 없이 로그인]을 골랐으면(서버가 허용할 때)
+  // 비밀번호만으로 세션을 만든다.
+  const mfaSkipped = config.totp.mode !== 'off' && skipMfa && config.totp.allowSkip
+  if (config.totp.mode === 'off' || mfaSkipped) {
     await q.clearFailures(loginId)
     await q.touchLastLogin(user.id)
     const sessionId = await createSession(user.id, ip, userAgent)
-    return { kind: 'session', sessionId, mustChangePassword: mustChange }
+    return { kind: 'session', sessionId, mustChangePassword: mustChange, mfaSkipped }
   }
 
   // 비밀번호는 맞았다 — 아직 세션은 만들지 않는다. 실패 횟수도 코드까지 맞아야 지운다
