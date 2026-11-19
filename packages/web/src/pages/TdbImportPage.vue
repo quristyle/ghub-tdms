@@ -9,6 +9,7 @@ import type {
   RecheckIssueResult, RegisterNewResult, ResolveIssueResult,
 } from '@tdms/contracts'
 import DataTable, { type Column } from '@/ui/DataTable.vue'
+import FloatField from '@/ui/FloatField.vue'
 import Modal from '@/ui/Modal.vue'
 import JobProgress from '@/ui/JobProgress.vue'
 import LazyTree from '@/ui/LazyTree.vue'
@@ -694,40 +695,37 @@ function size(b: number): string {
     <div class="filter-bar">
       <div class="filter-row">
         <div class="filter-fields">
-          <div class="field">
-            <label for="imp-kind">구분</label>
+          <FloatField label="구분">
             <select id="imp-kind" v-model="f.kind" @change="onKindChange">
               <option value="">전체</option>
               <option value="REVIEW">검수 대기</option>
               <option value="ISSUE">확인 필요</option>
             </select>
-          </div>
-          <div class="field">
-            <label for="imp-project">공사</label>
+          </FloatField>
+          <FloatField label="공사">
             <select id="imp-project" v-model="f.project">
               <option value="">전체</option>
               <option v-for="p in projectOptions" :key="p" :value="p">{{ p }}</option>
             </select>
-          </div>
-          <div class="field">
-            <label for="imp-vendor">업체</label>
+          </FloatField>
+          <FloatField label="업체">
             <select id="imp-vendor" v-model="f.vendor">
               <option value="">전체</option>
               <option v-for="v in vendorOptions" :key="v" :value="v">{{ v }}</option>
             </select>
-          </div>
-          <div class="field">
-            <label for="imp-from">기간</label>
+          </FloatField>
+          <FloatField label="시작일">
             <input id="imp-from" v-model="f.from" type="date" />
-          </div>
-          <div class="field">
-            <label for="imp-to">~</label>
+          </FloatField>
+          <FloatField label="종료일">
             <input id="imp-to" v-model="f.to" type="date" />
-          </div>
-          <input
-            v-model="f.q" type="text" class="filter-search" placeholder="자료명 검색"
-            @keyup.enter="doSearch"
-          />
+          </FloatField>
+          <FloatField class="filter-search" label="자료명 검색">
+            <input
+              v-model="f.q" type="text"
+              @keyup.enter="doSearch"
+            />
+          </FloatField>
           <button id="imp-search-btn" class="primary" type="button" @click="doSearch">검색</button>
         </div>
         <div class="filter-actions">
@@ -907,37 +905,32 @@ function size(b: number): string {
           </div>
           <div class="bulk-block-body">
             <div class="sel-row">
-              <div class="field">
-                <label for="sel-project">공사</label>
+              <FloatField label="공사">
                 <select id="sel-project" v-model="sel.projectKey" @change="resetSelTargets">
                   <option value="">공사 선택</option>
                   <option v-for="[k, p] in projectChoices" :key="k" :value="k">
                     {{ p.name }} ({{ p.count }}건)
                   </option>
                 </select>
-              </div>
-              <div class="field">
-                <label for="sel-vendor">업체</label>
+              </FloatField>
+              <FloatField label="업체">
                 <select id="sel-vendor" v-model="sel.vendorName" @change="resetSelTargets">
                   <option value="">업체 선택</option>
                   <option v-for="[v, n] in vendorChoices" :key="v" :value="v">{{ v }} ({{ n }}건)</option>
                 </select>
-              </div>
-              <div class="field field-date">
-                <label for="sel-date-from">기간</label>
+              </FloatField>
+              <FloatField label="시작일" class="field-date">
                 <input id="sel-date-from" v-model="sel.dateFrom" type="date" />
-              </div>
-              <div class="field field-date">
-                <label for="sel-date-to">~</label>
+              </FloatField>
+              <FloatField label="종료일" class="field-date">
                 <input id="sel-date-to" v-model="sel.dateTo" type="date" />
-              </div>
-              <div class="field">
-                <label for="sel-zip">반출 Zip 묶음</label>
+              </FloatField>
+              <FloatField label="반출 Zip 묶음">
                 <select id="sel-zip" v-model="sel.zipName" @change="sel.distributions = []">
                   <option value="">(자료검색으로 고름)</option>
                   <option v-for="[z, n] in zipChoices" :key="z" :value="z">{{ z }} ({{ n }}건)</option>
                 </select>
-              </div>
+              </FloatField>
               <button class="primary" type="button" :disabled="!canRegister" @click="searchTargets">자료검색</button>
               <span class="sel-count">
                 <template v-if="sel.zipName">Zip 묶음 '{{ sel.zipName }}'</template>
@@ -1231,11 +1224,10 @@ function size(b: number): string {
   display: flex; flex-wrap: wrap; align-items: flex-end;
   gap: 8px 10px; margin-bottom: 28px;
 }
-.sel-row .field { flex: 1 1 0; min-width: 0; }
-.sel-row .field select { width: 100%; }
-.sel-row .field.field-date { flex: 0 0 auto; }
-.sel-row .field.field-date input[type="date"] { width: 132px; }
-.sel-row .field label { font-size: 11px; font-weight: 700; color: var(--text-dark-gray); letter-spacing: 0.02em; }
+.sel-row .ff { flex: 1 1 0; min-width: 0; }
+.sel-row .ff select { width: 100%; }
+.sel-row .ff.field-date { flex: 0 0 auto; }
+.sel-row .ff.field-date input[type="date"] { width: 132px; }
 .sel-row .sel-count, .sel-row > button { flex: none; }
 
 /* 건수가 0~999건까지 늘어나도 글자 위치가 고정되게 최대 자리수 너비를 미리 잡는다 */

@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import type { CatalogItem } from '@tdms/contracts'
 import DataTable, { type Column } from '@/ui/DataTable.vue'
+import FloatField from '@/ui/FloatField.vue'
 import { useCatalog } from '@/lib/catalog'
 
 /**
@@ -95,15 +96,16 @@ const columns = computed<Column<CatalogItem>[]>(() => [
     <div class="filter-bar">
       <div class="filter-row">
         <div class="filter-fields">
-          <div class="field">
-            <label for="cat-status">상태</label>
+          <FloatField label="상태">
             <select id="cat-status" v-model="statusFilter">
               <option value="all">전체</option>
               <option value="using">사용</option>
               <option value="hidden">숨김 ({{ hiddenCount }})</option>
             </select>
-          </div>
-          <input v-model="keyword" type="text" class="filter-search" :placeholder="`${label}명 검색`" />
+          </FloatField>
+          <FloatField class="filter-search" :label="`${label}명 검색`">
+            <input v-model="keyword" type="text" />
+          </FloatField>
         </div>
         <div class="filter-actions">
           <button type="button" @click="resetFilter">조건 초기화</button>

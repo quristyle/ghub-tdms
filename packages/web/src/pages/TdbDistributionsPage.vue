@@ -6,6 +6,7 @@ import type {
   ForImportResult, OutstandingResult, ZipExportListResult, ZipExportRow, ZipReturnResult,
 } from '@tdms/contracts'
 import DataTable, { type Column } from '@/ui/DataTable.vue'
+import FloatField from '@/ui/FloatField.vue'
 import Modal from '@/ui/Modal.vue'
 import ZipStatusModal from '@/ui/ZipStatusModal.vue'
 import { api, ApiError, qs } from '@/lib/api'
@@ -286,47 +287,40 @@ const zipRows = computed(() => zips.value.map((z, i) => ({ ...z, id: i + 1 })))
     <div class="filter-bar">
       <div class="filter-row">
         <div class="filter-fields">
-          <div class="field">
-            <label for="export-kind">반출형태</label>
+          <FloatField label="반출형태">
             <select id="export-kind" :value="byZip ? 'ZIP' : 'FILE'"
                     @change="byZip = ($event.target as HTMLSelectElement).value === 'ZIP'">
               <option value="FILE">자료</option>
               <option value="ZIP">Zip</option>
             </select>
-          </div>
-          <div class="field">
-            <label for="project">공사</label>
+          </FloatField>
+          <FloatField label="공사">
             <select id="project" v-model="f.projectId">
               <option value="">전체</option>
               <option v-for="p in opts?.projects ?? []" :key="p.id" :value="p.id">{{ p.name }}</option>
             </select>
-          </div>
-          <div class="field">
-            <label for="vendor">업체</label>
+          </FloatField>
+          <FloatField label="업체">
             <select id="vendor" v-model="f.vendorId">
               <option value="">전체</option>
               <option v-for="v in opts?.vendors ?? []" :key="v.id" :value="v.id">{{ v.name }}</option>
             </select>
-          </div>
-          <div class="field">
-            <label for="from">기간</label>
+          </FloatField>
+          <FloatField label="시작일">
             <input id="from" v-model="f.dateFrom" type="date" title="반출 시작일" />
-          </div>
-          <div class="field">
-            <label for="to">~</label>
+          </FloatField>
+          <FloatField label="종료일">
             <input id="to" v-model="f.dateTo" type="date" title="반출 종료일" />
-          </div>
-          <div class="field">
-            <label for="purpose">반출목적</label>
+          </FloatField>
+          <FloatField label="반출목적">
             <select id="purpose" v-model="f.purpose">
               <option value="">전체</option>
               <option value="MODIFY">수정용</option>
               <option value="REFERENCE">참조용</option>
               <option value="ETC">기타</option>
             </select>
-          </div>
-          <div class="field">
-            <label for="status">반출상태</label>
+          </FloatField>
+          <FloatField label="반출상태">
             <select id="status" v-model="f.state">
               <option value="">전체</option>
               <option value="REVIEWING">검수대기</option>
@@ -334,16 +328,17 @@ const zipRows = computed(() => zips.value.map((z, i) => ({ ...z, id: i + 1 })))
               <option value="DONE">반입완료</option>
               <option value="INCOMPLETE">반입미완료</option>
             </select>
-          </div>
-          <div class="field">
-            <label for="dist-by">반출자</label>
+          </FloatField>
+          <FloatField label="반출자">
             <select id="dist-by" v-model="f.distributedBy"
                     :title="opts?.canSelectOtherUser ? '반출자' : '다른 사용자를 고를 권한이 없습니다'">
               <option value="">전체</option>
               <option v-for="u in opts?.distributors ?? []" :key="u.id" :value="u.id">{{ u.name }}</option>
             </select>
-          </div>
-          <input v-model="f.q" type="text" class="filter-search" placeholder="자료명 검색" />
+          </FloatField>
+          <FloatField class="filter-search" label="자료명 검색">
+            <input v-model="f.q" type="text" />
+          </FloatField>
         </div>
         <div class="filter-actions">
           <button type="button" @click="reset">조건 초기화</button>

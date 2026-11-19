@@ -8,6 +8,7 @@ import type {
   FolderDocumentsResponse, FolderNode, JobCreated,
 } from '@tdms/contracts'
 import FolderTreePanel from '@/ui/FolderTreePanel.vue'
+import FloatField from '@/ui/FloatField.vue'
 import DataTable, { type Column, type SortDir } from '@/ui/DataTable.vue'
 import Modal from '@/ui/Modal.vue'
 import ProjectManager from '@/ui/ProjectManager.vue'
@@ -650,16 +651,14 @@ function recentClass(r: DocumentListItem): string {
     <div class="filter-bar">
       <div class="filter-row">
         <div class="filter-fields">
-          <div class="field">
-            <label for="kind_scope">검색대상</label>
+          <FloatField label="검색대상">
             <select id="kind_scope" v-model="searchTarget">
               <option value="title">자료명</option>
               <option value="folder">폴더명</option>
             </select>
-          </div>
+          </FloatField>
 
-          <div class="field">
-            <label for="status">상태</label>
+          <FloatField label="상태">
             <select id="status" v-model="status">
               <option value="all">전체</option>
               <option value="normal">정상</option>
@@ -668,20 +667,18 @@ function recentClass(r: DocumentListItem): string {
               <option value="review">검수</option>
               <option value="archived">삭제</option>
             </select>
-          </div>
+          </FloatField>
 
-          <div class="field">
-            <label for="holding">원본/사본</label>
+          <FloatField label="원본/사본">
             <select id="holding" v-model="hold">
               <option value="all">전체</option>
               <option value="both">원본/사본 있음</option>
               <option value="dwg_only">원본만 있음</option>
               <option value="pdf_only">사본만 있음</option>
             </select>
-          </div>
+          </FloatField>
 
-          <div class="field">
-            <label for="modified-toggle">수정일</label>
+          <FloatField label="수정일">
             <div class="hideable-dropdown ms-dropdown" @mouseleave="modifiedOpen = false">
               <button id="modified-toggle" type="button" class="dropdown-toggle"
                       :aria-expanded="modifiedOpen" @click="modifiedOpen = !modifiedOpen">
@@ -697,16 +694,15 @@ function recentClass(r: DocumentListItem): string {
                 </label>
               </div>
             </div>
-          </div>
+          </FloatField>
 
-          <div class="field">
-            <label for="limit">조회건수</label>
+          <FloatField label="조회건수">
             <select id="limit" v-model="limit" title="한 번에 불러올 건수">
               <option :value="200">200건씩</option>
               <option :value="500">500건씩</option>
               <option :value="1000">1000건씩</option>
             </select>
-          </div>
+          </FloatField>
 
           <label class="check-inline field-check">
             <input v-model="includeIsometric" type="checkbox" /> Isometric 보기
@@ -716,12 +712,14 @@ function recentClass(r: DocumentListItem): string {
             <input v-model="recursive" type="checkbox" /> 하위폴더 전체보기
           </label>
 
-          <input
-            v-model="keyword" type="text" class="filter-search" placeholder="자료명 검색"
-            @compositionstart="composing = true"
-            @compositionend="composing = false; debounced = keyword"
-            @keyup.enter="doSearch"
-          />
+          <FloatField class="filter-search" label="자료명 검색">
+            <input
+              v-model="keyword" type="text"
+              @compositionstart="composing = true"
+              @compositionend="composing = false; debounced = keyword"
+              @keyup.enter="doSearch"
+            />
+          </FloatField>
           <button id="search-btn" class="primary" type="button" @click="doSearch">검색</button>
         </div>
 

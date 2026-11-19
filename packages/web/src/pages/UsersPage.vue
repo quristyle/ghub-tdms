@@ -6,6 +6,7 @@ import type {
   EmploymentStatus, GroupListResponse, GroupRow, PartnerCompanyListResponse, PartnerCompanyRow, UserListResponse, UserRow,
 } from '@tdms/contracts'
 import DataTable, { type Column } from '@/ui/DataTable.vue'
+import FloatField from '@/ui/FloatField.vue'
 import Modal from '@/ui/Modal.vue'
 import { api, ApiError } from '@/lib/api'
 
@@ -628,33 +629,30 @@ async function confirmDeletePartner() {
     <div class="filter-bar">
       <div class="filter-row">
         <div class="filter-fields">
-          <div class="field">
-            <label for="role-filter">권한</label>
+          <FloatField label="권한">
             <select id="role-filter" v-model="roleFilter">
               <option value="">전체</option>
               <option value="ADMIN">관리자</option>
               <option value="VIEWER">일반</option>
             </select>
-          </div>
-          <div class="field">
-            <label for="dept-filter">부서</label>
+          </FloatField>
+          <FloatField label="부서">
             <select id="dept-filter" v-model="dept">
               <option value="">전체</option>
               <option v-for="d in departments" :key="d" :value="d">{{ d }}</option>
             </select>
-          </div>
-          <div class="field">
-            <label>상태</label>
-            <span class="status-toggle">
-              <button
-                v-for="st in STATUS" :key="st.key" type="button"
-                class="small" :class="{ primary: shown.has(st.key) }"
-                @click="toggleStatus(st.key)"
-              >{{ st.label }}</button>
-            </span>
-          </div>
-          <input v-model="keyword" type="text" class="filter-search"
-                 placeholder="아이디·이름·사번·부서·연락처·소속사 검색" />
+          </FloatField>
+          <FloatField label="상태" group>
+            <button
+              v-for="st in STATUS" :key="st.key" type="button"
+              class="small" :class="{ primary: shown.has(st.key) }"
+              :aria-pressed="shown.has(st.key)"
+              @click="toggleStatus(st.key)"
+            >{{ st.label }}</button>
+          </FloatField>
+          <FloatField class="filter-search" label="아이디·이름·사번·부서·연락처·소속사 검색">
+            <input v-model="keyword" type="text" />
+          </FloatField>
         </div>
         <div class="filter-actions">
           <button type="button" @click="resetFilter">조건 초기화</button>
@@ -1290,8 +1288,6 @@ async function confirmDeletePartner() {
 
 <style scoped>
 /* 상태 거르개 — 재직·퇴직·삭제를 켜고 끈다 (기존 화면의 '상태' 드롭다운 자리) */
-.status-toggle { display: flex; gap: 4px; height: 32px; align-items: center; }
-.status-toggle button { height: 26px; }
 
 .users { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
 .head { padding: 10px 12px; flex: 0 0 auto; }

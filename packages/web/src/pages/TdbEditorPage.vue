@@ -7,6 +7,7 @@ import type {
   PartialItem, RegisterResult, ReplaceBulkResult, ReplaceResult, ZipRegisterCheck,
 } from '@tdms/contracts'
 import LazyTree from '@/ui/LazyTree.vue'
+import FloatField from '@/ui/FloatField.vue'
 import FolderTreePanel from '@/ui/FolderTreePanel.vue'
 import DataTable, { type Column, type SortDir } from '@/ui/DataTable.vue'
 import Modal from '@/ui/Modal.vue'
@@ -618,15 +619,13 @@ const catalogOpen = ref<'projects' | 'vendors' | null>(null)
     <div class="filter-bar">
       <div class="filter-row">
         <div class="filter-fields">
-          <div class="field">
-            <label for="kind_scope">검색대상</label>
+          <FloatField label="검색대상">
             <select id="kind_scope" v-model="searchTarget">
               <option value="title">자료명</option>
               <option value="folder">폴더명</option>
             </select>
-          </div>
-          <div class="field">
-            <label for="status">상태</label>
+          </FloatField>
+          <FloatField label="상태">
             <select id="status" v-model="status">
               <option value="all">전체</option>
               <option value="normal">정상</option>
@@ -634,16 +633,15 @@ const catalogOpen = ref<'projects' | 'vendors' | null>(null)
               <option value="review">검수</option>
               <option value="archived">삭제</option>
             </select>
-          </div>
-          <div class="field">
-            <label for="holding">원본/사본</label>
+          </FloatField>
+          <FloatField label="원본/사본">
             <select id="holding" v-model="hold">
               <option value="all">전체</option>
               <option value="both">원본/사본 있음</option>
               <option value="dwg_only">원본만 있음</option>
               <option value="pdf_only">사본만 있음</option>
             </select>
-          </div>
+          </FloatField>
           <label class="check-inline field-check">
             <input v-model="includeIsometric" type="checkbox" /> Isometric 보기
           </label>
@@ -655,7 +653,9 @@ const catalogOpen = ref<'projects' | 'vendors' | null>(null)
           <label class="check-inline field-check">
             <input v-model="showHidden" type="checkbox" /> 숨김 폴더 보기
           </label>
-          <input v-model="keyword" type="text" class="filter-search" placeholder="자료명 검색" />
+          <FloatField class="filter-search" label="자료명 검색">
+            <input v-model="keyword" type="text" />
+          </FloatField>
         </div>
         <div class="filter-actions">
           <button type="button" @click="resetFilter">조건 초기화</button>

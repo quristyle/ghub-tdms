@@ -7,6 +7,7 @@ import type {
   RecentChangesResponse, RecentChangesSummary,
 } from '@tdms/contracts'
 import DataTable, { type Column } from '@/ui/DataTable.vue'
+import FloatField from '@/ui/FloatField.vue'
 import Modal from '@/ui/Modal.vue'
 import { api, qs } from '@/lib/api'
 import { staleTime } from '@/lib/queryKeys'
@@ -135,23 +136,21 @@ const OUTSTANDING_COLUMNS: Column<DistributionRow>[] = [
   <!-- TDB 최근수정 현황 -->
   <Modal v-if="recentOpen" wide notice title="TDB 최근수정 현황" @close="recentOpen = false">
     <div class="notice-filters">
-      <div class="field">
-        <label for="recent-kind">수정 구분</label>
+      <FloatField label="수정 구분">
         <select id="recent-kind" v-model="recentKind">
           <option value="ALL">전체</option>
           <option value="REVISION">Revision 수정</option>
           <option value="INFO">일반 수정</option>
         </select>
-      </div>
-      <div class="field">
-        <label for="recent-modified">수정일</label>
+      </FloatField>
+      <FloatField label="수정일">
         <select id="recent-modified" v-model="recentModified">
           <option value="ALL">전체</option>
           <option value="D30">오늘~30일</option>
           <option value="D31_90">31일~90일</option>
           <option value="D91">91일 이전</option>
         </select>
-      </div>
+      </FloatField>
       <span class="notice-summary">
         <template v-if="recent">
           최근 {{ recent.days }}일 이내 수정 <b>{{ recent.total }}건</b>
@@ -204,13 +203,7 @@ const OUTSTANDING_COLUMNS: Column<DistributionRow>[] = [
   gap: 8px;
   margin: 0 0 9px;
 }
-.notice-filters .field > label {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text-dark-gray);
-  margin-top: 0;
-}
-.notice-filters .field > select { width: var(--field-w, 128px); margin-top: 0; }
+.notice-filters .ff > select { margin-top: 0; }
 
 .notice-summary {
   margin-left: auto;

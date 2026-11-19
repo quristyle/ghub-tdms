@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useInfiniteQuery, useQuery } from '@tanstack/vue-query'
 import type { AuditEntry, AuditListResponse, AuditMeta, AuditSort, JobCreated } from '@tdms/contracts'
 import DataTable, { type Column, type SortDir } from '@/ui/DataTable.vue'
+import FloatField from '@/ui/FloatField.vue'
 import Modal from '@/ui/Modal.vue'
 import ZipStatusModal from '@/ui/ZipStatusModal.vue'
 import JobProgress from '@/ui/JobProgress.vue'
@@ -209,8 +210,8 @@ async function startServerExport() {
     <div class="filter-bar">
       <div class="filter-row">
         <div class="filter-fields">
-          <div v-for="kind in (['screen', 'action'] as const)" :key="kind" class="field">
-            <label>{{ kind === 'screen' ? '로그화면' : '로그동작' }}</label>
+          <FloatField v-for="kind in (['screen', 'action'] as const)" :key="kind"
+                      :label="kind === 'screen' ? '로그화면' : '로그동작'">
             <div class="hideable-dropdown ms-dropdown" @mouseleave="picker = null">
               <button type="button" class="dropdown-toggle"
                       :aria-expanded="picker === kind" @click="picker = picker === kind ? null : kind">
@@ -226,27 +227,26 @@ async function startServerExport() {
                 </label>
               </div>
             </div>
-          </div>
+          </FloatField>
 
-          <div class="field">
-            <label for="audit-user">사용자</label>
+          <FloatField label="사용자">
             <select id="audit-user" v-model="f.userId"
                     :title="meta?.canSelectOtherUser ? '사용자' : '다른 사용자를 고를 권한이 없습니다'">
               <option value="">전체</option>
               <option v-for="u in meta?.users ?? []" :key="u.id" :value="u.id">{{ u.name }}</option>
             </select>
-          </div>
+          </FloatField>
 
-          <div class="field">
-            <label for="from-filter">기간</label>
+          <FloatField label="시작일">
             <input id="from-filter" v-model="f.dateFrom" type="date" title="시작일" />
-          </div>
-          <div class="field">
-            <label for="to-filter">~</label>
+          </FloatField>
+          <FloatField label="종료일">
             <input id="to-filter" v-model="f.dateTo" type="date" title="종료일" />
-          </div>
+          </FloatField>
 
-          <input v-model="f.q" type="text" class="filter-search" placeholder="자료명·상세 내용 검색" />
+          <FloatField class="filter-search" label="자료명·상세 내용 검색">
+            <input v-model="f.q" type="text" />
+          </FloatField>
         </div>
         <div class="filter-actions">
           <button type="button" @click="reset">조건 초기화</button>

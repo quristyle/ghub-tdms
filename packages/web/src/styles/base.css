@@ -496,7 +496,8 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
 .btn-icon.btn-sm { width: 26px; }
 
 /* ---------- 필터 바 ----------
-   규칙: 모든 입력 칸은 같은 너비(--field-w), 같은 높이. 라벨은 칸 위에 고정. */
+   규칙: 모든 입력 칸은 같은 너비(--field-w), 같은 높이.
+   조회 조건 라벨은 ui/FloatField.vue — 칸 위 테두리에 걸쳐 떠 있는 라벨. */
 .filter-bar {
   display: flex;
   flex-direction: column;
@@ -518,7 +519,7 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
 .filter-fields {
   display: flex;
   align-items: flex-end;
-  gap: 8px;
+  gap: 10px 8px;
   flex-wrap: wrap;
   flex: 1 1 auto;
   min-width: 0;

@@ -7,6 +7,7 @@ import type {
   MdbListItem, MdbListResponse, MdbMeta, TagSuggestResponse,
 } from '@tdms/contracts'
 import FolderTreePanel from '@/ui/FolderTreePanel.vue'
+import FloatField from '@/ui/FloatField.vue'
 import DataTable, { type Column, type SortDir } from '@/ui/DataTable.vue'
 import JobProgress from '@/ui/JobProgress.vue'
 import Modal from '@/ui/Modal.vue'
@@ -288,87 +289,81 @@ const columns = computed<Column<MdbListItem>[]>(() => [
     <div class="filter-bar">
       <div class="filter-row">
         <div class="filter-fields">
-          <div class="field">
-            <label for="category">분류</label>
+          <FloatField label="분류">
             <select id="category" v-model="s.category">
               <option value="">전체</option>
               <option value="전용">전용</option>
               <option value="공용">공용</option>
               <option value="확인필요">확인필요</option>
             </select>
-          </div>
+          </FloatField>
 
-          <div class="field">
-            <label for="equipment_type">설비유형</label>
+          <FloatField label="설비유형">
             <select id="equipment_type" v-model="s.equipmentType">
               <option value="">전체</option>
               <option v-for="e in meta?.equipmentTypes ?? []" :key="e" :value="e">{{ e }}</option>
             </select>
-          </div>
+          </FloatField>
 
-          <div class="field">
-            <label for="doc_type">자료유형</label>
+          <FloatField label="자료유형">
             <select id="doc_type" v-model="s.docType">
               <option value="">전체</option>
               <option v-for="d in meta?.docTypes ?? []" :key="d" :value="d">{{ d }}</option>
             </select>
-          </div>
+          </FloatField>
 
-          <div class="field">
-            <label for="project_id">공사</label>
+          <FloatField label="공사">
             <select id="project_id" v-model="s.projectId">
               <option value="">전체</option>
               <option v-for="p in meta?.projects ?? []" :key="p.id" :value="String(p.id)">{{ p.name }}</option>
             </select>
-          </div>
+          </FloatField>
 
-          <div class="field">
-            <label for="mdb-year">연도</label>
+          <FloatField label="연도">
             <select id="mdb-year" v-model="s.year">
               <option value="">전체</option>
               <option v-for="y in meta?.years ?? []" :key="y" :value="String(y)">{{ y }}</option>
             </select>
-          </div>
+          </FloatField>
 
-          <div class="field">
-            <label for="holding">원본/사본</label>
+          <FloatField label="원본/사본">
             <select id="holding" v-model="s.hold">
               <option value="all">전체</option>
               <option value="both">원본/사본 있음</option>
               <option value="dwg_only">원본만 있음</option>
               <option value="pdf_only">사본만 있음</option>
             </select>
-          </div>
+          </FloatField>
 
-          <div class="field">
-            <label for="mdb-limit">조회건수</label>
+          <FloatField label="조회건수">
             <select id="mdb-limit" v-model.number="s.limit" title="한 번에 불러올 건수">
               <option :value="200">200건씩</option>
               <option :value="500">500건씩</option>
               <option :value="1000">1000건씩</option>
             </select>
-          </div>
+          </FloatField>
 
           <label class="check-inline field-check">
             <input v-model="s.recursive" type="checkbox" /> 하위폴더 전체보기
           </label>
 
-          <div class="field search-lead">
-            <label for="search-target">검색대상</label>
+          <FloatField label="검색대상" class="search-lead">
             <select id="search-target" v-model="s.searchTarget">
               <option value="title">자료명</option>
               <option value="folder">폴더명</option>
               <option value="tag">Tag No</option>
             </select>
-          </div>
+          </FloatField>
 
           <span class="tagwrap">
-            <input
-              v-model="keyword" type="text" class="filter-search" placeholder="자료명 검색"
-              @compositionstart="composing = true"
-              @compositionend="composing = false; s.keyword = keyword"
-              @keyup.enter="doSearch"
-            />
+            <FloatField class="filter-search" label="자료명 검색">
+              <input
+                v-model="keyword" type="text"
+                @compositionstart="composing = true"
+                @compositionend="composing = false; s.keyword = keyword"
+                @keyup.enter="doSearch"
+              />
+            </FloatField>
             <ul v-if="tagHints.length" class="hints">
               <li v-for="t in tagHints" :key="t" @click="pickHint(t)">{{ t }}</li>
             </ul>
