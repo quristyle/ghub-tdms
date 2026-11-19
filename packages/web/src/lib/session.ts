@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { MeResponse } from '@tdms/contracts'
+import type { LoginResult, MeResponse, MfaVerifyResult } from '@tdms/contracts'
 import { api, ApiError } from './api.js'
 
 /**
@@ -45,8 +45,19 @@ export const useSession = defineStore('session', () => {
     }
   }
 
-  async function login(loginId: string, password: string) {
-    const r = await api.post<{ ok: true; mustChangePassword: boolean }>('/auth/login', { loginId, password })
+  /**
+   * 1단계 — 비밀번호. 2차 인증이 켜져 있으면 아직 세션이 없다:
+   * mfa 가 verify/enroll 이면 인증 앱 코드를 verifyMfa 로 넘겨야 로그인이 끝난다.
+   */
+  async function login(loginId: string, password: string): Promise<LoginResult> {
+    const r = await api.post<LoginResult>('/auth/login', { loginId, password })
+    if (r.mfa === 'none') await load()
+    return r
+  }
+
+  /** 2단계 — 인증 앱(Microsoft Authenticator 등)의 6자리 코드. 맞으면 세션이 생긴다. */
+  async function verifyMfa(challenge: string, code: string): Promise<MfaVerifyResult> {
+    const r = await api.post<MfaVerifyResult>('/auth/mfa', { challenge, code })
     await load()
     return r
   }
@@ -73,7 +84,7 @@ export const useSession = defineStore('session', () => {
   const firstAllowedPath = computed(() => menu.value[0]?.path ?? null)
 
   return {
-    me, loading, isLoggedIn, isAdmin, menu, can, load, login, logout,
+    me, loading, isLoggedIn, isAdmin, menu, can, load, login, verifyMfa, logout,
     firstAllowedPath, needsPasswordChange, deferPasswordChange, clear,
   }
 })

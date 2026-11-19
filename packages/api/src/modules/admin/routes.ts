@@ -177,6 +177,20 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     },
   })
 
+  defineRoute(app, {
+    method: 'POST',
+    url: '/users/:id/reset-totp',
+    access: permission('screen.users.access'),
+    audit: { screen: '사용자 관리', action: 'OTP 초기화' },
+    schema: { params: IdParam, response: { 200: z.object({ ok: z.literal(true) }), 403: ErrorResponse, 404: ErrorResponse } },
+    handler: async (req) => {
+      const { id } = IdParam.parse(req.params)
+      const out = await svc.resetTotp(id, actorOf(req))
+      req.setAuditTarget(`사용자 ${id}`)
+      return out
+    },
+  })
+
   // ── 권한 관리 ────────────────────────────────────────────────────────
   defineRoute(app, {
     method: 'GET',

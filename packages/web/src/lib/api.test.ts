@@ -70,6 +70,18 @@ describe('API 재인증', () => {
       .rejects.toMatchObject({ status: 401 })
     expect(authenticate).not.toHaveBeenCalled()
   })
+
+  it('2차 인증 코드 요청이 401(시간 초과)이어도 재인증 팝업을 띄우지 않는다', async () => {
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(
+      response({ code: 'MFA_EXPIRED', message: '인증 시간이 지났습니다.' }, 401),
+    ))
+    const authenticate = vi.fn()
+    setReauthenticationHandler(authenticate)
+
+    await expect(api.post('/auth/mfa', { challenge: 'x'.repeat(43), code: '123456' }))
+      .rejects.toMatchObject({ status: 401, code: 'MFA_EXPIRED' })
+    expect(authenticate).not.toHaveBeenCalled()
+  })
 })
 
 describe('qs', () => {

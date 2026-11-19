@@ -15,6 +15,8 @@ export interface SessionUser {
   mustChangePassword: boolean
   /** 이 세션에서 비밀번호 변경을 미뤘는가 (새로고침해도 유지, 재로그인 시 초기화) */
   passwordDeferred: boolean
+  /** 인증 앱(TOTP) 등록을 마쳤는가 */
+  totpEnabled: boolean
 }
 
 export interface AuthContext {
@@ -58,6 +60,7 @@ export async function loadSession(sessionId: string): Promise<SessionUser | unde
             u.group_id        AS "groupId", g.name AS "groupName",
             u.must_change_password AS "mustChangePassword",
             s.password_deferred    AS "passwordDeferred",
+            (u.totp_enabled_at IS NOT NULL) AS "totpEnabled",
             (s.last_seen_at < now() - ($2 || ' milliseconds')::interval) AS needs_touch
        FROM sessions s
        JOIN users u  ON u.id = s.user_id
@@ -82,6 +85,7 @@ export async function loadSession(sessionId: string): Promise<SessionUser | unde
     groupName: row.groupName,
     mustChangePassword: row.mustChangePassword,
     passwordDeferred: row.passwordDeferred,
+    totpEnabled: row.totpEnabled,
   }
 }
 

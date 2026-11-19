@@ -389,7 +389,8 @@ const COLUMNS: Column<UserRow>[] = [
   { key: 'groupName', label: '그룹', width: '110px', align: 'center', render: (u) => u.groupName ?? '' },
   { key: 'employmentStatus', label: '상태', width: '110px',
     // 엑셀에도 "초기비번"이 함께 나가야 화면과 같은 뜻이 된다
-    render: (u) => [statusLabel(u.employmentStatus), u.mustChangePassword ? '초기비번' : '']
+    render: (u) => [statusLabel(u.employmentStatus), u.mustChangePassword ? '초기비번' : '',
+      u.totpEnabledAt ? '' : 'OTP미등록']
       .filter(Boolean).join(' ') },
   { key: 'hireDate', label: '입사일', width: '100px', align: 'center', render: (u) => u.hireDate ?? '' },
   { key: 'createdAt', label: '등록일', width: '100px', align: 'center',
@@ -398,7 +399,7 @@ const COLUMNS: Column<UserRow>[] = [
     render: (u) => u.updatedAt.slice(0, 10) },
   { key: 'lastLoginAt', label: '접속일', width: '100px', align: 'center',
     render: (u) => u.lastLoginAt?.slice(0, 10) ?? '' },
-  { key: 'act', label: '조치', width: '152px', align: 'center', sortable: false, filterable: false, render: () => '' },
+  { key: 'act', label: '조치', width: '232px', align: 'center', sortable: false, filterable: false, render: () => '' },
 ]
 
 /** 빈 칸은 null 로 보낸다 — ''를 저장하면 "값이 있는데 비어 있는" 칸이 생긴다. */
@@ -440,6 +441,19 @@ async function confirmReset() {
   try {
     const r = await api.post<{ tempPassword: string; rule: string }>(`/users/${u.id}/reset-password`)
     say('ok', `"${u.loginId}" 의 비밀번호를 초기화했습니다. 임시 비밀번호: ${r.tempPassword} — ${r.rule}`)
+    void qc.invalidateQueries({ queryKey: ['users'] })
+  } catch (e) { fail(e) }
+}
+
+// 인증 앱(OTP) 초기화 — 휴대폰을 바꿨거나 잃어버렸을 때
+const totpResetTarget = ref<UserRow | null>(null)
+async function confirmTotpReset() {
+  const u = totpResetTarget.value
+  totpResetTarget.value = null
+  if (!u) return
+  try {
+    await api.post(`/users/${u.id}/reset-totp`)
+    say('ok', `"${u.loginId}" 의 OTP 등록을 지웠습니다. 다음 로그인 때 인증 앱을 다시 등록합니다.`)
     void qc.invalidateQueries({ queryKey: ['users'] })
   } catch (e) { fail(e) }
 }
@@ -982,6 +996,8 @@ async function confirmDeletePartner() {
                 </span>
                 <span v-if="row.mustChangePassword" class="tag warn-tag"
                       title="첫 로그인 때 변경 화면이 열립니다">초기비번</span>
+                <span v-if="!row.totpEnabledAt" class="tag warn-tag"
+                      title="다음 로그인 때 인증 앱(Microsoft Authenticator) 등록 화면이 열립니다">OTP미등록</span>
               </template>
 
               <template #cell:lastLoginAt="{ row }">
@@ -993,6 +1009,9 @@ async function confirmDeletePartner() {
               <template #cell:act="{ row }">
                 <button class="btn btn-sm" @click.stop="openEdit(row)">수정</button>
                 <button class="btn btn-sm" @click.stop="resetTarget = row">비번 초기화</button>
+                <button class="btn btn-sm" :disabled="!row.totpEnabledAt"
+                        :title="row.totpEnabledAt ? `OTP 등록 ${row.totpEnabledAt.slice(0, 10)}` : 'OTP 미등록'"
+                        @click.stop="totpResetTarget = row">OTP 초기화</button>
               </template>
             </DataTable>
           </div>
@@ -1101,6 +1120,20 @@ async function confirmDeletePartner() {
       <template #footer>
         <button class="btn" @click="resetTarget = null">취소</button>
         <button class="btn btn-primary" @click="confirmReset">초기화</button>
+      </template>
+    </Modal>
+
+    <Modal v-if="totpResetTarget" title="OTP 초기화" @close="totpResetTarget = null">
+      <p>
+        <strong>{{ totpResetTarget.loginId }}</strong> 의 인증 앱(Microsoft Authenticator) 등록을 지웁니다.
+      </p>
+      <p class="muted">
+        그 사람의 모든 로그인이 끊기고, 다음 로그인 때 비밀번호 다음에 QR 등록 화면이 열립니다.
+        휴대폰을 바꿨거나 잃어버린 본인인지 먼저 확인하세요.
+      </p>
+      <template #footer>
+        <button class="btn" @click="totpResetTarget = null">취소</button>
+        <button class="btn btn-primary" @click="confirmTotpReset">초기화</button>
       </template>
     </Modal>
 

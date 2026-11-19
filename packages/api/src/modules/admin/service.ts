@@ -72,6 +72,7 @@ export async function users() {
   return {
     items: (await q.listUsers()).map((u) => ({
       ...u,
+      totpEnabledAt: u.totpEnabledAt ? u.totpEnabledAt.toISOString() : null,
       lastLoginAt: u.lastLoginAt ? u.lastLoginAt.toISOString() : null,
       previousLoginAt: u.previousLoginAt ? u.previousLoginAt.toISOString() : null,
       syncedAt: u.syncedAt ? u.syncedAt.toISOString() : null,
@@ -202,6 +203,21 @@ export async function resetPassword(id: number, actor: Actor) {
     tempPassword,
     rule: '임시 비밀번호는 지금 한 번만 보입니다. 본인에게 전달하세요. 첫 로그인 때 새 비밀번호로 바꿔야 합니다.',
   }
+}
+
+/**
+ * 인증 앱(OTP) 초기화 — 휴대폰을 바꿨거나 잃어버렸을 때.
+ * 등록을 지우고 세션을 끊는다. 다음 로그인 때 비밀번호 다음에 QR 등록 화면이 열린다.
+ */
+export async function resetTotp(id: number, actor: Actor) {
+  await tx(async (c) => {
+    const user = (await q.userById(c, id)).rows[0]
+    if (!user) throw Errors.notFound('계정')
+    assertMayTouch(actor, user)
+    await q.resetTotp(c, id)
+  })
+  await destroyAllSessions(id)
+  return { ok: true as const }
 }
 
 // ── 권한 관리 ───────────────────────────────────────────────────────────

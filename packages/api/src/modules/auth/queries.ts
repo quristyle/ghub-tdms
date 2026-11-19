@@ -8,11 +8,14 @@ export interface UserAuthRow {
   role: 'ADMIN' | 'VIEWER'
   is_active: boolean
   must_change_password: boolean
+  totp_secret: string | null
+  totp_enabled_at: Date | null
 }
 
 export function findUserByLoginId(loginId: string) {
   return one<UserAuthRow>(
-    `SELECT id, login_id, name, password_hash, role, is_active, must_change_password
+    `SELECT id, login_id, name, password_hash, role, is_active, must_change_password,
+            totp_secret, totp_enabled_at
        FROM users WHERE login_id = $1`,
     [loginId],
     'user_by_login',
@@ -73,4 +76,83 @@ export function requirePasswordChange(userId: number) {
 /** 미루기 — 이번 로그인에서는 넘어가지만 다음 로그인 때 다시 묻는다 (기존 정책). */
 export function deferPasswordChange(_userId: number) {
   return Promise.resolve()
+}
+
+// ── 2차 인증(TOTP) ──────────────────────────────────────────────────────
+
+export interface ChallengeRow {
+  id: string
+  user_id: number
+  purpose: 'verify' | 'enroll'
+  pending_secret: string | null
+  attempts: number
+  login_id: string
+  must_change_password: boolean
+  is_active: boolean
+  totp_secret: string | null
+  totp_enabled_at: Date | null
+}
+
+export async function insertChallenge(
+  idHash: string, userId: number, purpose: 'verify' | 'enroll',
+  pendingSecret: string | null, ttlMinutes: number, ip: string | null,
+) {
+  // 만료된 것은 새로 넣을 때 함께 치운다 — 따로 청소 작업을 두지 않는다
+  await query('DELETE FROM login_challenges WHERE expires_at < now()')
+  await query(
+    `INSERT INTO login_challenges (id, user_id, purpose, pending_secret, expires_at, client_ip)
+     VALUES ($1, $2, $3, $4, now() + ($5 || ' minutes')::interval, $6)`,
+    [idHash, userId, purpose, pendingSecret, String(ttlMinutes), ip],
+  )
+}
+
+export function findChallenge(idHash: string) {
+  return one<ChallengeRow>(
+    `SELECT c.id, c.user_id, c.purpose, c.pending_secret, c.attempts,
+            u.login_id, u.must_change_password, u.is_active, u.totp_secret, u.totp_enabled_at
+       FROM login_challenges c
+       JOIN users u ON u.id = c.user_id
+      WHERE c.id = $1 AND c.expires_at > now()`,
+    [idHash],
+    'challenge_by_id',
+  )
+}
+
+/** 틀린 횟수 +1. 한도에 닿으면 지워 버린다 — 비밀번호부터 다시 */
+export async function failChallenge(idHash: string, maxAttempts: number): Promise<number> {
+  const r = await one<{ attempts: number }>(
+    'UPDATE login_challenges SET attempts = attempts + 1 WHERE id = $1 RETURNING attempts',
+    [idHash],
+  )
+  const n = r?.attempts ?? maxAttempts
+  if (n >= maxAttempts) await deleteChallenge(idHash)
+  return n
+}
+
+export function deleteChallenge(idHash: string) {
+  return query('DELETE FROM login_challenges WHERE id = $1', [idHash])
+}
+
+/**
+ * 받아들인 칸 번호를 남긴다. 이미 그 칸(또는 뒤 칸)을 쓴 적이 있으면 false —
+ * 같은 코드를 엿보고 30초 안에 다시 넣는 재사용을 막는다.
+ */
+export async function claimTotpStep(userId: number, step: number): Promise<boolean> {
+  const r = await one<{ id: number }>(
+    `UPDATE users SET totp_last_step = $2
+      WHERE id = $1 AND (totp_last_step IS NULL OR totp_last_step < $2)
+      RETURNING id`,
+    [userId, step],
+  )
+  return r !== undefined
+}
+
+/** 등록 완료 — 등록 대기 중이던 비밀키를 계정에 붙인다 */
+export function enableTotp(userId: number, sealedSecret: string, step: number) {
+  return query(
+    `UPDATE users SET totp_secret = $2, totp_enabled_at = now(), totp_last_step = $3,
+                      updated_at = now()
+      WHERE id = $1`,
+    [userId, sealedSecret, step],
+  )
 }

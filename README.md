@@ -59,6 +59,20 @@ blob 저장소(`STORAGE_ROOT`)는 **저장소에 담지 않는다** — DB 의 `
 (미루기 없음 — 바꾸기 전에는 서버가 `/auth/me`·`/auth/password`·`/auth/logout` 말고는 403 을 낸다).
 화면에서 만들거나 초기화한 계정은 무작위 임시 비밀번호를 받는다(응답으로 한 번만 보인다).
 
+### 2차 인증 (TOTP)
+
+로그인은 **비밀번호 + Microsoft Authenticator 의 6자리 코드** 두 단계다(`AUTH_TOTP=required`, 기본).
+
+- 인증 앱을 등록하지 않은 계정은 비밀번호 다음에 QR 등록 화면이 열린다. 앱에서
+  ＋ → 기타 계정 → QR 을 찍고 첫 코드를 넣으면 등록과 로그인이 함께 끝난다.
+- 세션은 코드까지 맞아야 생긴다. 코드는 5번 틀리면 처음부터, 같은 코드는 두 번 못 쓴다.
+  틀린 코드도 계정 잠금(5회·15분) 횟수에 들어간다.
+- 휴대폰을 바꾸거나 잃어버리면 사용자 관리의 **[OTP 초기화]**. 관리자 자신이 막히면
+  `node db/tools/reset-totp.mjs <아이디>` (`--list` 로 등록 현황).
+- 비밀키는 DB 에 AES-256-GCM 으로 싸서 둔다(`TOTP_ENC_KEY`, 없으면 `SESSION_SECRET` 에서 유도).
+
+흐름 검증 도구는 코드를 넣지 못하므로 `AUTH_TOTP=off` 로 띄운 개발 API 에서만 돈다.
+
 흐름 검증(`./dev.sh verify`)은 비밀번호를 바꿔 둔 계정으로 돈다 — `TDMS_ADMIN_PASSWORD`,
 `TDMS_CM_PASSWORD` 를 환경에 넣어 둘 것. (`admin-flow-check` 는 `backup_runs` 를 비우므로
 운영과 같은 DB 에서는 돌리지 말 것.)

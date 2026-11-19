@@ -48,6 +48,7 @@ async function request<T>(
     res.status === 401 &&
     retryAfterAuthentication &&
     path !== '/auth/login' &&
+    path !== '/auth/mfa' &&
     path !== '/auth/me' &&
     reauthenticationHandler
   ) {

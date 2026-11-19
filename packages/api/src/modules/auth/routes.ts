@@ -2,7 +2,7 @@ import { z } from 'zod'
 import type { FastifyInstance } from 'fastify'
 import {
   LoginRequest, LoginResult, MeResponse, PasswordChangeRequest,
-  ErrorResponse, MENU, LEAF_KEYS,
+  MfaVerifyRequest, MfaVerifyResult, ErrorResponse, MENU, LEAF_KEYS,
 } from '@tdms/contracts'
 import { AUTHENTICATED, PUBLIC, defineRoute } from '../../core/route.js'
 import {
@@ -42,9 +42,30 @@ export function registerAuthRoutes(app: FastifyInstance): void {
     handler: async (req, reply) => {
       const { loginId, password } = LoginRequest.parse(req.body)
       const out = await svc.login(loginId, password, req.ip, req.headers['user-agent'])
-      setSessionCookie(reply, out.sessionId)
       req.setAuditTarget(loginId)
-      return { ok: true as const, mustChangePassword: out.mustChangePassword }
+      if (out.kind === 'challenge') return out.result
+      setSessionCookie(reply, out.sessionId)
+      return { ok: true as const, mfa: 'none' as const, mustChangePassword: out.mustChangePassword }
+    },
+  })
+
+  // 2단계 — 인증 앱(Microsoft Authenticator 등)의 6자리 코드.
+  // 맞아야 세션 쿠키가 나간다. 등록 대기(enroll)였다면 이때 등록이 끝난다.
+  defineRoute(app, {
+    method: 'POST',
+    url: '/auth/mfa',
+    access: PUBLIC,
+    audit: { screen: '로그인', action: '2차 인증' },
+    schema: {
+      body: MfaVerifyRequest,
+      response: { 200: MfaVerifyResult, 401: ErrorResponse, 409: ErrorResponse, 422: ErrorResponse, 429: ErrorResponse },
+    },
+    handler: async (req, reply) => {
+      const { challenge, code } = MfaVerifyRequest.parse(req.body)
+      const out = await svc.verifyMfa(challenge, code, req.ip, req.headers['user-agent'])
+      setSessionCookie(reply, out.sessionId)
+      req.setAuditTarget(out.loginId, { step: out.enrolled ? '인증 앱 등록' : '코드 확인' })
+      return { ok: true as const, mustChangePassword: out.mustChangePassword, enrolled: out.enrolled }
     },
   })
 
@@ -82,6 +103,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
         groupName: user.groupName,
         mustChangePassword: user.mustChangePassword,
         passwordDeferred: user.passwordDeferred,
+        totpEnabled: user.totpEnabled,
         permissions: perms,
         menu: (await visibleMenu()).filter((m) => user.role === 'ADMIN' || permissions.has(m.permission)),
       }

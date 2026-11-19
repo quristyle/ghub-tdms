@@ -120,6 +120,7 @@ export interface UserRowDb {
   isActive: boolean
   employmentStatus: 'ACTIVE' | 'RETIRED' | 'DELETED'
   mustChangePassword: boolean
+  totpEnabledAt: Date | null
   lastLoginAt: Date | null
   previousLoginAt: Date | null
   createdAt: Date
@@ -159,6 +160,7 @@ export function listUsers() {
             u.is_active AS "isActive",
             u.employment_status AS "employmentStatus",
             u.must_change_password AS "mustChangePassword",
+            u.totp_enabled_at AS "totpEnabledAt",
             u.last_login_at AS "lastLoginAt",
             u.previous_login_at AS "previousLoginAt",
             u.created_at AS "createdAt", u.updated_at AS "updatedAt",
@@ -330,6 +332,17 @@ export function resetPassword(c: pg.PoolClient, id: number, hash: string) {
       WHERE id = $1`,
     [id, hash],
   )
+}
+
+/** 인증 앱 등록을 지운다 — 다음 로그인 때 QR 등록부터 다시 한다 */
+export async function resetTotp(c: pg.PoolClient, id: number) {
+  await c.query(
+    `UPDATE users SET totp_secret = NULL, totp_enabled_at = NULL, totp_last_step = NULL,
+                      updated_at = now()
+      WHERE id = $1`,
+    [id],
+  )
+  await c.query('DELETE FROM login_challenges WHERE user_id = $1', [id])
 }
 
 export function userById(c: pg.PoolClient, id: number) {

@@ -14,6 +14,9 @@ const open = ref(false)
 const useAnotherUser = ref(!session.me)
 const loginId = ref('')
 const password = ref('')
+/** 2차 인증 — 비밀번호가 맞으면 인증 앱 코드를 받는다 */
+const challenge = ref('')
+const code = ref('')
 const error = ref('')
 const busy = ref(false)
 let complete: ((authenticated: boolean) => void) | null = null
@@ -21,6 +24,8 @@ let complete: ((authenticated: boolean) => void) | null = null
 function requestAuthentication(): Promise<boolean> {
   loginId.value = session.me?.loginId ?? ''
   password.value = ''
+  challenge.value = ''
+  code.value = ''
   error.value = ''
   useAnotherUser.value = !session.me
   open.value = true
@@ -35,6 +40,7 @@ function finish(authenticated: boolean) {
 
 async function submit() {
   if (busy.value) return
+  if (challenge.value) return submitCode()
   const account = useAnotherUser.value ? loginId.value.trim() : session.me?.loginId
   if (!account || !password.value) {
     error.value = '아이디와 비밀번호를 입력해 주세요.'
@@ -45,11 +51,20 @@ async function submit() {
   error.value = ''
   const previousUserId = session.me?.id
   try {
-    await session.login(account, password.value)
-    if (previousUserId !== undefined && session.me?.id !== previousUserId) {
-      queryClient.clear()
+    const r = await session.login(account, password.value)
+    if (r.mfa === 'enroll') {
+      // 인증 앱을 아직 등록하지 않은 계정 — QR 등록은 로그인 화면에서 한다
+      session.clear()
+      finish(false)
+      void router.push('/login')
+      return
     }
-    finish(true)
+    if (r.mfa === 'verify') {
+      challenge.value = r.challenge
+      password.value = ''
+      return
+    }
+    afterLogin(previousUserId)
   } catch (e) {
     error.value =
       e instanceof ApiError && e.status === 429
@@ -58,6 +73,34 @@ async function submit() {
           ? '아이디 또는 비밀번호가 맞지 않습니다.'
           : '로그인 중 오류가 발생했습니다. 다시 시도해 주세요.'
     password.value = ''
+  } finally {
+    busy.value = false
+  }
+}
+
+function afterLogin(previousUserId: number | undefined) {
+  if (previousUserId !== undefined && session.me?.id !== previousUserId) {
+    queryClient.clear()
+  }
+  finish(true)
+}
+
+async function submitCode() {
+  if (!/^\d{6}$/.test(code.value)) {
+    error.value = '인증 앱의 6자리 코드를 넣어 주세요.'
+    return
+  }
+  busy.value = true
+  error.value = ''
+  const previousUserId = session.me?.id
+  try {
+    await session.verifyMfa(challenge.value, code.value)
+    afterLogin(previousUserId)
+  } catch (e) {
+    // 시간 초과·5회 실패·잠김이면 비밀번호부터 다시
+    if (e instanceof ApiError && e.status !== 422) challenge.value = ''
+    error.value = e instanceof ApiError ? e.message : '확인 중 오류가 발생했습니다. 다시 시도해 주세요.'
+    code.value = ''
   } finally {
     busy.value = false
   }
@@ -83,19 +126,28 @@ onBeforeUnmount(() => setReauthenticationHandler(null))
       {{ session.me.name }} ({{ session.me.loginId }}) 계정으로 다시 로그인합니다.
     </p>
     <form id="reauth-form" class="reauth-form" @submit.prevent="submit">
-      <label v-if="useAnotherUser">
-        아이디
-        <input v-model="loginId" type="text" autocomplete="username" required :disabled="busy">
-      </label>
-      <label>
-        비밀번호
-        <input v-model="password" type="password" autocomplete="current-password" required :disabled="busy">
+      <template v-if="!challenge">
+        <label v-if="useAnotherUser">
+          아이디
+          <input v-model="loginId" type="text" autocomplete="username" required :disabled="busy">
+        </label>
+        <label>
+          비밀번호
+          <input v-model="password" type="password" autocomplete="current-password" required :disabled="busy">
+        </label>
+      </template>
+      <label v-else>
+        인증 코드 (Microsoft Authenticator 의 6자리)
+        <input
+          v-model="code" type="text" inputmode="numeric" autocomplete="one-time-code"
+          maxlength="6" placeholder="000000" required autofocus :disabled="busy"
+        >
       </label>
       <p v-if="error" class="reauth-error" role="alert">{{ error }}</p>
     </form>
     <template #footer>
       <button
-        v-if="session.me"
+        v-if="session.me && !challenge"
         class="btn"
         type="button"
         :disabled="busy"
@@ -103,8 +155,8 @@ onBeforeUnmount(() => setReauthenticationHandler(null))
       >{{ useAnotherUser ? '현재 사용자로 로그인' : '다른 사용자로 로그인' }}</button>
       <span style="flex:1" />
       <button class="btn" type="button" :disabled="busy" @click="cancel">취소</button>
-      <button class="btn btn-primary" type="submit" form="reauth-form" :disabled="busy || !password">
-        {{ busy ? '확인 중…' : '다시 로그인' }}
+      <button class="btn btn-primary" type="submit" form="reauth-form" :disabled="busy || (challenge ? code.length !== 6 : !password)">
+        {{ busy ? '확인 중…' : challenge ? '확인' : '다시 로그인' }}
       </button>
     </template>
   </Modal>

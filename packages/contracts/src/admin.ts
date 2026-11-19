@@ -102,6 +102,8 @@ export const UserRow = z.object({
   isActive: z.boolean(),
   employmentStatus: EmploymentStatus,
   mustChangePassword: z.boolean(),
+  /** 인증 앱(TOTP) 등록을 마친 시각. null 이면 다음 로그인 때 등록한다. */
+  totpEnabledAt: z.string().nullable(),
   lastLoginAt: z.string().nullable(),
   previousLoginAt: z.string().nullable(),
   createdAt: z.string(),
