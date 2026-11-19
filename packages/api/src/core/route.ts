@@ -71,8 +71,10 @@ export interface TdmsRequest extends FastifyRequest {
 /** 기동 시 검증을 위해 모든 선언을 모아 둔다. */
 export const routeRegistry: RouteSpec[] = []
 
-/** 비밀번호를 바꿔야 하는 세션이 부를 수 있는 것 — 자기 정보·변경·로그아웃뿐 */
-const PASSWORD_CHANGE_ALLOWED: ReadonlySet<string> = new Set(['/auth/me', '/auth/password', '/auth/logout'])
+/** 비밀번호를 바꿔야 하는 세션이 부를 수 있는 것 — 자기 정보·변경·미루기·로그아웃뿐 */
+const PASSWORD_CHANGE_ALLOWED: ReadonlySet<string> = new Set([
+  '/auth/me', '/auth/password', '/auth/password/defer', '/auth/logout',
+])
 
 const MUTATING: ReadonlySet<string> = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
@@ -101,7 +103,11 @@ export function defineRoute(app: FastifyInstance, spec: RouteSpec): void {
         // 초기·임시 비밀번호 상태에서는 바꾸기 전까지 다른 기능을 쓰지 못한다.
         // 화면이 변경 창을 먼저 띄우지만, 그건 화면 사정이고 경계는 여기다 —
         // 주소를 직접 부르면 그대로 통과하던 구멍을 막는다.
-        if (r.auth.user.mustChangePassword && !PASSWORD_CHANGE_ALLOWED.has(spec.url)) {
+        // [다음에 변경하기]로 미룬 세션(sessions.password_deferred)은 이번 로그인 동안만 통과한다.
+        if (
+          r.auth.user.mustChangePassword && !r.auth.user.passwordDeferred &&
+          !PASSWORD_CHANGE_ALLOWED.has(spec.url)
+        ) {
           throw new AppError('PASSWORD_CHANGE_REQUIRED', 403, '비밀번호를 먼저 바꿔야 합니다.')
         }
         if (spec.access.kind === 'permission' && !hasPermission(r.auth, spec.access.key)) {

@@ -19,7 +19,7 @@ async function submit() {
   busy.value = true
   try {
     const r = await session.login(loginId.value, password.value)
-    // 초기·임시 비밀번호 상태면 변경 화면을 먼저 연다 (미루기 없음 — 서버도 막는다)
+    // 초기·임시 비밀번호 상태면 변경 화면을 먼저 연다 ([다음에 변경하기]로 미룰 수 있다)
     if (r.mustChangePassword) {
       void router.push('/password-change')
       return

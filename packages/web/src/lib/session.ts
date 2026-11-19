@@ -15,10 +15,13 @@ export const useSession = defineStore('session', () => {
 
   const isLoggedIn = computed(() => me.value !== null)
   /**
-   * 변경 화면을 먼저 열어야 하는가. 미루기는 없다 — 서버도 바꾸기 전에는
-   * /auth/me·/auth/password·/auth/logout 말고는 403(PASSWORD_CHANGE_REQUIRED)을 낸다.
+   * 변경 화면을 먼저 열어야 하는가.
+   * 미루기는 서버 세션(sessions.password_deferred)에 담긴다 — 새로고침해도 유지되고
+   * 다시 로그인하면 초기화된다. 서버도 미루지 않은 세션은 변경 전까지 다른 API 를 막는다.
    */
-  const needsPasswordChange = computed(() => me.value?.mustChangePassword === true)
+  const needsPasswordChange = computed(
+    () => me.value?.mustChangePassword === true && me.value.passwordDeferred !== true,
+  )
   const isAdmin = computed(() => me.value?.role === 'ADMIN')
   const menu = computed(() => me.value?.menu ?? [])
 
@@ -60,11 +63,17 @@ export const useSession = defineStore('session', () => {
     me.value = null
   }
 
+  /** 미루기 — 서버 세션에 기록한다. 이 세션 동안만 건너뛴다. */
+  async function deferPasswordChange() {
+    await api.post('/auth/password/defer')
+    await load()
+  }
+
   /** 접근 가능한 첫 화면 — 상단 메뉴 차례 그대로 (기존 동작) */
   const firstAllowedPath = computed(() => menu.value[0]?.path ?? null)
 
   return {
     me, loading, isLoggedIn, isAdmin, menu, can, load, login, logout,
-    firstAllowedPath, needsPasswordChange, clear,
+    firstAllowedPath, needsPasswordChange, deferPasswordChange, clear,
   }
 })

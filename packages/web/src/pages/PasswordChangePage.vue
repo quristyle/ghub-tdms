@@ -6,8 +6,8 @@ import { useSession } from '@/lib/session'
 
 /**
  * 최초 로그인 시 비밀번호 변경 — 기존 login.html 의 #change-panel 과 같은 모양.
- * 미루기는 없앴다(2026-11-17, 보안 점검). 초기 비밀번호가 'ghub'+아이디라 미뤄 두면
- * 아이디만 아는 사람도 그 계정으로 들어올 수 있었다. 서버도 바꾸기 전에는 다른 API 를 막는다.
+ * 급할 땐 [다음에 변경하기]로 미루고 다음 로그인 때 다시 안내한다 (2026-11-19 다시 켬).
+ * 미루기는 이번 로그인 세션에만 적용된다 — 서버가 sessions.password_deferred 로 판단한다.
  */
 const router = useRouter()
 const session = useSession()
@@ -36,6 +36,19 @@ async function submit() {
     void router.push('/login')
   } catch (e) {
     error.value = e instanceof ApiError ? e.message : '변경에 실패했습니다.'
+  } finally {
+    busy.value = false
+  }
+}
+
+async function defer() {
+  error.value = ''
+  busy.value = true
+  try {
+    await session.deferPasswordChange()
+    void router.push(session.firstAllowedPath ?? '/')
+  } catch (e) {
+    error.value = e instanceof ApiError ? e.message : '미루기에 실패했습니다.'
   } finally {
     busy.value = false
   }
@@ -71,6 +84,7 @@ async function logout() {
       <p class="login-rule">규칙: 영문과 숫자를 섞어 8자 이상</p>
 
       <button class="primary" type="submit" :disabled="busy">비밀번호 변경</button>
+      <button class="login-secondary-btn" type="button" :disabled="busy" @click="defer">다음에 변경하기</button>
       <button class="login-secondary-btn" type="button" @click="logout">로그아웃</button>
 
       <p v-if="error" class="login-error">{{ error }}</p>
