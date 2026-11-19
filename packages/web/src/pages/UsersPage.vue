@@ -1021,7 +1021,7 @@ async function confirmDeletePartner() {
 
     <!-- 사용자 추가·수정 모달 -->
     <Modal v-if="userDialog" :title="userDialog === 'create' ? '사용자 추가' : '사용자 수정'"
-           @close="userDialog = null">
+           movable resizable width="720px" @close="userDialog = null">
       <table class="form">
         <tbody>
           <tr>
@@ -1652,9 +1652,10 @@ async function confirmDeletePartner() {
 .tag.warn-tag { background: var(--warn); margin-left: 4px; }
 .tag.tag-info { background: var(--primary-soft); color: var(--primary); border: 1px solid var(--primary-line); }
 
-/* 폼 모달 */
+/* 폼 모달 — 팝업 너비를 다 쓴다 */
+.form { width: 100%; border-collapse: collapse; }
 .form th, .form td { padding: 6px 8px; text-align: left; vertical-align: top; }
-.form th { width: 70px; font-weight: 600; white-space: nowrap; }
+.form th { width: 90px; font-weight: 600; white-space: nowrap; }
 .form .sect {
   text-align: left; padding-top: var(--sp-4);
   color: var(--fg-muted); font-size: var(--fs-sm); font-weight: 600;
