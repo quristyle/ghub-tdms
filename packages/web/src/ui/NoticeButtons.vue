@@ -216,4 +216,9 @@ const OUTSTANDING_COLUMNS: Column<DistributionRow>[] = [
 
 .notice-grid { height: 56vh; min-height: 280px; display: flex; }
 .notice-grid > * { flex: 1; min-width: 0; }
+/* 모바일 — 조건 칸과 건수 요약을 내려 쌓는다 (요약 글이 길어 팝업을 밀던 것) */
+@media (max-width: 700px) {
+  .notice-filters { flex-wrap: wrap; row-gap: 6px; }
+  .notice-summary { white-space: normal; margin-left: 0; padding-bottom: 0; }
+}
 </style>

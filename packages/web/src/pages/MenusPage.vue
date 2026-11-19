@@ -1028,4 +1028,34 @@ async function save() {
 .meta-by {
   color: var(--fg-subtle);
 }
+/* 모바일 — 열 6개짜리 표를 메뉴마다 한 칸(두 줄)으로 접어 화면 너비 안에 넣는다.
+   1줄: 순서 | 메뉴 이름 | 사용,  2줄: 순서 | 분류 | 경로,  3줄: 마지막 변경 */
+@media (max-width: 700px) {
+  .flat-table,
+  .flat-table tbody { display: block; }
+  .flat-table thead { display: none; }
+  .flat-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-areas:
+      "order label label enabled"
+      "order cat   path  path"
+      "order meta  meta  meta";
+    align-items: center;
+    column-gap: 4px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .flat-row:last-child { border-bottom: none; }
+  .flat-row td { display: block; padding: 2px 4px; border-bottom: none; min-width: 0; }
+  .flat-row td.col-order    { grid-area: order; }
+  .flat-row td.col-label    { grid-area: label; }
+  .flat-row td.col-enabled  { grid-area: enabled; }
+  .flat-row td.col-category { grid-area: cat; }
+  .flat-row td.col-path     { grid-area: path; }
+  .flat-row td.col-meta     { grid-area: meta; padding-left: 12px; }
+  /* 손가락으로는 올려 볼 수 없으니 ▲▼ 단추를 늘 보이게 하고, 입력칸 테두리도 보인다 */
+  .order-buttons { opacity: 1; }
+  .flat-input { border-color: var(--border); }
+}
 </style>

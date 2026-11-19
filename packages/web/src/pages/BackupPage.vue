@@ -184,7 +184,7 @@ function exportRuns() {
     </div>
 
     <!-- 백업 이력 -->
-    <div class="panel table-panel">
+    <div class="panel table-panel backup-runs">
       <div class="panel-head">
         백업 이력
         <span class="muted sub">이력 줄은 어떤 경우에도 지워지지 않습니다.</span>
@@ -200,22 +200,22 @@ function exportRuns() {
         <tbody>
           <tr v-for="r in runs?.items ?? []" :key="r.id"
               :class="{ warn: r.state === 'FAILED' || r.state === 'FILE_DELETED' }">
-            <td class="tc">{{ r.seq }}</td>
-            <td class="tc">{{ r.kind === 'FULL' ? '전체' : '변경분' }}</td>
-            <td class="tc">{{ r.scope.join(', ') }}</td>
-            <td class="muted">{{ r.storagePath ?? '기본 위치' }}</td>
-            <td class="tr">{{ size(r.byteSize) }}</td>
-            <td class="tr">{{ r.fileCount ?? '-' }}</td>
-            <td class="tc">{{ r.createdAt.slice(0, 16).replace('T', ' ') }}</td>
-            <td class="tc">{{ r.createdBy ?? '-' }}</td>
-            <td class="tc">{{ r.downloadCount }}</td>
-            <td class="tc">{{ STATE_LABEL[r.state] ?? r.state }}</td>
-            <td>
+            <td class="tc" data-label="회차">{{ r.seq }}</td>
+            <td class="tc" data-label="종류">{{ r.kind === 'FULL' ? '전체' : '변경분' }}</td>
+            <td class="tc" data-label="담은 항목">{{ r.scope.join(', ') }}</td>
+            <td class="muted" data-label="저장 위치">{{ r.storagePath ?? '기본 위치' }}</td>
+            <td class="tr" data-label="묶음 크기">{{ size(r.byteSize) }}</td>
+            <td class="tr" data-label="파일 수">{{ r.fileCount ?? '-' }}</td>
+            <td class="tc" data-label="만든 시각">{{ r.createdAt.slice(0, 16).replace('T', ' ') }}</td>
+            <td class="tc" data-label="만든 사람">{{ r.createdBy ?? '-' }}</td>
+            <td class="tc" data-label="받은 횟수">{{ r.downloadCount }}</td>
+            <td class="tc" data-label="상태">{{ STATE_LABEL[r.state] ?? r.state }}</td>
+            <td data-label="비고">
               <span v-if="!canRun">{{ r.note ?? '-' }}</span>
               <input v-else type="text" :value="r.note ?? ''" placeholder="비고" style="width:100%"
                      @change="saveNote(r, ($event.target as HTMLInputElement).value)" />
             </td>
-            <td class="tc">
+            <td class="tc" data-label="조치">
               <a v-if="r.state === 'READY' && canRun"
                  class="btn btn-sm" :href="`/api/backup/runs/${r.id}/download`"
                  @click="refreshSoon">받기</a>
@@ -224,7 +224,7 @@ function exportRuns() {
                       @click="deleteTarget = r">파일 삭제</button>
             </td>
           </tr>
-          <tr v-if="!runs?.items.length"><td colspan="12" class="tc muted">백업 이력이 없습니다.</td></tr>
+          <tr v-if="!runs?.items.length" class="empty"><td colspan="12" class="tc muted">백업 이력이 없습니다.</td></tr>
         </tbody>
       </table>
     </div>
@@ -257,4 +257,21 @@ function exportRuns() {
 .sub { font-size: var(--fs-sm); font-weight: 400; margin-left: 8px; }
 .table-panel { flex: 1; overflow: auto; min-height: 0; }
 .grid { border-top: 1px solid var(--border); }
+/* 모바일 — 열 12개짜리 이력 표를 회차마다 한 장씩 쌓아서 화면 너비 안에 넣는다 */
+@media (max-width: 700px) {
+  .backup-runs table.grid,
+  .backup-runs table.grid tbody { display: block; }
+  .backup-runs table.grid thead { display: none; }
+  .backup-runs table.grid tbody tr { display: block; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .backup-runs table.grid tbody td {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 4px 12px; border: 0; white-space: normal; text-align: right; word-break: break-all;
+  }
+  .backup-runs table.grid tbody td::before {
+    content: attr(data-label); flex: 0 0 auto; color: var(--text-muted); font-size: 11.5px; text-align: left;
+  }
+  .backup-runs table.grid tbody td:has(input) input { flex: 1; min-width: 0; }
+  .backup-runs table.grid tbody tr.empty td { justify-content: center; }
+  .backup-runs table.grid tbody tr.empty td::before { content: none; }
+}
 </style>

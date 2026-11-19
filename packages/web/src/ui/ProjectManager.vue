@@ -115,4 +115,9 @@ async function onHide(r: CatalogItem, hidden: boolean) {
 .acts .btn + .btn { margin-left: 4px; }
 .chk { display: flex; align-items: center; gap: 4px; white-space: nowrap; font-size: var(--fs-sm); }
 .err { color: var(--danger); font-size: var(--fs-sm); margin: 0; }
+/* 모바일 — 이름 칸·[추가]·[숨긴 것도 보기]가 한 줄에 안 들어가면 아래로 내린다 */
+@media (max-width: 700px) {
+  .pm-add { flex-wrap: wrap; row-gap: 6px; }
+  .pm-add input[type='text'] { flex: 1 1 160px; width: auto; min-width: 0; }
+}
 </style>

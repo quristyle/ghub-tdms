@@ -1697,4 +1697,13 @@ async function confirmDeletePartner() {
 .btn-danger:hover {
   filter: brightness(0.9);
 }
+/* 모바일 — 양식 표의 항목 이름을 값 위로 올려 팝업 너비 안에 넣는다 */
+@media (max-width: 700px) {
+  .form, .form tbody, .form tr { display: block; }
+  .form th, .form td { display: block; width: auto; padding: 4px 2px; }
+  .form th { padding-top: 10px; white-space: normal; }
+  .form td.two { flex-wrap: wrap; }
+  .form td.two > * { flex: 1 1 140px; }
+  .form td.two label { white-space: normal; flex-wrap: wrap; }
+}
 </style>
