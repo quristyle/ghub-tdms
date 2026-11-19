@@ -2,7 +2,24 @@
 <html lang="ko">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- 모바일에서 화면 배율이 바뀌지 않게 한다 — 입력칸을 누를 때 저절로 커지는 것(iOS),
+         두 손가락 벌리기·두 번 두드리기 확대를 막는다. 업무 화면이라 확대가 오히려 레이아웃을 흐트러뜨린다.
+         iOS Safari 는 user-scalable=no 를 무시하므로 아래 gesture 막기 조각과 base.css 의
+         touch-action: manipulation 이 함께 있어야 한다. PDF 뷰어(iframe)는 자기 확대를 따로 쓴다. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no" />
+    <script>
+      (function () {
+        // iOS Safari 의 두 손가락 확대(gesture*) 를 막는다. 이 문서에만 걸리고 PDF 뷰어 iframe 에는 닿지 않는다.
+        var stop = function (e) { e.preventDefault(); };
+        document.addEventListener('gesturestart', stop, { passive: false });
+        document.addEventListener('gesturechange', stop, { passive: false });
+        document.addEventListener('gestureend', stop, { passive: false });
+        // 여러 손가락 touchmove 로 들어오는 확대도 막는다 (한 손가락 스크롤은 그대로).
+        document.addEventListener('touchmove', function (e) {
+          if (e.touches && e.touches.length > 1) e.preventDefault();
+        }, { passive: false });
+      })();
+    </script>
     <title>TDMS 기술자료 관리 시스템</title>
 
     <!-- 아이콘. svg 를 먼저 두고 ico 는 못 읽는 브라우저용으로 남긴다.
