@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, ApiError } from '@/lib/api'
 import { useSession } from '@/lib/session'
+import Modal from '@/ui/Modal.vue'
 
 /**
  * 마이페이지 팝업 — 상단 바의 사용자 이름을 누르면 뜬다 (기존 auth-guard.js openMypageModal).
@@ -11,6 +12,7 @@ import { useSession } from '@/lib/session'
  * 묶어 아래 비밀번호 변경 입력 폼과 시각적으로 분리한다.
  *
  * 비밀번호를 바꾸면 서버가 모든 세션을 끊으므로 로그인 화면으로 보낸다.
+ * 공통 Modal 을 써서 다른 팝업처럼 머리글로 옮기고 크기를 바꿀 수 있다.
  */
 
 const emit = defineEmits<{ close: [] }>()
@@ -51,10 +53,8 @@ async function change() {
 </script>
 
 <template>
-  <div class="modal-overlay" @click.self="emit('close')">
-    <div class="modal-box mypage-box" role="dialog" aria-modal="true" aria-label="마이페이지">
-      <p class="modal-title">마이페이지</p>
-
+  <Modal title="마이페이지" width="440px" @close="emit('close')">
+    <div class="mypage-box">
       <div class="mypage-info">
         <div class="mypage-info-row">
           <span class="mypage-info-label">아이디</span>
@@ -82,12 +82,11 @@ async function change() {
       <p v-if="error" class="login-error">{{ error }}</p>
       <p v-if="done" class="mypage-done">{{ done }}</p>
 
-      <div class="modal-actions">
-        <button type="button" @click="emit('close')">닫기</button>
-        <button type="button" class="primary" :disabled="busy" @click="change">비밀번호 변경</button>
-      </div>
     </div>
-  </div>
+    <template #footer>
+      <button type="button" class="primary" :disabled="busy" @click="change">비밀번호 변경</button>
+    </template>
+  </Modal>
 </template>
 
 <style scoped>

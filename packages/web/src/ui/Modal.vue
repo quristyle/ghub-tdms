@@ -4,12 +4,13 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 /**
  * 모달 — 포커스 트랩, ESC 닫기, 배경 스크롤 잠금.
  * movable: 머리글을 잡고 옮길 수 있다. resizable: 오른쪽·아래·모서리를 잡고 크기를 바꿀 수 있다.
+ * 두 기능은 모든 팝업에 기본으로 켜져 있다 — 끄려면 :movable="false" / :resizable="false".
  * width: 기본 너비(예: '680px'). 화면보다 넓으면 화면에 맞춰 줄어든다.
  */
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   title: string; wide?: boolean; notice?: boolean
   movable?: boolean; resizable?: boolean; width?: string
-}>()
+}>(), { movable: true, resizable: true })
 const emit = defineEmits<{ close: [] }>()
 
 const box = ref<HTMLElement | null>(null)
@@ -144,7 +145,8 @@ onBeforeUnmount(() => {
   background: var(--surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
-  width: 400px; max-width: 100%; max-height: 90vh;
+  /* 기본 너비 — 데스크탑에서 입력칸·표가 잘리지 않게 400px → 560px. 좁은 화면에선 화면에 맞춘다 */
+  width: 560px; max-width: 100%; max-height: 90vh;
   display: flex; flex-direction: column;
   position: relative;
 }
