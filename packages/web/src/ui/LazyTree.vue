@@ -109,7 +109,48 @@ function collapseAll() {
   expanded.value = new Set()
 }
 
-defineExpose({ reload, collapseAll })
+/** 한 단계에 동시에 보내는 요청 수 — 폴더가 많아도 서버를 몰아붙이지 않는다 */
+const FETCH_CONCURRENCY = 8
+
+/**
+ * 주어진 폴더들부터 그 아래 모든 가지를 펼친다.
+ * 지연 로딩이라 한 단계씩 자식을 받아 오며 내려간다 (이미 받은 가지는 다시 받지 않는다).
+ */
+async function expandFrom(startIds: number[]) {
+  const next = new Set(expanded.value)
+  let level = startIds
+  while (level.length) {
+    const found: FolderNode[] = []
+    for (let i = 0; i < level.length; i += FETCH_CONCURRENCY) {
+      const chunk = level.slice(i, i + FETCH_CONCURRENCY)
+      const lists = await Promise.all(chunk.map(async (id) => {
+        const hit = children.value.get(id)
+        if (hit) return hit
+        const items = await fetchChildren(id)
+        children.value.set(id, items)
+        return items
+      }))
+      for (const items of lists) found.push(...items)
+    }
+    for (const id of level) next.add(id)
+    level = found.filter((n) => n.hasChildren).map((n) => n.id)
+  }
+  children.value = new Map(children.value)
+  expanded.value = next
+}
+
+/** 모든 폴더를 끝까지 펼친다 */
+async function expandAll() {
+  await expandFrom(roots.value.filter((n) => n.hasChildren).map((n) => n.id))
+}
+
+/** 선택한 폴더의 하위를 끝까지 펼친다 — [전체]가 선택돼 있으면 모두 펼친다 */
+async function expandSelected() {
+  if (props.selectedId === null) return expandAll()
+  await expandFrom([props.selectedId])
+}
+
+defineExpose({ reload, collapseAll, expandAll, expandSelected })
 </script>
 
 <template>

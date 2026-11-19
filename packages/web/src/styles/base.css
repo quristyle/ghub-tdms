@@ -1165,3 +1165,18 @@ input.nav-pos-input {
 }
 *::-webkit-scrollbar-thumb:hover { background-color: var(--text-faint); background-clip: content-box; }
 *::-webkit-scrollbar-track { background: transparent; }
+
+/* 폴더 트리 머리글의 아이콘 단추 — 모두 펼치기 · 모두 접기 · 선택 폴더 하위 펼치기 */
+.tree-tools { display: inline-flex; gap: 2px; margin-left: auto; }
+.tree-tool {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; padding: 0;
+  border: 1px solid transparent; border-radius: var(--radius);
+  background: transparent; color: var(--text-muted); cursor: pointer;
+}
+.tree-tool:hover:not(:disabled) { background: var(--surface-sunken); border-color: var(--border); color: var(--text); }
+.tree-tool:disabled { opacity: 0.45; cursor: progress; }
+.tree-tool svg {
+  width: 14px; height: 14px;
+  fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;
+}
