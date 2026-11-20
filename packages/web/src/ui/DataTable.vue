@@ -748,40 +748,48 @@ async function exportExcel() {
 
     <!-- 아래쪽 집계 — 세는 범위를 감추지 않는다 -->
     <div class="dt-foot">
-      <span v-if="total !== null && total !== undefined">
-        전체 <strong>{{ n(total) }}</strong>건
+      <!-- 모바일(좁은 폭)에서는 .dt-lbl 글자를 감추고 숫자만 남긴다 — 뜻은 title 로 -->
+      <span v-if="total !== null && total !== undefined" class="dt-foot-num" :title="`전체 ${n(total)}건`">
+        <span class="dt-lbl">전체 </span><strong>{{ n(total) }}</strong><span class="dt-lbl">건</span>
       </span>
-      <span v-if="total !== null && total !== undefined && total > rows.length" class="muted">
-        · 불러옴 {{ n(rows.length) }}
+      <span
+        v-if="total !== null && total !== undefined && total > rows.length"
+        class="muted dt-foot-num" :title="`불러옴 ${n(rows.length)}건`"
+      >
+        · <span class="dt-lbl">불러옴 </span>{{ n(rows.length) }}
       </span>
-      <span v-else-if="total === null || total === undefined">
-        <strong>{{ n(rows.length) }}</strong>건
+      <span v-else-if="total === null || total === undefined" class="dt-foot-num">
+        <strong>{{ n(rows.length) }}</strong><span class="dt-lbl">건</span>
       </span>
-      <span v-if="filtering" class="dt-foot-filter">
-        · 거른 뒤 <strong>{{ n(visible.length) }}</strong>
+      <span v-if="filtering" class="dt-foot-filter dt-foot-num" :title="`거른 뒤 ${n(visible.length)}건`">
+        · <span class="dt-lbl">거른 뒤 </span><strong>{{ n(visible.length) }}</strong>
       </span>
       <span v-if="loadingMore" class="dt-foot-loading">
         <svg class="dt-spin" width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
           <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="2"
                   stroke-linecap="round" stroke-dasharray="28 10" />
         </svg>
-        더 불러오는 중…
+        <span class="dt-lbl">더 불러오는 중…</span>
       </span>
       <button
         v-else-if="hasMore"
         class="dt-more-btn"
         title="다음 페이지 불러오기"
+        aria-label="다음 페이지 불러오기"
         type="button"
         @click="checkLoadMore"
       >
-        더 불러오기
+        <svg class="dt-ico-m" width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+        </svg>
+        <span class="dt-lbl">더 불러오기</span>
       </button>
       <span style="flex:1" />
 
       <!-- 쪽 넘기기 — 아래줄 한가운데. 끌어내려 이어 붙이는 방식은 그대로 둔다. -->
       <span v-if="pageCount > 1" class="dt-pager">
         <button
-          class="dt-page-btn" type="button" title="맨 처음 쪽"
+          class="dt-page-btn dt-page-edge" type="button" title="맨 처음 쪽"
           :disabled="!!jumpTo || currentPage === 1" @click="goToPage(1)"
         >◀◀</button>
         <button
@@ -806,17 +814,17 @@ async function exportExcel() {
           :disabled="!!jumpTo || currentPage >= pageCount" @click="goToPage(currentPage + 1)"
         >▶</button>
         <button
-          class="dt-page-btn" type="button" title="맨 끝 쪽"
+          class="dt-page-btn dt-page-edge" type="button" title="맨 끝 쪽"
           :disabled="!!jumpTo || currentPage >= pageCount" @click="goToPage(pageCount)"
         >▶▶</button>
 
-        <span v-if="jumpTo" class="dt-page-note">{{ n(jumpTo) }}쪽 불러오는 중…</span>
+        <span v-if="jumpTo" class="dt-page-note dt-lbl">{{ n(jumpTo) }}쪽 불러오는 중…</span>
       </span>
 
       <span style="flex:1" />
-      <span v-if="activeIndex !== null" class="muted">{{ n(activeIndex) }}번째 줄</span>
-      <span v-if="selectable && selectedCount > 0" class="dt-foot-sel">
-        선택 <strong>{{ n(selectedCount) }}</strong>건
+      <span v-if="activeIndex !== null" class="muted dt-lbl">{{ n(activeIndex) }}번째 줄</span>
+      <span v-if="selectable && selectedCount > 0" class="dt-foot-sel" :title="`선택 ${n(selectedCount)}건`">
+        <span class="dt-lbl">선택 </span><span class="dt-sel-mark" aria-hidden="true">✓</span><strong>{{ n(selectedCount) }}</strong><span class="dt-lbl">건</span>
       </span>
 
       <button
@@ -837,13 +845,13 @@ async function exportExcel() {
           <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"
                   stroke-linecap="round" stroke-dasharray="28 10" />
         </svg>
-        <span>엑셀</span>
+        <span class="dt-lbl">엑셀</span>
       </button>
 
       <button
         v-if="serverExcel"
         class="dt-xls dt-xls-server" :disabled="serverExporting || (!rows.length && !total)"
-        :title="serverExporting ? '서버에서 엑셀을 만드는 중입니다' : '조건에 맞는 전체 자료를 서버에서 엑셀로 생성해 내려받기'"
+        :title="serverExporting ? '서버에서 엑셀을 만드는 중입니다' : `${serverExcelLabel ?? '전체 엑셀(서버)'} — 조건에 맞는 전체 자료를 서버에서 엑셀로 생성해 내려받기`"
         aria-label="전체 엑셀 내려받기(서버)"
         type="button"
         @click="emit('exportServer')"
@@ -858,7 +866,7 @@ async function exportExcel() {
           <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"
                   stroke-linecap="round" stroke-dasharray="28 10" />
         </svg>
-        <span>{{ serverExcelLabel ?? '전체 엑셀(서버)' }}</span>
+        <span class="dt-lbl">{{ serverExcelLabel ?? '전체 엑셀(서버)' }}</span>
       </button>
     </div>
   </div>
@@ -1097,6 +1105,31 @@ async function exportExcel() {
   color: var(--text); border-color: var(--text-faint); background: var(--surface-alt);
 }
 .dt-spin { animation: dt-spin 1s linear infinite; }
+.dt-foot-num { white-space: nowrap; }
+.dt-ico-m, .dt-sel-mark { display: none; }
+
+/* ── 모바일: 아랫줄을 한 줄에 — 글자 이름은 감추고 숫자·아이콘만 ──────
+   좁은 폭에서 [전체 N건 · 불러옴 N] [쪽 넘기기] [엑셀] 이 두 줄로 접혀
+   30px 줄 밖으로 삐져나가던 것을 막는다. 뜻은 각 요소의 title 에 남아 있다. */
+@media (max-width: 700px) {
+  .dt-foot { gap: 3px; padding: 0 8px; white-space: nowrap; overflow: hidden; }
+  .dt-foot > * { flex-shrink: 0; }
+  .dt-lbl { display: none; }
+  .dt-ico-m { display: inline; }
+  .dt-sel-mark { display: inline; margin-right: 1px; }
+  .dt-foot-sel { margin-left: 4px; }
+  .dt-more-btn { padding: 0 5px; margin-left: 4px; }
+  .dt-foot-loading { margin-left: 4px; }
+  .dt-pager { gap: 2px; }
+  .dt-page-btn { min-width: 20px; padding: 0 4px; }
+  .dt-page-input { width: 4ch; }
+  .dt-xls { padding: 0 5px; margin-left: 4px; gap: 0; }
+  .dt-xls-server { margin-left: 3px; }
+}
+@media (max-width: 360px) {
+  /* 아주 좁으면 맨 처음·맨 끝 쪽 단추는 뺀다 — 쪽 번호 칸에 바로 넣을 수 있다 */
+  .dt-page-btn.dt-page-edge { display: none; }
+}
 @keyframes dt-spin { to { transform: rotate(360deg); } }
 
 /* ── 드래그 가능 행 ────────────────────────────────────────────── */
