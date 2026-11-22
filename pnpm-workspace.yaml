@@ -1,2 +1,9 @@
 packages:
   - 'packages/*'
+
+# 설치할 때 postinstall 을 돌려도 되는 것들. pnpm 10 은 기본으로 막고 경고만 내는데,
+# esbuild 는 플랫폼 바이너리를 맞추고 vue-demi 는 Vue 판에 맞는 파일을 고른다.
+# 막아 두면 조용히 어긋날 수 있고, 제어판 [의존성 설치] 출력에도 경고가 남는다.
+onlyBuiltDependencies:
+  - esbuild
+  - vue-demi

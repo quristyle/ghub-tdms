@@ -56,6 +56,7 @@ devctl/
     actions.sh   제어판이 하는 일들
     menu.sh      터미널 메뉴
     json.sh      상태를 JSON 으로 (브라우저 제어판이 읽는다)
+    compat.sh    Windows(Git Bash) 보정 — 맨 마지막에 읽어 덮어쓴다
   run/           PID 파일 (gitignore)
   logs/          서비스 로그 (gitignore)
 ```
@@ -79,6 +80,47 @@ devctl/
 - **로그는 `devctl/logs/` 에 쌓인다.** 서비스를 시작할 때마다 비운다.
 - 제어판은 `.env` 를 읽기만 하고 고치지 않는다.
 
+## Windows
+
+진입점은 저장소 뿌리의 `dev.bat` 이다. 하는 일은 Git Bash 를 찾아 `dev.sh` 에 인자를
+넘기는 것뿐이고, 판정 로직은 한 벌로 남는다 — 브라우저 제어판도 결국 `dev.sh` 를 부르므로
+여기에 두 벌째를 만들면 터미널과 브라우저가 서로 다른 것을 보게 된다.
+
+`dev.bat` 은 **순수 ASCII 라야 한다.** cmd 는 배치 파일을 바이트 위치로 되짚어 읽는데,
+파일 안에서 `chcp` 로 코드페이지를 바꾸면 그 위치 계산이 어긋난다. 위쪽에 여러 바이트
+글자(한글)가 있으면 어긋난 자리가 글자 중간에 떨어져, cmd 가 주석 한가운데부터 명령으로
+읽기 시작한다 — `rem dev.bat tui` 가 `ui` 라는 명령이 되어 끝없이 되풀이된 적이 있다.
+사람이 읽을 한글은 bash 가 읽는 `dev.sh` 에 둔다.
+
+차이는 `lib/compat.sh` 한 곳에서 흡수한다. 리눅스에서는 파일 첫머리 가드에서 빠져나가
+아무것도 바뀌지 않는다.
+
+| Git Bash 에 없는 것 | 대신 쓰는 것 |
+|---|---|
+| `setsid` | 그냥 백그라운드로 띄운다 — Git Bash 는 부모가 끝나도 자식이 산다 |
+| `ss` | `netstat -ano` |
+| `pgrep` · 프로세스 그룹 | `tasklist` · `taskkill //T` (자식까지 한 번에) |
+| `ps -o etime` | 띄울 때 적어 둔 시각(`run/started-<pid>.pid`)에서 뺀다 |
+| `sshfs` | SSHFS-Win 의 `sshfs.exe` — PATH 를 맞춰 직접 띄운다(아래 참조) |
+| `.venv/bin/` | `.venv/Scripts/` |
+| `psql` | `devctl/db-query.mjs` — 앱이 쓰는 pg 드라이버로 대신 묻는다 |
+
+두 가지를 더 맞춘다.
+
+- **PID 는 전부 WINPID 로 통일한다.** msys 가 매기는 번호와 Windows 가 매기는 번호가
+  다른데 `netstat`·`taskkill` 이 아는 것은 후자뿐이라, 섞으면 엉뚱한 프로세스를 죽인다.
+- **`LC_CTYPE=C.UTF-8` 을 둔다.** Git Bash 는 로캘이 비어 있어 `${#s}` 가 글자가 아니라
+  바이트를 센다. 그대로 두면 `disp_width` 가 한글을 글자마다 6칸으로 읽어 상태표가 어긋난다.
+  `en_US.UTF-8` 류는 `[가-힣]` 범위를 collation 순서로 풀어 ASCII 까지 한글로 세므로 또 틀린다.
+
+**워커는 운영 DB + 로컬 저장소 조합에서 뜨지 않는다.** 큐가 DB 에 있어서, 그 조합으로
+띄우면 운영 사용자가 넣은 작업을 개발 장비가 집어다 처리하고 결과 파일을 여기 `.storage`
+에 쓴다. DB 에는 되었다고 적히는데 운영에는 파일이 없으니 운영 화면에서 미리보기가 빈다.
+Windows 는 sshfs 가 없어 이 조합이 기본값이라 `worker_guard` 가 시작 지점에서 막는다.
+
+중지는 곱게 끊는 단계를 건너뛰고 바로 `//F` 다. `//F` 없는 `taskkill` 은 창에 WM_CLOSE 를
+보내는 것이라, 창 없는 콘솔 프로그램인 node·python 은 거들떠보지 않는다.
+
 ## 명령
 
 | 명령 | 하는 일 |
@@ -90,6 +132,7 @@ devctl/
 | `restart [서비스…]` | 다시 시작 |
 | `status` | 상태와 작업 큐 적체 |
 | `logs [서비스]` | 로그. 서비스를 주면 따라가며 본다 |
+| `install` | 의존성 설치 (`pnpm install`) |
 | `doctor` | 도구·설정·DB·포트 점검 |
 | `migrate` / `db` | 마이그레이션 적용 / 상태 |
 | `seed` | 시험 자료 넣기 |

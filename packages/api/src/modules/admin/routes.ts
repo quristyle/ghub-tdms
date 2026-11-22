@@ -191,6 +191,26 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     },
   })
 
+  defineRoute(app, {
+    method: 'POST',
+    url: '/users/:id/unlock',
+    access: permission('screen.users.access'),
+    audit: { screen: '사용자 관리', action: '로그인 잠금 해제' },
+    schema: {
+      params: IdParam,
+      response: {
+        200: z.object({ ok: z.literal(true), loginId: z.string() }),
+        403: ErrorResponse, 404: ErrorResponse,
+      },
+    },
+    handler: async (req) => {
+      const { id } = IdParam.parse(req.params)
+      const out = await svc.unlockUser(id, actorOf(req))
+      req.setAuditTarget(out.loginId)
+      return out
+    },
+  })
+
   // ── 권한 관리 ────────────────────────────────────────────────────────
   defineRoute(app, {
     method: 'GET',

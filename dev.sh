@@ -26,6 +26,10 @@ source "$LIB/actions.sh"
 source "$LIB/json.sh"
 source "$LIB/menu.sh"
 
+# Windows(Git Bash) 보정 — **맨 마지막에** 읽어 위의 정의를 덮어쓴다.
+# 리눅스에서는 파일 첫머리 가드에서 바로 빠져나가므로 아무것도 바뀌지 않는다.
+source "$LIB/compat.sh"
+
 # 브라우저 제어판 — devctl/server/panel.mjs (의존성 없음)
 action_panel() {
   local port="${DEVCTL_PORT:-7070}"
@@ -36,11 +40,11 @@ action_panel() {
 }
 
 usage() {
-  cat <<'TXT'
+  cat <<TXT
 GHub TDMS — 개발서버 제어판
 
-  ./dev.sh                     브라우저 제어판을 연다 (http://localhost:7070)
-  ./dev.sh tui                 터미널 제어판
+  $SELF                     브라우저 제어판을 연다 (http://localhost:7070)
+  $SELF tui                 터미널 제어판
 
 서비스
   start   [api|web|worker…]    시작 (생략하면 전부)
@@ -50,6 +54,7 @@ GHub TDMS — 개발서버 제어판
   logs    [api|web|worker]     로그 (서비스를 주면 따라가며 본다)
 
 환경
+  install                      의존성 설치 (pnpm install)
   doctor                       도구·설정·DB·포트 점검
   storage [mount|umount]       blob 저장소 — 운영 것에 붙이기·떼기
   setup-worker                 파이썬 가상환경 준비
@@ -98,6 +103,7 @@ case "$cmd" in
   migrate)       action_migrate ;;
   seed)          action_seed ;;
   verify|test)   action_verify ;;
+  install|deps)  action_install ;;
   build)         action_build ;;
   open)          action_open ;;
   clean)         action_clean ;;

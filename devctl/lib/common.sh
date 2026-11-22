@@ -54,7 +54,12 @@ pad() {
 load_env() {
   local f="$ROOT/.env"
   [[ -f "$f" ]] || return 0
-  while IFS= read -r line; do
+  # `|| [[ -n "$line" ]]` — 마지막 줄에 줄바꿈이 없으면 read 가 거짓을 돌려주는데,
+  # 그때도 값은 읽혀 있다. 이것이 없으면 편집기에 따라 맨 끝 설정 한 줄이 조용히 빠진다.
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    # Windows 편집기가 만든 .env 는 줄 끝이 CRLF 다. \r 을 떼지 않으면 값마다
+    # 보이지 않는 문자가 붙어 DB 비밀번호·SESSION_SECRET 이 조용히 틀어진다.
+    line="${line%$'\r'}"
     [[ "$line" =~ ^[[:space:]]*# ]] && continue
     [[ "$line" =~ ^[[:space:]]*$ ]] && continue
     [[ "$line" =~ ^([A-Z_][A-Z0-9_]*)=(.*)$ ]] || continue
@@ -62,6 +67,9 @@ load_env() {
     [[ -n "${!k:-}" ]] || export "$k=$v"
   done < "$f"
 }
+
+# 도움말에 보여 줄 실행 이름. Windows 에서는 compat.sh 가 dev.bat 로 바꾼다.
+SELF="${SELF:-./dev.sh}"
 
 # ── 운영 blob 저장소 ──────────────────────────────────────────────────────
 #
@@ -74,10 +82,30 @@ load_env() {
 # EXDEV 로 실패한다. 둘이 같은 마운트 안에 있어야 원자적 교체가 성립한다.
 PROD_SSH_HOST="${PROD_SSH_HOST:-lee@jin114.co.kr}"
 PROD_SSH_PORT="${PROD_SSH_PORT:-31010}"
+# 붙일 때 쓸 개인 열쇠. 비우면 ssh 기본값에 맡긴다.
+# Windows(SSHFS-Win)는 기본 이름의 열쇠만 보므로 여기 적어 두어야 한다 — .env 에
+# 적어도 된다(load_env 가 올린다).
+PROD_SSH_KEY="${PROD_SSH_KEY:-}"
 PROD_REMOTE_DIR="${PROD_REMOTE_DIR:-/srv/tdms}"
 PROD_MOUNT="${PROD_MOUNT:-$HOME/mnt/tdms-prod}"
 
+# .env 에서 온 값 안의 `~` 는 **글자 그대로**다 — 물결 확장은 셸이 그 줄을 읽을 때
+# 한 번만 일어나지, 변수 안을 다시 훑어 주지 않는다. 직접 푼다.
+prod_key_path() {
+  local k="${PROD_SSH_KEY:-}"
+  [[ -n "$k" ]] || return 1
+  case "$k" in
+    "~")   k="$HOME" ;;
+    "~/"*) k="$HOME/${k#\~/}" ;;
+  esac
+  printf '%s' "$k"
+}
+
 prod_mounted() { mountpoint -q "$PROD_MOUNT" 2>/dev/null; }
+
+# 붙일 도구가 깔려 있는가. 제어판이 [붙이기] 버튼을 살릴지 정하는 데 쓴다.
+# (Windows 는 compat.sh 가 SSHFS-Win 을 보도록 바꿔 끼운다)
+storage_tool_ready() { command -v sshfs >/dev/null 2>&1; }
 
 # 포트를 쓰는 프로세스 PID (없으면 빈 문자열)
 port_pid() {

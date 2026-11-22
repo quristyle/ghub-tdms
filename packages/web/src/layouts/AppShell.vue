@@ -8,7 +8,7 @@ import FavoritesHost from '@/ui/FavoritesHost.vue'
 import NoticeButtons from '@/ui/NoticeButtons.vue'
 import MyPageModal from '@/ui/MyPageModal.vue'
 import ThemeToggle from '@/ui/ThemeToggle.vue'
-import MobileNavSidebar from '@/ui/MobileNavSidebar.vue'
+import NavSidebar from '@/ui/NavSidebar.vue'
 import { api } from '@/lib/api'
 import { countVersion, listOpen as favListOpen } from '@/lib/favorites'
 
@@ -18,7 +18,10 @@ import { countVersion, listOpen as favListOpen } from '@/lib/favorites'
  * 기존 TDMS 화면의 상단 바를 그대로 옮겨 온 것이다.
  *   [SK가스 로고 + TDMS 기술자료 관리 시스템] [가로 메뉴] … [TDB 수정][TDB 반출][보관][이름][로그아웃]
  *
- * 모바일 환경에서는 상단 로고를 클릭하면 왼쪽에서 트리 형태의 메뉴 사이드바가 슬라이드로 나타난다.
+ * 왼쪽에서 슬라이드로 나오는 트리 사이드바는 **데스크탑·모바일 모두** 쓴다. 여는 자리만
+ * 다르다 — 데스크탑은 로고 옆 햄버거 단추, 모바일은 로고 자체를 누른다(좁은 화면에서는
+ * 단추를 하나라도 줄이는 편이 낫다). 데스크탑의 가로 메뉴는 그대로 둔다 — 사이드바는
+ * 보태는 길이지 대신하는 길이 아니다.
  * 메뉴의 목록과 순서는 서버(/auth/me)가 주는 그대로다 — 정본은 DB 의 menus 이고
  * 운영자가 [메뉴 관리] 화면에서 바꾼다.
  * 권한 없는 메뉴는 서버가 이미 빼고 내려주므로 화면이 거르지 않는다.
@@ -31,11 +34,12 @@ const router = useRouter()
 /** 모바일 환경 판정 및 사이드바 열림 상태 */
 const MOBILE_MAX = 900
 const isMobile = ref(typeof window !== 'undefined' && window.innerWidth <= MOBILE_MAX)
-const mobileSidebarOpen = ref(false)
+const navSidebarOpen = ref(false)
 
+// 폭이 바뀌었다고 사이드바를 닫지 않는다 — 데스크탑에서도 쓰는 기능이 되었다.
+// (예전에는 데스크탑에 여는 자리가 없어 넘어갈 때 닫아 줘야 했다)
 function updateMobileState() {
   isMobile.value = window.innerWidth <= MOBILE_MAX
-  if (!isMobile.value) mobileSidebarOpen.value = false
 }
 
 onMounted(() => {
@@ -48,13 +52,13 @@ onBeforeUnmount(() => {
 })
 
 /**
- * 모바일에서 상단 로고를 누르면 트리 사이드바를 열고 닫는다.
+ * 트리 사이드바 열고 닫기 — 데스크탑의 햄버거 단추와 모바일의 로고가 함께 쓴다.
  * 모바일 로고는 RouterLink 가 아니라 단추다 — 링크로 두면 라우터가 먼저 '/' 로 옮기고,
  * 화면이 바뀌면 사이드바를 닫는 감시가 방금 연 사이드바를 곧바로 닫아 버린다
  * (홈이 아닌 화면에서 로고를 눌러도 아무 일도 없는 것처럼 보이던 원인).
  */
-function toggleMobileSidebar() {
-  mobileSidebarOpen.value = !mobileSidebarOpen.value
+function toggleNavSidebar() {
+  navSidebarOpen.value = !navSidebarOpen.value
 }
 
 /** 지금 보는 화면 — 상세·도움말처럼 메뉴에 없는 화면은 들어온 메뉴를 켜 두지 않는다 */
@@ -134,7 +138,7 @@ function openFirst(g: { items: { path: string }[] }) {
 // 화면을 옮기면 닫는다 — 눌러서 들어간 뒤 목록이 남아 있으면 가린다
 watch(() => route.fullPath, () => {
   openGroup.value = null
-  mobileSidebarOpen.value = false
+  navSidebarOpen.value = false
 })
 
 // ── 사용자 보관 [보관 (N)] ─────────────────────────────────────────────
@@ -161,6 +165,28 @@ async function logout() {
   <div class="app-shell">
     <header class="app-header">
       <div class="app-header-inner">
+        <!-- 햄버거 + 로고는 한 묶음이다 — app-header-inner 의 큰 gap(36px)이 둘 사이까지
+             벌리지 않도록 따로 감싼다 -->
+        <div class="app-brand-box">
+        <!-- 데스크탑의 햄버거. 모바일에서는 로고 자체가 이 일을 하므로 내지 않는다 -->
+        <button
+          v-if="!isMobile"
+          type="button"
+          class="app-menu-btn"
+          title="메뉴 열기"
+          aria-label="메뉴 열기"
+          aria-haspopup="dialog"
+          :aria-expanded="navSidebarOpen"
+          @click="toggleNavSidebar"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+
         <!-- 상단 로고: 모바일에서는 단추(트리 메뉴 사이드바 열고 닫기), 그 밖에는 첫 화면 링크 -->
         <button
           v-if="isMobile"
@@ -169,8 +195,8 @@ async function logout() {
           title="메뉴 열기"
           aria-label="메뉴 열기"
           aria-haspopup="dialog"
-          :aria-expanded="mobileSidebarOpen"
-          @click="toggleMobileSidebar"
+          :aria-expanded="navSidebarOpen"
+          @click="toggleNavSidebar"
         >
           <!-- 모바일에서는 시스템명을 빼고 로고만 둔다 — 좁은 화면에서 머리글이 너비를 넘치지 않게 -->
           <img class="app-brand-logo" src="/assets/skgas-logo.png" alt="SK gas" />
@@ -186,6 +212,7 @@ async function logout() {
           <img class="app-brand-logo" src="/assets/skgas-logo.png" alt="SK gas" />
           <span class="app-brand-text"><strong>TDMS</strong> 기술자료 관리 시스템</span>
         </RouterLink>
+        </div>
 
         <nav class="app-nav" aria-label="주 메뉴">
           <!-- TDB · MDB · 시스템 — 올리면 하위 메뉴가 펼쳐지고, 누르면 첫 번째 하위 메뉴가 열린다 -->
@@ -246,12 +273,12 @@ async function logout() {
     <MyPageModal v-if="mypageOpen" @close="mypageOpen = false" />
 
     <!-- 모바일 트리 사이드바 메뉴 (왼쪽에서 슬라이드) -->
-    <MobileNavSidebar
-      :open="mobileSidebarOpen"
+    <NavSidebar
+      :open="navSidebarOpen"
       :nav-groups="navGroups"
       :loose-menu="looseMenu"
       :fav-count="favCount"
-      @close="mobileSidebarOpen = false"
+      @close="navSidebarOpen = false"
       @open-favorites="openFavorites"
       @open-mypage="mypageOpen = true"
       @logout="logout"
@@ -265,6 +292,30 @@ async function logout() {
    기본 활성 클래스가 밑줄을 두 번 긋지 않게만 정리한다. */
 .app-nav a.router-link-active:not(.active) { text-decoration-line: none; color: var(--text-muted); }
 .mypage-link { cursor: pointer; }
+
+/* 햄버거 + 로고 묶음 */
+.app-brand-box { display: flex; align-items: center; gap: 12px; min-width: 0; }
+
+/* 데스크탑 햄버거 — 모바일 로고에 붙는 햄버거 표시와 같은 모양으로 맞춘다 */
+.app-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-dark-gray);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.app-menu-btn:hover,
+.app-menu-btn[aria-expanded='true'] {
+  background: var(--surface-sunken);
+  color: var(--text);
+}
 
 /* 모바일 로고 클릭 표시 */
 .app-brand.is-mobile {

@@ -106,6 +106,15 @@ export const UserRow = z.object({
   totpEnabledAt: z.string().nullable(),
   lastLoginAt: z.string().nullable(),
   previousLoginAt: z.string().nullable(),
+
+  // ── 로그인 잠금 ──────────────────────────────────────────────────────
+  // 잠금은 users 가 아니라 login_attempts(아이디 기준)에 쌓인다 — 없는 아이디로
+  // 두드리는 것도 세야 하기 때문이다. 그래서 여기서는 **곁들여 보여 주는 값**이고,
+  // 비어 있으면 실패 기록이 아예 없다는 뜻이다.
+  /** 잠금이 풀리는 시각. 지난 시각이면 이미 풀린 것이다 */
+  lockedUntil: z.string().nullable(),
+  /** 연속 실패 횟수 */
+  failCount: z.number().int(),
   createdAt: z.string(),
   updatedAt: z.string(),
 

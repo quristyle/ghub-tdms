@@ -66,8 +66,21 @@ status_json() {
   printf '"queued":%s,"documents":%s,"mdbFiles":%s,"users":%s},' \
     "${queued:-0}" "${docs:-0}" "${mdb:-0}" "${users:-0}"
 
-  printf '"env":{"root":%s,"workerReady":%s,"now":%s}}' \
+  # 저장소 — 붙었는지, 어디를 보고 있는지. 여기서 blob 을 **세지 않는다**:
+  # 제어판은 4초마다 이걸 부르는데 운영 저장소는 파일이 5만 개가 넘어서,
+  # sshfs 너머로 find 를 돌리면 제어판이 통째로 느려진다.
+  local st_mounted=false st_tool=false st_mode=local
+  prod_mounted && st_mounted=true
+  storage_tool_ready && st_tool=true
+  [[ "${STORAGE_ROOT:-}" == "$PROD_MOUNT"* ]] && st_mode=prod
+
+  printf '"storage":{"root":%s,"mode":%s,"mounted":%s,"toolReady":%s,"target":%s,"source":%s},' \
+    "$(jstr "${STORAGE_ROOT:-}")" "$(jstr "$st_mode")" "$st_mounted" "$st_tool" \
+    "$(jstr "$PROD_MOUNT")" "$(jstr "$PROD_SSH_HOST:$PROD_REMOTE_DIR")"
+
+  printf '"env":{"root":%s,"workerReady":%s,"depsReady":%s,"now":%s}}' \
     "$(jstr "$ROOT")" \
     "$(svc_available worker && echo true || echo false)" \
+    "$([[ -d "$ROOT/node_modules" ]] && echo true || echo false)" \
     "$(jstr "$(date '+%H:%M:%S')")"
 }

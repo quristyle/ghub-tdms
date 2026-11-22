@@ -20,7 +20,8 @@ import { fileURLToPath } from 'node:url'
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(HERE, '../..')
 const PUBLIC = join(HERE, 'public')
-const DEV_SH = join(ROOT, 'dev.sh')
+// Windows 에서는 join 이 역슬래시로 준다. Git Bash 에 넘길 때는 슬래시가 안전하다.
+const DEV_SH = join(ROOT, 'dev.sh').replace(/\\/g, '/')
 
 const PORT = Number(process.env.DEVCTL_PORT || 7070)
 const HOST = '127.0.0.1'
@@ -40,6 +41,10 @@ const COMMANDS = {
   db: { args: () => ['db'], label: '마이그레이션 상태' },
   seed: { args: () => ['seed'], label: '시험 자료 넣기' },
   build: { args: () => ['build'], label: '빌드' },
+  install: { args: () => ['install'], label: '의존성 설치' },
+  'storage-mount': { args: () => ['storage', 'mount'], label: '운영 저장소 붙이기' },
+  'storage-umount': { args: () => ['storage', 'umount'], label: '운영 저장소 떼기' },
+  storage: { args: () => ['storage', 'status'], label: '저장소 상태' },
   'setup-worker': { args: () => ['setup-worker'], label: '워커 환경 준비' },
 }
 const SERVICES = new Set(['api', 'web', 'worker'])
@@ -245,7 +250,11 @@ server.listen(PORT, HOST, () => {
   console.log('  Ctrl+C 로 제어판을 닫습니다 (서비스는 계속 돕니다)\n')
 
   if (process.env.DEVCTL_OPEN !== '0') {
-    spawn('xdg-open', [url], { stdio: 'ignore', detached: true })
+    const [opener, openArgs] =
+      process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]]
+      : process.platform === 'darwin' ? ['open', [url]]
+      : ['xdg-open', [url]]
+    spawn(opener, openArgs, { stdio: 'ignore', detached: true })
       .on('error', () => {})
       .unref()
   }
@@ -255,7 +264,9 @@ server.on('error', (e) => {
   if (e.code === 'EADDRINUSE') {
     console.error(`\n  포트 ${PORT} 가 이미 쓰이고 있습니다.`)
     console.error(`  이미 열린 제어판이 있는지 보세요: http://localhost:${PORT}`)
-    console.error(`  다른 포트로 열려면: DEVCTL_PORT=7071 ./dev.sh\n`)
+    console.error(process.platform === 'win32'
+      ? `  다른 포트로 열려면: set DEVCTL_PORT=7071 && dev.bat\n`
+      : `  다른 포트로 열려면: DEVCTL_PORT=7071 ./dev.sh\n`)
     process.exit(1)
   }
   throw e

@@ -387,10 +387,10 @@ const COLUMNS: Column<UserRow>[] = [
   { key: 'role', label: '권한', width: '74px', align: 'center',
     render: (u) => (u.role === 'ADMIN' ? '관리자' : '일반') },
   { key: 'groupName', label: '그룹', width: '110px', align: 'center', render: (u) => u.groupName ?? '' },
-  { key: 'employmentStatus', label: '상태', width: '110px',
-    // 엑셀에도 "초기비번"이 함께 나가야 화면과 같은 뜻이 된다
-    render: (u) => [statusLabel(u.employmentStatus), u.mustChangePassword ? '초기비번' : '',
-      u.totpEnabledAt ? '' : 'OTP미등록']
+  { key: 'employmentStatus', label: '상태', width: '132px', align: 'center',
+    // 엑셀에도 꼬리표가 함께 나가야 화면과 같은 뜻이 된다
+    render: (u) => [statusLabel(u.employmentStatus), isLocked(u) ? '잠김' : '',
+      u.mustChangePassword ? '초기비번' : '', u.totpEnabledAt ? '' : 'OTP미등록']
       .filter(Boolean).join(' ') },
   { key: 'hireDate', label: '입사일', width: '100px', align: 'center', render: (u) => u.hireDate ?? '' },
   { key: 'createdAt', label: '등록일', width: '100px', align: 'center',
@@ -399,7 +399,7 @@ const COLUMNS: Column<UserRow>[] = [
     render: (u) => u.updatedAt.slice(0, 10) },
   { key: 'lastLoginAt', label: '접속일', width: '100px', align: 'center',
     render: (u) => u.lastLoginAt?.slice(0, 10) ?? '' },
-  { key: 'act', label: '조치', width: '232px', align: 'center', sortable: false, filterable: false, render: () => '' },
+  { key: 'act', label: '조치', width: '312px', align: 'center', sortable: false, filterable: false, render: () => '' },
 ]
 
 /** 빈 칸은 null 로 보낸다 — ''를 저장하면 "값이 있는데 비어 있는" 칸이 생긴다. */
@@ -441,6 +441,40 @@ async function confirmReset() {
   try {
     const r = await api.post<{ tempPassword: string; rule: string }>(`/users/${u.id}/reset-password`)
     say('ok', `"${u.loginId}" 의 비밀번호를 초기화했습니다. 임시 비밀번호: ${r.tempPassword} — ${r.rule}`)
+    void qc.invalidateQueries({ queryKey: ['users'] })
+  } catch (e) { fail(e) }
+}
+
+/**
+ * 로그인 잠금 — 비밀번호를 연달아 틀려 막힌 상태.
+ *
+ * lockedUntil 은 "언제까지" 이므로 **지난 시각이면 이미 풀린 것**이다. 서버가
+ * 시간이 지난 기록을 지우지 않으므로(다음 로그인 때 정리된다) 화면에서 가른다.
+ */
+function lockedUntil(u: UserRow): Date | null {
+  if (!u.lockedUntil) return null
+  const t = new Date(u.lockedUntil)
+  return t.getTime() > Date.now() ? t : null
+}
+const isLocked = (u: UserRow) => lockedUntil(u) !== null
+
+/** 남은 시간을 사람 말로 — 분 단위면 충분하다(잠금은 15분) */
+function lockLeft(u: UserRow): string {
+  const t = lockedUntil(u)
+  if (!t) return ''
+  const min = Math.max(1, Math.ceil((t.getTime() - Date.now()) / 60_000))
+  return `${min}분 남음`
+}
+
+// 로그인 잠금 해제 — 본인이 맞는지 확인한 뒤 풀어 준다
+const unlockTarget = ref<UserRow | null>(null)
+async function confirmUnlock() {
+  const u = unlockTarget.value
+  unlockTarget.value = null
+  if (!u) return
+  try {
+    await api.post(`/users/${u.id}/unlock`)
+    say('ok', `"${u.loginId}" 의 로그인 잠금을 풀었습니다.`)
     void qc.invalidateQueries({ queryKey: ['users'] })
   } catch (e) { fail(e) }
 }
@@ -994,6 +1028,8 @@ async function confirmDeletePartner() {
                 <span class="tag" :class="STATUS.find(x => x.key === row.employmentStatus)?.cls">
                   {{ statusLabel(row.employmentStatus) }}
                 </span>
+                <span v-if="isLocked(row)" class="tag tag-danger"
+                      :title="`비밀번호를 연달아 틀려 막혔습니다 (${lockLeft(row)})`">잠김</span>
                 <span v-if="row.mustChangePassword" class="tag warn-tag"
                       title="첫 로그인 때 변경 화면이 열립니다">초기비번</span>
                 <span v-if="!row.totpEnabledAt" class="tag warn-tag"
@@ -1012,6 +1048,9 @@ async function confirmDeletePartner() {
                 <button class="btn btn-sm" :disabled="!row.totpEnabledAt"
                         :title="row.totpEnabledAt ? `OTP 등록 ${row.totpEnabledAt.slice(0, 10)}` : 'OTP 미등록'"
                         @click.stop="totpResetTarget = row">OTP 초기화</button>
+                <button class="btn btn-sm" :disabled="!isLocked(row)"
+                        :title="isLocked(row) ? `로그인 잠금 (${lockLeft(row)})` : '잠겨 있지 않습니다'"
+                        @click.stop="unlockTarget = row">잠금 해제</button>
               </template>
             </DataTable>
           </div>
@@ -1066,11 +1105,14 @@ async function confirmDeletePartner() {
           </tr>
 
           <tr><th colspan="2" class="sect">신원 · 조직</th></tr>
+          <!-- 이름표를 칸 앞이 아니라 머리칸에 둔다 — 앞에 글자가 붙으면 그 줄만
+               두 번째 칸이 밀려(409 ↔ 463) 아래윗줄과 왼쪽 끝이 어긋났다.
+               '부서 / 직위' 줄과 같은 꼴로 맞춘다. -->
           <tr>
-            <th>사번</th>
+            <th>사번 / 입사일</th>
             <td class="two">
               <input v-model="form.employeeNumber" type="text" placeholder="0038" />
-              <label>입사일 <input v-model="form.hireDate" type="date" /></label>
+              <input v-model="form.hireDate" type="date" title="입사일" />
             </td>
           </tr>
           <tr>
@@ -1134,6 +1176,22 @@ async function confirmDeletePartner() {
       <template #footer>
         <button class="btn" @click="totpResetTarget = null">취소</button>
         <button class="btn btn-primary" @click="confirmTotpReset">초기화</button>
+      </template>
+    </Modal>
+
+    <Modal v-if="unlockTarget" title="로그인 잠금 해제" @close="unlockTarget = null">
+      <p>
+        <strong>{{ unlockTarget.loginId }}</strong> 의 로그인 잠금을 풉니다.
+        <span class="muted">({{ lockLeft(unlockTarget) }})</span>
+      </p>
+      <p class="muted">
+        실패 횟수도 함께 지워져 바로 다시 로그인할 수 있습니다. 비밀번호는 그대로입니다 —
+        본인이 잊었다면 [비번 초기화]를 쓰세요.
+        본인이 맞는지 먼저 확인하세요. 남이 비밀번호를 찍어 보다 막힌 것일 수도 있습니다.
+      </p>
+      <template #footer>
+        <button class="btn" @click="unlockTarget = null">취소</button>
+        <button class="btn btn-primary" @click="confirmUnlock">잠금 해제</button>
       </template>
     </Modal>
 
@@ -1662,6 +1720,10 @@ async function confirmDeletePartner() {
 }
 .form td.two { display: flex; gap: var(--sp-2); }
 .form td.two > * { flex: 1; min-width: 0; }
+/* base.css 의 `select { max-width: 260px }` 가 여기서는 걸리적거린다 — 선택칸만
+   260px 에서 멈추고 남은 자리를 옆 입력칸이 가져가, 그 줄만 두 번째 칸이
+   오른쪽으로 밀렸다(409 ↔ 429). 한 줄에 둘인 칸은 반반씩 쓴다. */
+.form td.two > select { max-width: none; }
 .form td.two label { display: flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--fg-muted); }
 .r { margin-right: 12px; }
 

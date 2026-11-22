@@ -5,7 +5,7 @@ import { useSession } from '@/lib/session'
 import NavIcon from './NavIcon.vue'
 import type { FavoriteCountResponse } from '@tdms/contracts'
 
-export interface MobileNavItem {
+export interface NavItem {
   id?: number
   code?: string
   path: string
@@ -14,18 +14,18 @@ export interface MobileNavItem {
   permission?: string
 }
 
-export interface MobileNavGroup {
+export interface NavGroup {
   key: string
   label: string
   codes: string[]
   paths: string[]
-  items: MobileNavItem[]
+  items: NavItem[]
 }
 
 const props = defineProps<{
   open: boolean
-  navGroups: MobileNavGroup[]
-  looseMenu: MobileNavItem[]
+  navGroups: NavGroup[]
+  looseMenu: NavItem[]
   favCount?: FavoriteCountResponse | null
 }>()
 
@@ -128,7 +128,7 @@ onBeforeUnmount(() => {
   <Teleport to="body">
     <!-- 배경 딤 처리 (클릭 시 닫기) -->
     <div
-      class="mobile-sidebar-backdrop"
+      class="nav-sidebar-backdrop"
       :class="{ 'is-open': open }"
       aria-hidden="true"
       @click="emit('close')"
@@ -136,7 +136,7 @@ onBeforeUnmount(() => {
 
     <!-- 왼쪽에서 슬라이드로 나타나는 사이드바 서랍 -->
     <aside
-      class="mobile-sidebar-drawer"
+      class="nav-sidebar-drawer"
       :class="{ 'is-open': open }"
       role="dialog"
       aria-modal="true"
@@ -333,7 +333,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 /* ── 배경 딤 (Backdrop) ────────────────────────────────────────── */
-.mobile-sidebar-backdrop {
+.nav-sidebar-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.45);
@@ -343,13 +343,13 @@ onBeforeUnmount(() => {
   pointer-events: none;
   transition: opacity 0.22s ease;
 }
-.mobile-sidebar-backdrop.is-open {
+.nav-sidebar-backdrop.is-open {
   opacity: 1;
   pointer-events: auto;
 }
 
 /* ── 사이드바 서랍 (Drawer) ─────────────────────────────────────── */
-.mobile-sidebar-drawer {
+.nav-sidebar-drawer {
   position: fixed;
   top: 0;
   left: 0;
@@ -368,7 +368,7 @@ onBeforeUnmount(() => {
   transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s linear 0.25s;
   overflow: hidden;
 }
-.mobile-sidebar-drawer.is-open {
+.nav-sidebar-drawer.is-open {
   transform: translateX(0);
   visibility: visible;
   transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s;

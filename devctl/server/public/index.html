@@ -16,6 +16,9 @@
   </header>
 
   <main>
+    <!-- 의존성이 없을 때만 보이는 안내. panel.js 가 채운다. -->
+    <section id="setup" class="card setup" hidden></section>
+
     <!-- 서비스 -->
     <section class="card">
       <div class="card-head">
@@ -43,11 +46,22 @@
         <div id="db" class="pad muted">불러오는 중…</div>
       </section>
 
+      <!-- blob 저장소 -->
+      <section class="card half">
+        <div class="card-head">
+          <h2>blob 저장소</h2>
+          <span class="grow"></span>
+          <button class="btn btn-sm" data-cmd="storage">상태</button>
+        </div>
+        <div id="storage" class="pad muted">불러오는 중…</div>
+      </section>
+
       <!-- 점검·검증 -->
       <section class="card half">
         <div class="card-head">
           <h2>점검 · 검증</h2>
           <span class="grow"></span>
+          <button class="btn btn-sm" data-cmd="install">의존성 설치</button>
           <button class="btn btn-sm" data-cmd="doctor">환경 점검</button>
           <button class="btn btn-sm" data-cmd="verify">검증 돌리기</button>
           <button class="btn btn-sm" data-cmd="build">빌드</button>

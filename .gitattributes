@@ -1,0 +1,10 @@
+# 줄 끝은 저장소가 정한다.
+#
+# Windows 쪽 git 은 보통 core.autocrlf=true 로 깔린다. 그대로 두면 체크아웃 때
+# .sh 가 CRLF 로 풀리고, bash 는 줄 끝의 CR 을 명령의 일부로 읽어
+# `$'\r': command not found` 로 죽는다. .gitattributes 가 core.autocrlf 를 이긴다.
+*.sh text eol=lf
+
+# 배치 파일은 거꾸로 CRLF 라야 탈이 없다.
+*.bat text eol=crlf
+*.cmd text eol=crlf

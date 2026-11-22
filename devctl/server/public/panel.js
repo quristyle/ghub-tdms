@@ -224,12 +224,89 @@ function renderDb(db) {
   }
 }
 
+// 의존성이 없으면 서비스가 하나도 뜨지 않는다. 다른 것을 눌러 보기 전에
+// 먼저 눈에 띄어야 하므로 맨 위에 배너로 띄운다.
+// blob 저장소 — 붙었는지, 어디를 보고 있는지, 그리고 붙이기/떼기.
+//
+// DB 는 운영과 공유다. 그래서 저장소까지 운영 것을 봐야 같은 자료가 보인다.
+// 안 붙은 채로 쓰면 목록은 나오는데 미리보기만 비는 어긋남이 생긴다.
+function renderStorage(st) {
+  const box = $('#storage')
+  box.textContent = ''
+  box.classList.remove('muted')
+  if (!st) { box.classList.add('muted'); box.textContent = '알 수 없음'; return }
+
+  if (st.mounted) {
+    box.append(el('div', 'pill ok', '운영 저장소에 붙어 있음'))
+  } else if (st.mode === 'prod') {
+    box.append(el('div', 'pill bad', '운영을 가리키는데 붙어 있지 않음'))
+  } else {
+    box.append(el('div', 'pill warn', '이 장비 저장소를 보는 중'))
+  }
+
+  const dl = el('dl', 'kv')
+  const add = (k, v) => { dl.append(el('dt', '', k)); dl.append(el('dd', '', v)) }
+  add('STORAGE_ROOT', st.root || '(없음)')
+  add('붙일 자리', st.target)
+  add('운영 쪽', st.source)
+  box.append(dl)
+
+  if (!st.mounted && st.mode !== 'prod') {
+    box.append(el('div', 'svc-hint',
+      'DB 는 운영과 함께 씁니다. 저장소가 다르면 운영에서 올린 자료의 미리보기·내려받기가 비어 보입니다.'))
+  }
+  if (!st.mounted && st.mode === 'prod') {
+    box.append(el('div', 'svc-hint',
+      'STORAGE_ROOT 이 운영 저장소를 가리키는데 붙어 있지 않습니다. 이대로는 서비스가 시작되지 않습니다.'))
+  }
+
+  const act = el('div', 'svc-actions')
+  if (st.mounted) {
+    const b = el('button', 'btn btn-sm danger', '떼기')
+    b.dataset.cmd = 'storage-umount'
+    act.append(b)
+  } else {
+    const b = el('button', 'btn btn-sm primary', '운영 저장소 붙이기')
+    b.dataset.cmd = 'storage-mount'
+    if (!st.toolReady) b.disabled = true
+    act.append(b)
+  }
+  box.append(act)
+
+  if (!st.mounted && !st.toolReady) {
+    box.append(el('div', 'svc-hint',
+      '붙이려면 도구를 먼저 깔아야 합니다. [상태] 를 누르면 이 장비에 맞는 설치 방법을 알려 줍니다.'))
+  }
+}
+
+function renderSetup(env) {
+  const box = $('#setup')
+  if (env?.depsReady !== false) { box.hidden = true; box.textContent = ''; return }
+
+  box.textContent = ''
+  const pad = el('div', 'pad')
+  const text = el('div', 'setup-text')
+  text.append(el('div', 'setup-title', '의존성이 설치되지 않았습니다'))
+  text.append(el('div', 'small',
+    'node_modules 가 없어 API·화면이 뜨지 않습니다. 설치는 한 번만 하면 됩니다 (pnpm install).'))
+  pad.append(text)
+
+  const b = el('button', 'btn primary', '의존성 설치')
+  b.dataset.cmd = 'install'
+  pad.append(b)
+
+  box.append(pad)
+  box.hidden = false
+}
+
 async function refresh() {
   try {
     const s = await fetch('/api/status', { cache: 'no-store' }).then((r) => r.json())
     if (s.error) { $('#services').textContent = s.error; return }
     renderServices(s.services)
     renderDb(s.db)
+    renderSetup(s.env)
+    renderStorage(s.storage)
     $('#clock').textContent = `갱신 ${s.env.now}`
   } catch {
     $('#clock').textContent = '제어판 서버와 끊김'

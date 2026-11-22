@@ -123,6 +123,8 @@ export interface UserRowDb {
   totpEnabledAt: Date | null
   lastLoginAt: Date | null
   previousLoginAt: Date | null
+  lockedUntil: Date | null
+  failCount: number
   createdAt: Date
   updatedAt: Date
   employeeNumber: string | null
@@ -163,6 +165,8 @@ export function listUsers() {
             u.totp_enabled_at AS "totpEnabledAt",
             u.last_login_at AS "lastLoginAt",
             u.previous_login_at AS "previousLoginAt",
+            la.locked_until AS "lockedUntil",
+            coalesce(la.fail_count, 0)::int AS "failCount",
             u.created_at AS "createdAt", u.updated_at AS "updatedAt",
             u.employee_number AS "employeeNumber",
             u.email, u.phone, u.extension_number AS "extensionNumber",
@@ -175,9 +179,22 @@ export function listUsers() {
        FROM users u
        LEFT JOIN groups g ON g.id = u.group_id
        LEFT JOIN partner_companies pc ON pc.id = u.partner_company_id
+       -- 잠금은 아이디 기준으로 쌓인다(login_attempts.login_id 가 PK). 사용자 행과
+       -- 1:1 이 아닐 수 있으므로(없는 아이디로 두드린 기록) LEFT JOIN 이다.
+       LEFT JOIN login_attempts la ON la.login_id = u.login_id
       ORDER BY u.login_id`,
     [], 'users_list',
   )
+}
+
+/**
+ * 로그인 잠금 풀기 — 실패 기록을 통째로 지운다.
+ *
+ * locked_until 만 비우면 fail_count 가 그대로라 한 번만 더 틀려도 다시 잠긴다.
+ * 로그인에 성공했을 때(auth/queries.ts clearFailures)와 같은 자리로 되돌린다.
+ */
+export function unlockLogin(loginId: string) {
+  return query('DELETE FROM login_attempts WHERE login_id = $1', [loginId])
 }
 
 export interface PartnerCompanyRowDb {

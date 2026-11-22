@@ -35,7 +35,7 @@ check_tools() {
     ok "$(printf '%-6s %s' python "$("$ROOT/packages/worker/.venv/bin/python" -V 2>&1 | awk '{print $2}') (워커 환경 있음)")"
   elif command -v python3 >/dev/null; then
     warn "$(printf '%-6s %s' python "$(python3 -V | awk '{print $2}') — 워커 가상환경 없음")"
-    info "준비: sudo apt install python3.12-venv  →  ./dev.sh setup-worker"
+    info "준비: sudo apt install python3.12-venv  →  $SELF setup-worker"
   else
     warn "$(printf '%-6s %s' python '없음 — 워커를 쓸 수 없습니다')"
   fi
@@ -88,7 +88,7 @@ check_db() {
   applied="$(db_query "select count(*) from ${PGSCHEMA:-public}.schema_migrations" 2>/dev/null || echo 0)"
   total="$(find "$ROOT/db/migrations" -name '*.sql' 2>/dev/null | wc -l)"
   if [[ "${applied:-0}" -lt "$total" ]]; then
-    warn "마이그레이션 대기 $((total - applied))개 (적용 $applied / 전체 $total) — ./dev.sh migrate"
+    warn "마이그레이션 대기 $((total - applied))개 (적용 $applied / 전체 $total) — $SELF migrate"
   else
     ok "마이그레이션 최신 ($applied/$total)"
   fi
@@ -99,7 +99,7 @@ check_db() {
             (select count(*) from ${PGSCHEMA:-public}.users)" 2>/dev/null)"
   if [[ -n "$rows" ]]; then
     ok "자료 — TDB/MDB/계정: $rows"
-    [[ "${rows%%/*}" == "0" ]] && info "비어 있습니다 — ./dev.sh seed 로 시험 자료를 넣을 수 있습니다"
+    [[ "${rows%%/*}" == "0" ]] && info "비어 있습니다 — $SELF seed 로 시험 자료를 넣을 수 있습니다"
   fi
 }
 
@@ -136,12 +136,12 @@ check_storage() {
       ok "운영 저장소 ($PROD_SSH_HOST:$PROD_REMOTE_DIR) — blob $(find "$root/blobs" -type f 2>/dev/null | wc -l)개"
     else
       # 여기서 넘어가면 DB 는 운영을 보는데 파일만 개발 장비에 쌓인다.
-      bad "운영 저장소를 가리키는데 붙어 있지 않습니다 — ./dev.sh storage mount"
+      bad "운영 저장소를 가리키는데 붙어 있지 않습니다 — $SELF storage mount"
       return 1
     fi
   elif [[ -d "$root/blobs" ]]; then
     ok "로컬 저장소 $root — blob $(find "$root/blobs" -type f 2>/dev/null | wc -l)개"
-    info "DB 는 운영과 공유입니다. 운영과 같은 파일을 보려면 ./dev.sh storage mount"
+    info "DB 는 운영과 공유입니다. 운영과 같은 파일을 보려면 $SELF storage mount"
   else
     warn "$root/blobs 가 없습니다 — node db/tools/seed-files.mjs 로 만들 수 있습니다"
   fi

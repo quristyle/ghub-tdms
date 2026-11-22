@@ -147,8 +147,15 @@ main {
   display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 9px;
   background: var(--ok-soft); color: var(--ok); border: 1px solid var(--ok);
 }
+.pill.ok { background: var(--ok-soft); color: var(--ok); border-color: var(--ok); }
 .pill.warn { background: var(--warn-soft); color: var(--warn); border-color: #e8c96a; }
 .pill.bad { background: #fdf0ef; color: var(--danger); border-color: var(--danger); }
+
+/* 의존성 없음 배너 — 이게 없으면 아무것도 뜨지 않으므로 눈에 띄게 둔다 */
+.setup { border-color: var(--warn); background: var(--warn-soft); }
+.setup .pad { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.setup .setup-text { flex: 1 1 260px; }
+.setup .setup-title { font-weight: 600; margin-bottom: 3px; }
 
 .accounts { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
 .acc-title { margin-bottom: 5px; }

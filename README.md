@@ -107,6 +107,56 @@ blob 저장소(`STORAGE_ROOT`)는 **저장소에 담지 않는다** — DB 의 `
 | `./dev.sh migrate` / `seed` | 마이그레이션 적용 / 시험 자료 |
 | `./dev.sh verify` | 타입체크 + 테스트 + 흐름 검증 |
 
+#### Windows
+
+`dev.bat` 이 같은 일을 한다. 인자는 그대로 넘어간다.
+
+```bat
+.\dev.bat              :: 브라우저 제어판
+.\dev.bat start        :: 전부 시작
+.\dev.bat doctor       :: 환경 점검
+```
+
+PowerShell 에서는 앞의 `.\` 가 있어야 한다. 하는 일은 Git Bash 를 찾아 `dev.sh` 를
+부르는 것뿐이고, Windows 와 리눅스의 차이는 [`devctl/lib/compat.sh`](devctl/lib/compat.sh)
+한 곳에서만 흡수한다 — 판정 로직이 두 벌이 되지 않는다.
+
+필요한 것은 **Git for Windows** 하나다(`winget install -e --id Git.Git --source winget`). 다른 자리에 깔았으면
+`set TDMS_BASH=D:\Git\bin\bash.exe` 로 알려 준다.
+
+리눅스와 다른 점:
+
+- 워커 가상환경은 `.venv\Scripts\` 다. `.\dev.bat setup-worker` 가 알아서 맞춘다.
+  python.org 설치본을 쓸 것 — Microsoft Store 자리끼는 venv 를 만들지 못한다.
+- `storage mount` 는 **SSHFS-Win** 으로 된다 — 리눅스의 sshfs 와 같은 방식이다.
+  WinFsp(커널 파일시스템) 위에 올라가며, 붙이면 드라이브 한 글자(기본 `Z:`)가
+  운영의 `/srv/tdms` 가 된다. 한 번만 깔면 된다(관리자 PowerShell):
+  ```
+  winget install -e --id WinFsp.WinFsp --source winget
+  winget install -e --id SSHFS-Win.SSHFS-Win --source winget
+  ```
+  `--source winget` 을 빼면 안 된다. msstore 원본이 막힌 망에서는 winget 이 원본을
+  못 정하고 멈춘다(`0x8a15005e`). WinFsp 는 커널 드라이버라 깐 뒤 한 번 다시 시작한다.
+
+  그다음 `.env` 에 `PROD_SSH_KEY=~/.ssh/<열쇠>` 를 적고(암호 없는 열쇠라야 한다)
+  제어판의 **[운영 저장소 붙이기]** 또는 `dev.bat storage mount`. 붙으면
+  `STORAGE_ROOT=Z:/` 로 바꾸고(끝의 `/` 가 있어야 한다) `dev.bat restart`.
+
+  `net use \\sshfs.kr\...` 는 쓰지 않는다. 그 길은 WinFsp.Launcher 가 sshfs 를
+  대신 띄우는데, 서비스라 **시스템 PATH** 를 물려줘서 SSHFS-Win 의 bin 을 못 본다.
+  그러면 sshfs 가 Windows 기본 OpenSSH 를 집어 파이프가 어긋나 곧바로 끊기고,
+  `net use` 는 까닭이 보이지 않는 `시스템 오류 67` 만 낸다. devctl 은 PATH 를 맞춰
+  sshfs 를 직접 띄운다 — 관리자 권한이 필요 없고, 붙은 드라이브는 api·워커·탐색기에서
+  똑같이 보인다.
+
+  붙이지 않고 쓰려면 `STORAGE_ROOT` 를 저장소 안의 `.storage` 로 두면 되지만,
+  그때는 운영에서 올린 자료의 미리보기·내려받기가 비어 보이고 워커는 뜨지 않는다.
+- `.env` 를 메모장 등으로 만들면 줄 끝이 CRLF 가 된다. 읽는 쪽에서 떼므로 그대로 둬도 된다.
+- `psql` 은 없어도 된다. 제어판의 DB 점검은 `psql` 이 없으면 앱과 같은 pg 드라이버로
+  대신 묻는다([devctl/db-query.mjs](devctl/db-query.mjs)).
+- Vite 는 Windows 에서 `[::1]` 에만 붙는다. 기동 확인 주소를 `localhost` 로 두어
+  IPv6·IPv4 어느 쪽이든 받는다.
+
 구현은 [`devctl/`](devctl/README.md) 에 있다. 개발 장비 전용이며 운영 배포(`deploy/`)와는 무관하다.
 
 직접 띄우려면:
@@ -163,9 +213,16 @@ pnpm build        # 빌드 + 번들 예산 확인
 
 ### 알려진 제약
 
-`packages/worker` (Python)는 코드만 있고 **이 개발 장비에서는 실행하지 못했다**
-(`python3-venv`/`pip` 미설치, 설치 권한 없음). 큐 계약은 같은 SQL 로 도는
-`db/tools/queue-smoke.mjs` 로 검증했다. 워커 실행 준비:
+`packages/worker` (Python)는 Windows 개발 장비에서 돌려 보았다 — `dev.bat setup-worker`
+로 가상환경을 만들고(`.venv\Scripts\`) 기동까지 확인했다. 리눅스 개발 장비에서는
+아직 돌려 보지 못했다(`python3-venv`/`pip` 미설치, 설치 권한 없음). 큐 계약은 같은
+SQL 로 도는 `db/tools/queue-smoke.mjs` 로도 검증했다.
+
+**워커는 저장소를 운영과 맞춘 뒤에만 띄운다.** 큐가 DB 에 있어서, 개발 장비가 운영 DB 를
+보는 채로 워커를 띄우면 운영 사용자의 작업을 이 장비가 집어다 처리하고 결과 파일을
+엉뚱한 곳에 쓴다. devctl 이 그 조합을 시작 지점에서 막는다.
+
+리눅스 워커 실행 준비:
 
 ```bash
 sudo apt install python3.12-venv

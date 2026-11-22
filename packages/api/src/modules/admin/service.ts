@@ -75,6 +75,7 @@ export async function users() {
       totpEnabledAt: u.totpEnabledAt ? u.totpEnabledAt.toISOString() : null,
       lastLoginAt: u.lastLoginAt ? u.lastLoginAt.toISOString() : null,
       previousLoginAt: u.previousLoginAt ? u.previousLoginAt.toISOString() : null,
+      lockedUntil: u.lockedUntil ? u.lockedUntil.toISOString() : null,
       syncedAt: u.syncedAt ? u.syncedAt.toISOString() : null,
       createdAt: u.createdAt.toISOString(),
       updatedAt: u.updatedAt.toISOString(),
@@ -218,6 +219,23 @@ export async function resetTotp(id: number, actor: Actor) {
   })
   await destroyAllSessions(id)
   return { ok: true as const }
+}
+
+/**
+ * 로그인 잠금 풀기.
+ *
+ * OTP 초기화와 달리 세션을 끊지 않는다 — 잠긴 계정은 애초에 들어오지 못했으므로
+ * 끊을 세션이 없고, 혹시 다른 자리에서 쓰고 있다면 그건 잠금과 무관하다.
+ */
+export async function unlockUser(id: number, actor: Actor) {
+  const loginId = await tx(async (c) => {
+    const user = (await q.userById(c, id)).rows[0]
+    if (!user) throw Errors.notFound('계정')
+    assertMayTouch(actor, user)
+    await q.unlockLogin(user.login_id)
+    return user.login_id
+  })
+  return { ok: true as const, loginId }
 }
 
 // ── 권한 관리 ───────────────────────────────────────────────────────────

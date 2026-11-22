@@ -84,7 +84,7 @@ svc_start() {
   local name="$1"
   if ! svc_available "$name"; then
     warn "$(svc_label "$name") — 실행 환경이 없어 건너뜁니다"
-    [[ "$name" == worker ]] && info "준비: sudo apt install python3.12-venv 뒤 ./dev.sh setup-worker"
+    [[ "$name" == worker ]] && info "준비: sudo apt install python3.12-venv 뒤 $SELF setup-worker"
     return 0
   fi
   if svc_running "$name"; then
@@ -95,7 +95,7 @@ svc_start() {
   local port; port="$(svc_port "$name")"
   if [[ -n "$port" ]] && ! port_free "$port"; then
     bad "$(svc_label "$name") — 포트 $port 를 다른 프로세스가 쓰고 있습니다 (pid $(port_pid "$port"))"
-    info "먼저 ./dev.sh stop 또는 kill $(port_pid "$port")"
+    info "먼저 $SELF stop 또는 kill $(port_pid "$port")"
     return 1
   fi
 
@@ -112,7 +112,7 @@ svc_start() {
       printf '\r'; ok "$(svc_label "$name") 올라왔습니다 — $health"
     else
       printf '\r'; bad "$(svc_label "$name") 가 응답하지 않습니다"
-      info "로그: ./dev.sh logs $name"
+      info "로그: $SELF logs $name"
       tail -n 12 "$log" | sed 's/^/      /'
       return 1
     fi

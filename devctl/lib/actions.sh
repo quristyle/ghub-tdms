@@ -40,7 +40,7 @@ action_status() {
   if [[ -n "$queued" && "$queued" != "0" ]]; then
     printf '\n'
     warn "작업 큐에 $queued 건이 대기 중입니다"
-    svc_available worker || info "워커가 없어 처리되지 않습니다 — ./dev.sh setup-worker"
+    svc_available worker || info "워커가 없어 처리되지 않습니다 — $SELF setup-worker"
   fi
 }
 
@@ -66,7 +66,7 @@ action_logs() {
       tail -n 20 "$f" | sed 's/^/  /'
     done
     printf '\n'
-    info "따라가며 보기: ./dev.sh logs api"
+    info "따라가며 보기: $SELF logs api"
     return 0
   fi
   local f; f="$(svc_logfile "$name")"
@@ -133,12 +133,26 @@ action_verify() {
     (( worker_was_up )) && svc_start worker >/dev/null 2>&1
   else
     printf '\n'
-    warn "API 가 꺼져 있어 흐름 검증을 건너뜁니다 — ./dev.sh start api"
+    warn "API 가 꺼져 있어 흐름 검증을 건너뜁니다 — $SELF start api"
   fi
 
   printf '\n'
   (( fail == 0 )) && ok "모두 통과" || bad "실패한 항목이 있습니다"
   return $fail
+}
+
+# 의존성 설치. 받은 저장소에서 가장 먼저 해야 하는 일이고, 이것 없이는 api·web 이
+# 아예 뜨지 않는다 — 터미널을 따로 열지 않아도 되도록 제어판에서도 부를 수 있게 둔다.
+action_install() {
+  head1 "의존성 설치"
+  command -v pnpm >/dev/null || {
+    bad "pnpm 이 없습니다"
+    info "corepack enable 또는 npm i -g pnpm"
+    return 1
+  }
+  ( cd "$ROOT" && pnpm install ) || { bad "설치에 실패했습니다"; return 1; }
+  [[ -d "$ROOT/node_modules" ]] || { bad "node_modules 가 생기지 않았습니다"; return 1; }
+  ok "완료 — 이제 $SELF start 로 띄울 수 있습니다"
 }
 
 action_build() {
@@ -158,7 +172,7 @@ action_setup_worker() {
     && python3 -m venv .venv \
     && ./.venv/bin/pip install -q --upgrade pip \
     && ./.venv/bin/pip install -q -e . ) || return 1
-  ok "준비됨 — ./dev.sh start worker"
+  ok "준비됨 — $SELF start worker"
 }
 
 action_open() {
@@ -198,7 +212,7 @@ storage_status() {
     info "blob $(find "$PROD_MOUNT/blobs" -type f 2>/dev/null | wc -l)개"
   else
     warn "운영 저장소에 붙어 있지 않습니다 ($PROD_MOUNT)"
-    info "./dev.sh storage mount"
+    info "$SELF storage mount"
   fi
 }
 
@@ -225,7 +239,7 @@ storage_mount() {
 
   prod_mounted || die "sshfs 는 끝났는데 마운트가 보이지 않습니다"
   ok "붙었습니다 — $PROD_MOUNT ($(find "$PROD_MOUNT/blobs" -type f 2>/dev/null | wc -l)개)"
-  info "API·워커가 떠 있다면 다시 시작하세요: ./dev.sh restart api worker"
+  info "API·워커가 떠 있다면 다시 시작하세요: $SELF restart api worker"
 }
 
 storage_umount() {
@@ -241,7 +255,7 @@ storage_guard() {
   [[ "${STORAGE_ROOT:-}" == "$PROD_MOUNT"* ]] || return 0
   prod_mounted && return 0
   bad "STORAGE_ROOT 이 운영 저장소($PROD_MOUNT)를 가리키는데 붙어 있지 않습니다"
-  info "붙이기:   ./dev.sh storage mount"
+  info "붙이기:   $SELF storage mount"
   info "로컬로:   .env 의 STORAGE_ROOT 를 $ROOT/.storage 로 되돌린다"
   return 1
 }

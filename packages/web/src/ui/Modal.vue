@@ -113,8 +113,8 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="backdrop" @pointerdown="onBackdropDown" @click="onBackdropClick">
-    <div ref="box" class="box" :class="{ wide, notice, sized: !!size }" :style="boxStyle"
-         role="dialog" aria-modal="true" :aria-label="title">
+    <div ref="box" class="box" :class="{ wide, notice, sized: !!size, 'no-foot': !$slots.footer }"
+         :style="boxStyle" role="dialog" aria-modal="true" :aria-label="title">
       <div class="box-head" :class="{ movable }"
            @pointerdown="movable && start('move', $event)" @pointermove="move" @pointerup="end" @pointercancel="end">
         <h2>{{ title }}</h2>
@@ -182,6 +182,10 @@ onBeforeUnmount(() => {
       transparent 58%, transparent 70%, var(--border, #c8ccd4) 70%, var(--border, #c8ccd4) 78%, transparent 78%);
 }
 
-/* 아래 버튼줄이 없으면 본문 밑여백을 본문이 갖는다 */
-.box-body:last-child { padding-bottom: 22px; }
+/* 아래 버튼줄이 없으면 본문이 밑여백을 갖는다 — 표가 팝업 아래 테두리에 달라붙지 않게.
+ *
+ * 예전에는 `.box-body:last-child` 로 잡았는데 한 번도 걸리지 않았다. 크기 조절
+ * 손잡이(.grip 3개)가 본문 **뒤에** 붙으므로 본문이 마지막 자식이 되는 일이 없다.
+ * 자리 순서로 넘겨짚지 말고 바닥줄이 있는지로 가른다. */
+.box.no-foot .box-body { padding-bottom: 22px; }
 </style>

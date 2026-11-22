@@ -176,8 +176,13 @@ const previewSource = ref<'pdf' | 'drawing'>('pdf')
 const showDrawing = computed(() =>
   !!selDrawing.value && (previewSource.value === 'drawing' || !previewFile.value))
 
+// 처음·이전·다음·끝으로 옮겨 다닐 때 **탭은 그대로 둔다.**
+// 미리보기만 훑어보거나 반출 이력만 비교하며 넘기는 것이 이 버튼들의 쓰임인데,
+// 매번 '자료내용' 으로 돌아가면 자료마다 탭을 다시 골라야 한다.
+//
+// 아래 값들은 반대로 **반드시** 비운다 — 앞 자료에 매인 것들이라 그대로 두면
+// 엉뚱한 자료의 Rev 를 고른 채로 보이거나, 올리려던 파일이 다른 자료에 붙는다.
 watch(id, () => {
-  tab.value = 'info'
   noteMsg.value = null
   previewRevKey.value = null
   previewSource.value = 'pdf'
