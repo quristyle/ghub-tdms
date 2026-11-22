@@ -107,6 +107,9 @@ table, .tabnum { font-variant-numeric: tabular-nums; }
   gap: 36px;
 }
 
+.app-brand-box { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.app-menu-btn { padding: 0; }
+
 .app-brand {
   display: flex;
   align-items: center;

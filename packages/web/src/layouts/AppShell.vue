@@ -180,10 +180,8 @@ async function logout() {
           @click="toggleNavSidebar"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" aria-hidden="true">
-            <line x1="3" y1="6" x2="21" y2="6" />
-            <line x1="3" y1="12" x2="21" y2="12" />
-            <line x1="3" y1="18" x2="21" y2="18" />
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
 
@@ -201,10 +199,9 @@ async function logout() {
           <!-- 모바일에서는 시스템명을 빼고 로고만 둔다 — 좁은 화면에서 머리글이 너비를 넘치지 않게 -->
           <img class="app-brand-logo" src="/assets/skgas-logo.png" alt="SK gas" />
           <span class="app-brand-mobile-indicator" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <line x1="3" y1="12" x2="21" y2="12" />
-              <line x1="3" y1="18" x2="21" y2="18" />
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </span>
         </button>
@@ -303,6 +300,7 @@ async function logout() {
   justify-content: center;
   width: 32px;
   height: 32px;
+  padding: 0;
   flex-shrink: 0;
   border-radius: var(--radius);
   background: var(--surface-alt);
@@ -315,6 +313,10 @@ async function logout() {
 .app-menu-btn[aria-expanded='true'] {
   background: var(--surface-sunken);
   color: var(--text);
+}
+.app-menu-btn svg {
+  display: block;
+  flex-shrink: 0;
 }
 
 /* 모바일 로고 클릭 표시 */
@@ -338,6 +340,7 @@ async function logout() {
   justify-content: center;
   width: 28px;
   height: 28px;
+  padding: 0;
   border-radius: var(--radius);
   background: var(--surface-alt);
   border: 1px solid var(--border);
@@ -349,5 +352,9 @@ async function logout() {
 .app-brand-mobile-indicator:hover {
   background: var(--surface-sunken);
   color: var(--text);
+}
+.app-brand-mobile-indicator svg {
+  display: block;
+  flex-shrink: 0;
 }
 </style>
