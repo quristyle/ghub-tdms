@@ -6,302 +6,426 @@
 <title>도면관리 시스템(TDMS) 구축 Kick-off</title>
 <style>
   :root{
-    --navy:#12233E; --ink:#222F3E; --muted:#5A6C82;
-    --blue:#2369BE; --teal:#1EAABE; --green:#2C9170; --orange:#DE8F30;
-    --panel:#EDF4FB; --card:#F7F9FC; --line:#DCE3EB; --paper:#fff;
+    --paper:#EDE8DA; --ink:#14110D; --ink2:#45403A; --ink3:#6E675D;
+    --rule:#2A251E; --hair:#A79E8E; --wash:#E1DACA; --wash2:#E7E1D2; --seal:#9C2B22;
+    --serif:"Batang","바탕","Noto Serif CJK KR","Noto Serif KR","Nanum Myeongjo","AppleMyungjo",serif;
+    --sans:"Dotum","돋움","Malgun Gothic","Noto Sans CJK KR","Noto Sans KR",sans-serif;
   }
+  /* 가독 모드 — 흰 바탕 · 검은 글씨 */
+  :root[data-read="on"]{
+    --paper:#FFFFFF; --ink:#000000; --ink2:#1C1C1C; --ink3:#3C3C3C;
+    --rule:#000000; --hair:#565656; --wash:#E6E6E6; --wash2:#F2F2F2; --seal:#8E201A;
+  }
+  :root[data-read="on"] body{background:#2E2E2E}
+  :root[data-read="on"] #deck{box-shadow:0 14px 44px rgba(0,0,0,.55)}
   *{box-sizing:border-box}
   html,body{margin:0;height:100%}
-  body{background:#2a3340;color:var(--ink);overflow:hidden;
-    font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif}
+  body{background:#554F42;color:var(--ink);overflow:hidden;font-family:var(--serif)}
   #stage{position:fixed;inset:0;display:grid;place-items:center}
-  #deck{width:1280px;height:720px;position:relative;transform-origin:center;
-    background:var(--paper);box-shadow:0 18px 60px rgba(0,0,0,.45)}
+  #deck{width:1280px;height:720px;position:relative;transform-origin:center;background:var(--paper);
+    box-shadow:inset 0 0 130px rgba(96,82,52,.14), 0 14px 44px rgba(0,0,0,.5)}
 
-  .slide{position:absolute;inset:0;display:none;flex-direction:column;padding:52px 58px 58px}
+  /* ── 문서 골격 ── */
+  .slide{position:absolute;inset:0;display:none;flex-direction:column;padding:58px 62px 54px}
   .slide.on{display:flex}
-  .slide::before{content:"PROJECT KICK-OFF";position:absolute;left:58px;top:26px;
-    font-size:11px;font-weight:700;letter-spacing:.12em;color:var(--blue)}
-  .slide::after{content:attr(data-no);position:absolute;right:58px;bottom:24px;
-    font-size:11px;font-weight:700;color:var(--blue)}
-  .slide > h2{font-size:34px;font-weight:800;letter-spacing:-.02em;color:var(--navy);
-    margin:22px 0 14px;padding-bottom:14px;border-bottom:1px solid var(--line)}
-  .key{background:var(--panel);border:1px solid #CFDEEC;border-radius:6px;
-    margin:0 0 22px;padding:14px 18px;font-size:15px;font-weight:700;color:#1B4A72}
-  .key::before{content:"핵심 메시지  |  ";color:var(--navy)}
+  .slide::before{content:"도면관리 시스템(TDMS) 구축  착수 보고   |   지허브 · 진네트웍스";position:absolute;left:62px;right:62px;top:26px;padding-bottom:7px;
+    border-bottom:1px solid var(--hair);font-family:var(--sans);font-size:10.5px;letter-spacing:.06em;color:var(--ink3)}
+  .slide::after{content:"- " attr(data-no) " / " attr(data-total) " -";position:absolute;left:0;right:0;bottom:21px;
+    text-align:center;font-family:var(--sans);font-size:11px;color:var(--ink2);font-variant-numeric:tabular-nums}
+  .slide > h2{font-size:29px;font-weight:700;letter-spacing:-.025em;color:var(--ink);
+    margin:22px 0 15px;padding-bottom:10px;border-bottom:3px double var(--rule)}
+  .slide > h2::before{content:"□  ";font-size:20px;vertical-align:.08em;color:var(--ink2)}
 
-  .split{display:grid;grid-template-columns:1fr 340px;gap:26px;flex:1;min-height:0}
-  .bullets{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:12px}
-  .bullets li{position:relative;padding-left:16px;font-size:15.5px;line-height:1.55}
-  .bullets li::before{content:"";position:absolute;left:0;top:9px;width:5px;height:5px;
-    border-radius:50%;background:var(--blue)}
-  .disc{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:18px 20px;height:max-content}
-  .disc h4{margin:0 0 12px;font-size:11px;letter-spacing:.1em;color:var(--blue)}
-  .disc ul{margin:0;padding-left:16px;font-size:13.5px;line-height:1.6;color:#45535f}
-  .disc li{margin-bottom:8px}
+  /* ── 요지란 ── */
+  .key{position:relative;margin:0 0 20px;padding:13px 16px 13px 98px;border:1px solid var(--rule);
+    font-size:14.5px;font-weight:400;line-height:1.7;color:var(--ink);min-height:50px;display:flex;align-items:center}
+  .key::before{content:"요  지";position:absolute;left:0;top:0;bottom:0;width:82px;background:var(--wash);
+    border-right:1px solid var(--rule);display:flex;align-items:center;justify-content:center;
+    font-family:var(--sans);font-size:11.5px;font-weight:700;letter-spacing:.2em;color:var(--ink2);text-indent:.2em}
 
-  .cards{display:grid;gap:16px;grid-template-columns:repeat(var(--n,3),1fr)}
-  .cards article{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--blue);
-    border-radius:8px;padding:18px 18px 16px}
-  .cards article:nth-child(2){border-left-color:var(--teal)}
-  .cards article:nth-child(3){border-left-color:var(--green)}
-  .cards article:nth-child(4){border-left-color:var(--orange)}
-  .cards h3{margin:0 0 10px;font-size:16px;color:var(--navy)}
-  .cards p{margin:0 0 7px;font-size:13px;line-height:1.55;color:#4a5765}
+  /* ── 항목 기호 □ → ○ → - ── */
+  .bullets{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px}
+  .bullets li{position:relative;padding-left:21px;font-size:14.8px;line-height:1.72;color:var(--ink)}
+  .bullets li::before{content:"○";position:absolute;left:0;top:0;font-size:11px;color:var(--ink2);line-height:2.3}
 
-  .flow{display:grid;gap:12px;margin:0 0 20px;padding:0;list-style:none;
-    grid-template-columns:repeat(var(--n,5),1fr)}
-  .flow li{background:var(--panel);border:1px solid #CFDEEC;border-radius:8px;
-    padding:14px 10px;text-align:center}
-  .flow b{display:block;font-size:13px;color:var(--blue);margin-bottom:6px}
-  .flow span{display:block;font-size:12.5px;color:#45535f;line-height:1.5}
-  .flow span:first-of-type{font-size:15px;font-weight:700;color:var(--navy);margin-bottom:4px}
+  /* ── 권선표 ── */
+  .cards{display:grid;gap:0;grid-template-columns:repeat(var(--n,3),1fr);border:1px solid var(--rule)}
+  .cards article{border-left:1px solid var(--hair);border-radius:0;background:none;padding:0;
+    display:flex;flex-direction:column}
+  .cards article:first-child{border-left:none}
+  .cards h3{margin:0;padding:9px 10px;background:var(--wash);border-bottom:1px solid var(--rule);
+    font-family:var(--sans);font-size:12.8px;font-weight:700;color:var(--ink);text-align:center;line-height:1.4}
+  .cards p{margin:0;padding:8px 13px 0;font-size:12.8px;line-height:1.65;color:var(--ink2)}
+  .cards p:last-child{padding-bottom:13px}
 
-  .toc{display:grid;grid-template-columns:repeat(4,1fr);gap:8px 26px;align-content:start}
-  .toc h4{margin:10px 0 8px;font-size:13px;color:var(--blue)}
-  .toc ul{margin:0 0 6px;padding:0;list-style:none}
-  .toc li{font-size:13px;line-height:1.9;color:#39485a}
-  .toc i{display:inline-block;width:26px;font-style:normal;color:var(--muted);font-variant-numeric:tabular-nums}
+  .flow{display:grid;gap:0;margin:0 0 18px;padding:0;list-style:none;
+    grid-template-columns:repeat(var(--n,5),1fr);border:1px solid var(--rule)}
+  .flow li{border-left:1px solid var(--hair);border-radius:0;background:none;padding:13px 11px;text-align:center}
+  .flow li:first-child{border-left:none}
+  .flow b{display:block;font-family:var(--sans);font-size:11.5px;font-weight:700;color:var(--ink);
+    margin:0 0 7px;padding-bottom:6px;border-bottom:1px solid var(--hair)}
+  .flow span{display:block;font-size:12.5px;color:var(--ink2);line-height:1.55}
+  .flow span:first-of-type{font-size:14.5px;font-weight:700;color:var(--ink);margin-bottom:4px}
 
-  .gantt{width:100%;border-collapse:collapse;font-size:12.5px}
-  .gantt th{font-weight:700;color:var(--muted);font-size:11.5px;padding:6px 4px;text-align:center}
-  .gantt thead th{border-bottom:2px solid var(--navy)}
-  .gantt th[scope=row]{text-align:left;width:250px;color:var(--ink);font-weight:600}
-  .gantt td{height:26px;border-bottom:1px solid var(--line)}
-  .gantt td.on{background:var(--blue);border-radius:2px;box-shadow:inset 0 0 0 1px var(--blue)}
-  .gantt tbody tr:last-child td.on{background:var(--navy)}
+  .split{display:grid;grid-template-columns:1fr 330px;gap:26px;flex:1;min-height:0}
+  .disc{background:var(--wash2);border:1px solid var(--hair);border-radius:0;padding:14px 16px;height:max-content}
+  .disc h4{margin:0 0 10px;padding-bottom:6px;border-bottom:1px solid var(--hair);
+    font-family:var(--sans);font-size:11px;font-weight:700;letter-spacing:.16em;color:var(--ink2)}
+  .disc ul{margin:0;padding:0;list-style:none}
+  .disc li{position:relative;padding-left:13px;margin-bottom:7px;font-size:12.8px;line-height:1.65;color:var(--ink2)}
+  .disc li::before{content:"-";position:absolute;left:0}
 
-  .arch{display:grid;grid-template-columns:120px 1fr 110px 1.25fr;gap:14px;align-items:stretch;flex:1}
-  .arch-col{background:var(--panel);border:1px solid #C4D6E8;border-radius:10px;padding:16px}
-  .arch-col h3{margin:0;font-size:15px;color:var(--navy);text-align:center}
-  .arch-col .sub{margin:4px 0 12px;font-size:11.5px;color:var(--muted);text-align:center}
-  .arch-col ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+  .toc{display:grid;grid-template-columns:repeat(4,1fr);gap:4px 28px;align-content:start}
+  .toc h4{margin:7px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--hair);
+    font-family:var(--sans);font-size:11.5px;font-weight:700;color:var(--ink)}
+  .toc h4::before{content:"□ "}
+  .toc ul{margin:0 0 4px;padding:0;list-style:none}
+  .toc li{font-size:12.4px;line-height:1.7;color:var(--ink2)}
+  .toc i{display:inline-block;width:25px;font-style:normal;font-family:var(--sans);font-size:11px;
+    color:var(--ink3);font-variant-numeric:tabular-nums}
+
+  .gantt{width:100%;border-collapse:collapse;font-size:12px;border:1px solid var(--rule)}
+  .gantt th{font-family:var(--sans);font-weight:700;color:var(--ink);font-size:11px;padding:6px 4px;
+    text-align:center;background:var(--wash);border:1px solid var(--hair)}
+  .gantt thead th{border-bottom:1px solid var(--rule)}
+  .gantt th[scope=row]{text-align:left;width:238px;background:var(--wash2);font-family:var(--serif);
+    font-size:12.5px;font-weight:400;color:var(--ink);padding-left:10px}
+  .gantt td{height:24px;border:1px solid var(--hair)}
+  .gantt td.on{background:var(--ink2)}
+  .gantt tbody tr:last-child td.on{background:var(--ink)}
+
+  .arch{display:grid;grid-template-columns:110px 1fr 104px 1.25fr;gap:12px;align-items:stretch;flex:1}
+  .arch-col{background:var(--wash2);border:1px solid var(--rule);border-radius:0;padding:14px}
+  .arch-col h3{margin:0;font-family:var(--sans);font-size:13px;color:var(--ink);text-align:center}
+  .arch-col .sub{margin:4px 0 11px;font-size:11.5px;color:var(--ink3);text-align:center}
+  .arch-col ul{margin:0;padding:0;list-style:none;display:grid;gap:7px}
   .arch-col.front ul{grid-template-columns:1fr 1fr}
   .arch-col.back ul{grid-template-columns:repeat(3,1fr)}
-  .arch-col li{background:#fff;border:1px solid var(--line);border-radius:7px;padding:10px 8px;text-align:center}
-  .arch-col li b{display:block;font-size:12.5px;color:var(--navy)}
-  .arch-col li span{display:block;font-size:11px;color:var(--muted);margin-top:3px}
+  .arch-col li{background:var(--paper);border:1px solid var(--hair);border-radius:0;padding:9px 7px;text-align:center}
+  .arch-col li b{display:block;font-size:11.8px;font-weight:400;color:var(--ink)}
+  .arch-col li span{display:block;font-size:10.5px;color:var(--ink3);margin-top:3px}
   .arch-user,.arch-gate{display:flex;flex-direction:column;justify-content:center;gap:4px;text-align:center}
-  .arch-user p,.arch-gate p{margin:0;font-size:12px;color:var(--muted)}
-  .arch-user p:first-child,.arch-gate p:first-child{font-size:14px;font-weight:700;color:var(--navy)}
+  .arch-user p,.arch-gate p{margin:0;font-size:11.5px;color:var(--ink3)}
+  .arch-user p:first-child,.arch-gate p:first-child{font-size:13px;font-weight:700;color:var(--ink)}
 
-  .note,.foot{margin:16px 0 0;font-size:13px;color:var(--muted);line-height:1.6}
-  .foot{text-align:center;font-weight:700;color:var(--blue)}
+  /* ── 수치표 ── */
+  .kpi{display:grid;gap:0;grid-template-columns:repeat(var(--n,4),1fr);margin:0 0 18px;border:1px solid var(--rule)}
+  .kpi div{border-left:1px solid var(--hair);border-radius:0;background:none;padding:0;text-align:center;
+    display:flex;flex-direction:column}
+  .kpi div:first-child{border-left:none}
+  .kpi em{display:block;font-style:normal;font-family:var(--sans);font-size:11px;font-weight:700;
+    letter-spacing:.14em;color:var(--ink2);background:var(--wash);border-bottom:1px solid var(--rule);
+    padding:7px 0;margin:0}
+  .kpi b{display:block;font-size:26px;font-weight:700;color:var(--ink);letter-spacing:.01em;
+    font-variant-numeric:tabular-nums;line-height:1.15;padding:14px 6px 0}
+  .kpi span{display:block;font-size:12px;color:var(--ink2);padding:8px 12px 14px;margin:0;line-height:1.5}
 
-  .cover{background:var(--navy);color:#fff;justify-content:center;padding:0 70px}
-  .cover::before,.cover::after{color:#6E89A3}
-  .cover .eyebrow{font-size:12px;font-weight:700;letter-spacing:.16em;color:#35C9E0;margin:0 0 30px}
-  .cover h1{font-size:50px;line-height:1.16;margin:0 0 20px;letter-spacing:-.02em}
-  .cover .lead{font-size:17px;color:#B9CEDF;margin:0 0 34px}
-  .cover .meta{display:flex;gap:40px;border-top:1px solid #35C9E0;padding-top:22px;max-width:900px}
-  .cover .meta dt{font-size:11px;letter-spacing:.1em;color:#7E99B2;margin-bottom:6px}
-  .cover .meta dd{margin:0;font-size:15px;font-weight:700}
-  .cover .stack{position:absolute;left:70px;bottom:46px;font-size:11px;letter-spacing:.1em;color:#6E89A3}
+  /* ── 참여 인원 ── */
+  .roster{margin:18px 0 0;border:1px solid var(--rule);border-radius:0;padding:0;background:none;
+    display:grid;grid-template-columns:82px 1fr;align-items:stretch;gap:0}
+  .roster h4{margin:0;background:var(--wash);border-right:1px solid var(--rule);
+    display:flex;align-items:center;justify-content:center;text-align:center;font-weight:700;
+    font-family:var(--sans);font-size:11.5px;letter-spacing:.12em;color:var(--ink2);line-height:1.6}
+  .roster ul{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(6,1fr);gap:0}
+  .roster li{border-left:1px solid var(--hair);border-radius:0;background:none;padding:10px 6px;text-align:center}
+  .roster li:first-child{border-left:none}
+  .roster b{display:block;font-size:15px;font-weight:700;color:var(--ink)}
+  .roster span{display:block;font-family:var(--sans);font-size:11px;color:var(--ink3);margin-top:4px}
 
-  #bar{position:fixed;left:0;bottom:0;height:3px;background:var(--blue);width:0;transition:width .2s}
-  #hint{position:fixed;right:14px;bottom:12px;font-size:12px;color:#93a3b5;
-    background:rgba(0,0,0,.35);padding:5px 10px;border-radius:4px;transition:opacity .4s}
+  /* ── 공정표(타임라인) ── */
+  .tl{position:relative;flex:1;display:grid;grid-template-columns:repeat(11,1fr);align-items:center;
+    margin:2px 0 0;padding:0 35px}
+  .tl::before{content:"";position:absolute;left:0;right:0;top:50%;height:1px;margin-top:-.5px;background:var(--rule)}
+  .tl .n{position:relative;height:100%}
+  .tl .n::before{content:"";position:absolute;left:50%;top:50%;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;
+    background:var(--ink);transform:rotate(45deg);z-index:2}
+  .tl .n::after{content:"";position:absolute;left:50%;width:1px;height:28px;margin-left:-.5px;background:var(--hair)}
+  .tl .n:nth-child(odd)::after{bottom:50%}
+  .tl .n:nth-child(even)::after{top:50%}
+  .tl .n > div{position:absolute;left:50%;width:170px;margin-left:-85px;background:var(--paper);
+    border:1px solid var(--rule);border-radius:0;padding:8px 10px 9px}
+  .tl .n:nth-child(odd) > div{bottom:calc(50% + 28px)}
+  .tl .n:nth-child(even) > div{top:calc(50% + 28px)}
+  .tl b{display:block;font-family:var(--sans);font-size:11.5px;font-weight:700;color:var(--ink);
+    margin:0 0 5px;padding-bottom:4px;border-bottom:1px solid var(--hair);font-variant-numeric:tabular-nums}
+  .tl span{display:block;font-size:11.5px;line-height:1.5;color:var(--ink2)}
+  .tl .n.hi::before{width:13px;height:13px;margin:-6.5px 0 0 -6.5px;background:var(--seal)}
+  .tl .n.hi > div{border:1.5px solid var(--seal);background:var(--wash2)}
+  .tl .n.hi b{color:var(--seal);border-bottom-color:var(--seal)}
+  .tl .n.hi b::after{content:"  (금일)";font-size:10px;letter-spacing:0;color:var(--seal)}
+
+  /* ── 비고 · 끝 ── */
+  .note,.foot{margin:14px 0 0;font-size:12.5px;font-weight:400;color:var(--ink2);line-height:1.7;text-align:left}
+  .foot{border-top:1px solid var(--hair);padding-top:8px}
+  .note + .foot,.foot + .foot{border-top:none;padding-top:0;margin-top:5px}
+  .end{margin:auto 0 0;padding-top:16px;text-align:right;font-size:16px;font-weight:700;
+    color:var(--ink);letter-spacing:0}
+
+  /* ── 표지 ── */
+  .cover{background:none;color:var(--ink);justify-content:center;padding:58px 72px}
+  .cover::before,.cover::after{color:var(--ink3)}
+  .cover .eyebrow{margin:0 0 24px;text-align:center;font-size:15px;color:var(--ink2);letter-spacing:.22em}
+  .cover h1{margin:0;padding:30px 0 27px;text-align:center;font-size:44px;line-height:1.3;font-weight:700;
+    letter-spacing:-.04em;border-top:2px solid var(--rule);border-bottom:1px solid var(--rule)}
+  .cover .lead{margin:17px 0 0;text-align:center;font-size:14.5px;color:var(--ink2);letter-spacing:.02em}
+  .cover .meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:0;max-width:none;
+    margin:38px 0 0;padding:0;border:1px solid var(--rule);border-top:2px solid var(--rule)}
+  .cover .meta > div{border-left:1px solid var(--hair);padding:12px 16px}
+  .cover .meta > div:first-child{border-left:none}
+  .cover .meta dt{margin:0 0 7px;font-family:var(--sans);font-size:10.5px;letter-spacing:.14em;color:var(--ink3)}
+  .cover .meta dd{margin:0;font-size:13.8px;font-weight:700;color:var(--ink);line-height:1.5}
+  .cover .stack{position:absolute;left:72px;right:72px;bottom:50px;margin:0;
+    font-size:11.5px;color:var(--ink3);letter-spacing:.01em}
+  .docno{position:absolute;left:62px;top:62px;margin:0;font-family:var(--sans);font-size:11px;
+    color:var(--ink3);letter-spacing:.05em}
+  .apprbox{position:absolute;right:62px;top:56px}
+  .appr{border-collapse:collapse;border:1px solid var(--rule)}
+  .appr th,.appr td{border:1px solid var(--hair);width:58px;text-align:center}
+  .appr th{background:var(--wash);font-family:var(--sans);font-size:10.5px;font-weight:700;
+    color:var(--ink2);padding:4px 0;letter-spacing:.08em}
+  .appr td{height:46px}
+  .seal{position:absolute;right:-16px;bottom:-20px;width:74px;height:74px;border:1px solid var(--seal);
+    box-shadow:inset 0 0 0 2.5px var(--paper),inset 0 0 0 3.5px var(--seal);
+    border-radius:50%;display:grid;place-items:center;transform:rotate(-8deg);opacity:.86;
+    font-size:12.5px;line-height:1.2;font-weight:700;color:var(--seal);text-align:center;letter-spacing:-.05em}
+
+  #bar{position:fixed;left:0;bottom:0;height:2px;background:var(--ink2);width:0;transition:width .2s}
+  #rdmode{position:fixed;left:14px;bottom:12px;width:34px;height:34px;padding:0;
+    display:grid;place-items:center;cursor:pointer;color:#E6E0D2;
+    border:1px solid rgba(230,224,210,.45);background:rgba(20,17,13,.55);
+    transition:background .15s,color .15s,border-color .15s}
+  #rdmode svg{display:block;width:19px;height:19px}
+  #rdmode:hover{background:rgba(20,17,13,.8);border-color:rgba(230,224,210,.8)}
+  #rdmode:focus-visible{outline:2px solid #E6E0D2;outline-offset:2px}
+  :root[data-read="on"] #rdmode{color:#fff;background:rgba(0,0,0,.72);border-color:rgba(255,255,255,.65)}
+  #hint{position:fixed;right:14px;bottom:12px;font-family:var(--sans);font-size:11px;color:#E6E0D2;
+    background:rgba(20,17,13,.55);padding:5px 10px;transition:opacity .4s}
+  @media (prefers-reduced-motion:reduce){#bar,#hint{transition:none}}
   @media print{
-    @page{size:A4 landscape;margin:0}
-    body{background:#fff;overflow:visible}
+    @page{size:A4 landscape;margin:21.47mm 0}
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    html,body{background:#fff!important;overflow:visible}
     #stage{position:static;display:block}
-    #deck{height:auto;box-shadow:none;transform:none!important}
-    .slide{position:relative;display:flex!important;width:1280px;height:720px;
-      transform:scale(.855);transform-origin:top left;page-break-after:always}
-    #bar,#hint{display:none!important}
+    #deck{width:auto;height:auto;box-shadow:none;transform:none!important;background:none}
+    .slide{position:relative;display:flex!important;width:1280px;height:720px;background:var(--paper);
+      zoom:.87697;page-break-after:always}
+    .slide:last-child{page-break-after:auto}
+    #bar,#hint,#rdmode{display:none!important}
   }
 </style>
 </head>
 <body>
 <div id="stage"><div id="deck">
 
-<section class="slide cover" data-no="01">
-  
-  
-  <p class="eyebrow">G.HUB TDMS  ·  기술자료 관리 시스템 재구축</p><h1>도면관리 시스템 구축</h1><p class="lead">SK가스 G.Hub 사업장 도면(TDB) · 설비 데이터북(MDB) 관리 시스템</p><div class="meta"><div><dt>수행 기간</dt><dd>2026. 11. 17. ~ 2027. 01. 15.  (9주)</dd></div><div><dt>Kick-off</dt><dd>2026. 11. 24. (화) 11:00~11:40 · 정비동 회의실</dd></div><div><dt>고객사 · 수행사</dt><dd>지허브   ·   진네트웍스</dd></div></div><p class="stack">VUE 3 · FASTIFY(NODE 22) · POSTGRESQL 16 · PYTHON 워커 · DOCKER</p>
+<section class="slide cover" data-no="01" data-total="31">
+  <p class="docno">작성일  2026. 11. 24.</p>
+  <div class="apprbox"><table class="appr"><tr><th>작성</th><th>검토</th><th>승인</th></tr><tr><td></td><td></td><td></td></tr></table></div>
+  <p class="eyebrow">지허브  귀중</p>
+  <h1>도면관리 시스템 구축</h1>
+  <p class="lead">SK가스 G.Hub 사업장 도면(TDB) · 설비 데이터북(MDB) 관리 시스템 재구축</p>
+  <div class="meta"><div><dt>수행 기간</dt><dd>2026. 11. 17. ~ 2027. 01. 15.  (9주)</dd></div><div><dt>Kick-off</dt><dd>2026. 11. 24. (화) 11:00~11:40 · 정비동 회의실</dd></div><div><dt>고객사 · 수행사</dt><dd>지허브   ·   진네트웍스</dd></div></div>
+  <p class="stack">※ 적용 기술  Vue 3 · Fastify(Node 22) · PostgreSQL 16 · Python 워커 · Docker</p>
 </section>
 
-<section class="slide" data-no="02">
+<section class="slide" data-no="02" data-total="31">
   <h2>목차</h2>
-  <p class="key">전체 30장을 여섯 묶음으로 봅니다. 오늘 결론이 필요한 것은 마지막 묶음입니다.</p>
-  <div class="toc"><h4>착수</h4><ul><li><i>02</i>목차</li><li><i>03</i>Kick-off에서 합의할 사항</li></ul><h4>배경과 진단</h4><ul><li><i>04</i>추진 배경 및 현황</li><li><i>05</i>고쳐야 할 3가지</li><li><i>06</i>보안 점검 — 보완 과제 25건</li></ul><h4>개선 방향</h4><ul><li><i>07</i>개발 방향성 3원칙</li><li><i>08</i>성능 — 측정으로 지키는 개선</li><li><i>09</i>프로젝트 목표 및 성공 기준</li></ul><h4>범위와 기능</h4><ul><li><i>10</i>개발 범위 및 경계</li><li><i>11</i>주요 사용자 및 업무 기능</li><li><i>12</i>요구사항 정의 및 변경 관리</li><li><i>13</i>사전 준비분 및 활용 범위</li><li><i>14</i>사전 구축 단계별 현황</li><li><i>15</i>남은 일 — 이행 · 검증 · 전환</li></ul><h4>설계</h4><ul><li><i>16</i>목표 시스템 아키텍처</li><li><i>17</i>아키텍처 구성도</li><li><i>18</i>기술 스택 및 적용 원칙</li><li><i>19</i>데이터 및 API 설계 원칙</li></ul><h4>일정과 실행</h4><ul><li><i>20</i>9주 추진 일정 및 마일스톤</li><li><i>21</i>주차별 일정표</li><li><i>22</i>단계별 산출물 및 승인 게이트</li><li><i>23</i>프로젝트 조직 및 R&amp;R</li></ul><h4>품질과 운영</h4><ul><li><i>24</i>개발 협업 및 형상관리</li><li><i>25</i>테스트 및 품질 전략</li><li><i>26</i>Docker 기반 배포 및 운영 전환</li><li><i>27</i>보안 · 리스크 및 대응 계획</li><li><i>28</i>커뮤니케이션 및 의사결정 체계</li></ul><h4>마무리</h4><ul><li><i>29</i>프로젝트 성공 기준 및 다음 액션</li><li><i>30</i>질의응답 (Q &amp; A)</li></ul></div>
+  <p class="key">31장의 업무를 각각의 업무담당자와 협의하여 합의된 범위와 일정으로 추진합니다.</p>
+  <div class="toc"><h4>착수</h4><ul><li><i>02</i>목차</li><li><i>03</i>Kick-off에서 합의할 사항</li></ul><h4>배경과 진단</h4><ul><li><i>04</i>추진 배경 및 현황</li><li><i>05</i>고쳐야 할 3가지</li><li><i>06</i>보안 점검 — 보완 과제 25건</li></ul><h4>개선 방향</h4><ul><li><i>07</i>개발 방향성 3원칙</li><li><i>08</i>성능 — 측정으로 지키는 개선</li><li><i>09</i>프로젝트 목표 및 성공 기준</li></ul><h4>범위와 기능</h4><ul><li><i>10</i>개발 범위 및 경계</li><li><i>11</i>주요 사용자 및 업무 기능</li><li><i>12</i>요구사항 정의 및 변경 관리</li><li><i>13</i>사전 준비분 및 활용 범위</li><li><i>14</i>사전 구축 단계별 현황</li><li><i>15</i>남은 일 — 이행 · 검증 · 전환</li></ul><h4>설계</h4><ul><li><i>16</i>목표 시스템 아키텍처</li><li><i>17</i>아키텍처 구성도</li><li><i>18</i>기술 스택 및 적용 원칙</li><li><i>19</i>데이터 및 API 설계 원칙</li></ul><h4>일정과 실행</h4><ul><li><i>20</i>9주 추진 일정 및 마일스톤</li><li><i>21</i>전체 추진 타임라인</li><li><i>22</i>주차별 일정표</li><li><i>23</i>단계별 산출물 및 승인 게이트</li><li><i>24</i>프로젝트 조직 및 R&amp;R</li></ul><h4>품질과 운영</h4><ul><li><i>25</i>개발 협업 및 형상관리</li><li><i>26</i>테스트 및 품질 전략</li><li><i>27</i>Docker 기반 배포 및 운영 전환</li><li><i>28</i>보안 · 리스크 및 대응 계획</li><li><i>29</i>커뮤니케이션 및 의사결정 체계</li></ul><h4>마무리</h4><ul><li><i>30</i>프로젝트 성공 기준 및 다음 액션</li><li><i>31</i>질의응답 (Q &amp; A)</li></ul></div>
 </section>
 
-<section class="slide" data-no="03">
-  <h2>Kick-off에서 합의할 사항</h2>
+<section class="slide" data-no="03" data-total="31">
+  <h2>Kick-off 합의 사항</h2>
   <p class="key">오늘의 목표는 범위 · 일정 · 역할 · 검수 기준을 하나의 기준으로 합의하는 것입니다.</p>
   <div class="split"><ul class="bullets"><li>프로젝트 목표와 완료(인수) 기준</li><li>개발 범위와 제외 범위, 우선순위</li><li>9주 일정(2026.11.17 ~ 2027.01.15)과 승인 시점</li><li>기술 구성 · 데이터 이행 · 전환 원칙</li><li>양사 역할과 보고 · 이슈 처리 방식, 사전 준비분 활용 범위</li></ul><aside class="disc"><h4>논의 포인트</h4><ul><li>오늘 합의할 내용을 회의록에 확정</li><li>미결 사항은 담당자 · 기한 지정</li></ul></aside></div>
 </section>
 
-<section class="slide" data-no="04">
+<section class="slide" data-no="04" data-total="31">
   <h2>추진 배경 및 현황</h2>
-  <p class="key">현행 시스템은 기능이 모자란 것이 아니라 구조가 업무를 따라가지 못합니다.</p>
-  <div class="split"><ul class="bullets"><li>대상: 도면 10,827건 · 파일 16,400개 / 6.5GB · MDB 자료 1,200건</li><li>성격: 기존 API 201개 중 순수 조회 12%, 파일 상태 전이 · 워크플로 88%</li><li>구조 제약: 폴더가 문자열 · 파일명이 메타데이터 · 장시간 작업이 동기 실행</li><li>보안 점검 25건(높음 7 · 중간 13 · 낮음 5) · 운영은 Windows 단일 서버</li></ul><aside class="disc"><h4>논의 포인트</h4><ul><li>현황 수치는 소스 · DB 전수 분석 결과</li><li>개선 효과는 측정 가능한 기준으로 합의</li></ul></aside></div>
+  <p class="key">현업담당자의 귀한 아이디어를 전문적인 구조로 변경. 운영 되도록 지원합니다.</p>
+  <div class="split"><ul class="bullets"><li>대상: 도면 10,827건 · 파일 16,400개 / 6.5GB · MDB 자료 1,200건</li><li>성격: 기존 API 201개 중 순수 조회 12%, 파일 상태 전이 · 워크플로 88%</li><li>구조 제약: 폴더가 문자열 · 파일명이 메타데이터 · 장시간 작업이 동기 실행</li><li>보안 점검 25건(높음 7 · 중간 13 · 낮음 5)</li></ul><aside class="disc"><h4>논의 포인트</h4><ul><li>현황 수치는 소스 · DB 전수 분석 결과</li><li>개선 효과는 측정 가능한 기준으로 합의</li></ul></aside></div>
 </section>
 
-<section class="slide" data-no="05">
-  <h2>고쳐야 할 3가지</h2>
-  <p class="key">기능의 문제가 아니라 구조의 문제입니다. 부분 수정으로는 풀리지 않습니다.</p>
-  <div class="cards" style="--n:3"><article><h3>① 폴더가 문자열이다</h3><p>이름 한 번 바꾸면 수천 건 수정 + 디스크 이동</p><p>중간에 실패하면 DB와 디스크가 어긋난다</p></article><article><h3>② 파일명이 메타데이터</h3><p>리비전이 오르면 파일 이름이 바뀐다</p><p>승인 1건마다 디스크 작업 + 같은 파일이 여러 벌</p></article><article><h3>③ 장시간 작업이 동기 실행</h3><p>큰 건을 돌리면 화면이 수십 초 멈춘다</p><p>그동안 다른 사용자의 조회까지 느려진다</p></article></div><p class="foot">세 가지 모두 파일을 움직이지 않는 구조(폴더 테이블 · 내용 해시 저장 · 작업 큐)로 풀었다</p>
+<section class="slide" data-no="05" data-total="31">
+  <h2>주요개선 3종</h2>
+  <p class="key">기능의 문제가 아닌 구조의 문제. 안정적인 구조와 속도위주 개선</p>
+  <div class="cards" style="--n:3"><article><h3>① 폴더가 문자열이다</h3><p>명칭변경시 수천 건 수정 + 디스크 이동</p><p>에러시 DB와 디스크 어긋남.</p></article><article><h3>② 파일명이 메타데이터</h3><p>리비전이 오르면 파일 이름이 바뀐다</p><p>승인 건마다 디스크 작업 + 동일 파일반복 작업발생.</p></article><article><h3>③ 장시간 작업이 동기 실행</h3><p>작업시 화면이 수십 초 멈춤</p><p>동시 사용 고려 부제. 지속적으로 느려짐.</p></article></div><p class="foot">세 가지 모두 파일을 움직이지 않는 구조(폴더 테이블 · 내용 해시 저장 · 작업 큐)로 해결 합니다</p>
 </section>
 
-<section class="slide" data-no="06">
+<section class="slide" data-no="06" data-total="31">
   <h2>보안 점검 — 보완 과제 25건</h2>
   <p class="key">양호 통제 20건은 그대로 승계하고, 높음 7건은 구조에서 해소합니다.</p>
   <div class="cards" style="--n:4"><article><h3>높음  7건</h3><p>접근통제 · 업로드 · 가용성</p><p>AWS·외부 서비스 전 반드시 조치</p></article><article><h3>중간  13건</h3><p>인증 · 운영 · 데이터</p><p>세션 통제 · 평문 .env · CVE 점검</p></article><article><h3>낮음  5건</h3><p>경로 · 감사 · 개인정보</p><p>경로 2중 검증 · 감사로그 보존</p></article><article><h3>양호  20건</h3><p>이미 구현된 통제 — 그대로 승계</p><p>CSP · CSRF · PBKDF2 · 엑셀수식 차단</p></article></div><p class="foot">높음 7건 해소 위치: nginx 접근통제 · 업로드 용량/매직바이트 검증 · 라우트 선언형 권한 · 자동 배포와 롤백</p>
 </section>
 
-<section class="slide" data-no="07">
+<section class="slide" data-no="07" data-total="31">
   <h2>개발 방향성 3원칙</h2>
   <p class="key">기능 100% 보존 · 관리성과 성능 1순위 · 동등성은 증명.</p>
-  <div class="cards" style="--n:3"><article><h3>원칙 1 · 기능을 깎지 않는다</h3><p>메뉴 9 · 화면 14 · 권한 36 · API 201 전수 재현</p><p>화면 구성과 용어를 유지해 재교육 부담을 없앤다</p><p>범위 축소는 고객사 결정 사항</p></article><article><h3>원칙 2 · 관리성과 성능이 1순위</h3><p>같은 기능을 고치기 쉬운 구조로 다시 짠다</p><p>권한 · 감사는 선언하지 않으면 서버가 뜨지 않는다</p><p>성능 기준을 자동 검사에 걸어 느려지면 빌드 실패</p></article><article><h3>원칙 3 · 동등성은 증명한다</h3><p>① API 201개 계약 대조  ② 화면 요소 자동 대조</p><p>③ 신 · 구 서버 응답 비교(섀도 2주)</p><p>데이터는 건수와 sha256 전수 일치로 확인</p></article></div><p class="foot">세 원칙은 문서가 아니라 실행되는 검사로 고정한다 — 어기는 코드는 배포되지 않는다</p>
+  <div class="cards" style="--n:3"><article><h3>원칙 1 · 기능을 깎지 않는다</h3><p>메뉴 9 · 화면 14 · 권한 36 · API 201 전수 재현</p><p>화면 구성과 용어를 유지해 재교육 부담을 없앤다</p><p>범위 축소는 고객사 결정 사항</p></article><article><h3>원칙 2 · 관리성과 성능이 1순위</h3><p>같은 기능을 고치기 쉬운 구조로 다시 짠다</p><p>권한 · 감사는 선언하지 않으면 서버가 뜨지 않는다</p><p>성능 기준을 자동 검사에 걸어 느려지면 빌드 실패</p></article><article><h3>원칙 3 · 동등성은 증명한다</h3><p>① API 201개 계약 대조  ② 화면 요소 자동 대조</p><p>③ 신 · 구 서버 응답 비교(섀도 2주)</p><p>데이터는 건수와 sha256 전수 일치로 확인</p></article></div><p class="foot">세 원칙은 실행 검사로 고정</p>
 </section>
 
-<section class="slide" data-no="08">
-  <h2>성능 — 측정으로 지키는 개선</h2>
-  <p class="key">말이 아니라 측정으로 보입니다. 실제 규모의 5배(52,000건)로 재고, 그 기준을 자동 검사로 고정했습니다.</p>
-  <div class="cards" style="--n:4"><article><h3>목록 · 검색</h3><p>기존 2초  →  목표 150ms</p><p>실측 0.07ms</p></article><article><h3>깊은 페이지 (37,000번째)</h3><p>기존 갈수록 느려짐  →  목표 동일 속도</p><p>실측 2.45ms</p></article><article><h3>폴더 이름 변경 (하위 38,000)</h3><p>기존 수십 초  →  목표 50ms</p><p>실측 0.89ms</p></article><article><h3>한글 검색 · 첫 화면</h3><p>부분일치 검색 1.57ms</p><p>첫 화면 전송량 43KB (목표 150KB)</p></article></div><p class="foot">52,000건 적재 기준 · 목록 1페이지가 51ms 걸리던 것도 이 측정에서 드러나 0.2ms(255배)로 고쳤다 — 기준치를 넘기는 코드는 배포되지 않는다</p>
+<section class="slide" data-no="08" data-total="31">
+  <h2>성능 — 실측으로 개선</h2>
+  <p class="key">실제 규모의 5배(52,000건)로 재고, 그 기준을 준수 하도록 진행합니다.</p>
+  <div class="cards" style="--n:4"><article><h3>목록 · 검색</h3><p>기존 2초  →  목표 150ms</p><p>실측 0.07ms</p></article><article><h3>깊은 페이지 (37,000번째)</h3><p>기존 갈수록 느려짐  →  목표 동일 속도</p><p>실측 2.45ms</p></article><article><h3>폴더 이름 변경 (하위 38,000)</h3><p>기존 수십 초  →  목표 50ms</p><p>실측 0.89ms</p></article><article><h3>한글 검색 · 첫 화면</h3><p>부분일치 검색 1.57ms</p><p>첫 화면 전송량 43KB (목표 150KB)</p></article></div><p class="foot">52,000건 적재 기준 · 목록 1페이지가 51ms 걸리던 것도 측정에서 드러나 0.2ms(255배)로 개선. </p>
 </section>
 
-<section class="slide" data-no="09">
+<section class="slide" data-no="09" data-total="31">
   <h2>프로젝트 목표 및 성공 기준</h2>
-  <p class="key">완료는 기능 구현이 아니라 동등성 증명 · 검수 승인 · 운영 인계까지입니다.</p>
+  <p class="key">기능 구현, 동등성 증명 · 검수 승인 · 운영 인계.</p>
   <div class="split"><ul class="bullets"><li>업무: 기능 100% 보존 — 메뉴 9 · 화면 14 · 권한 36 · API 201 전수 재현</li><li>사용자: 쓰시던 화면 구성과 용어를 유지해 재교육 부담을 없앤다</li><li>기술: 폴더 트리 · 내용 해시 저장 · 작업 큐로 상태 전이 비용을 제거</li><li>성능: 목록 150ms · 폴더 편집 50ms 이하를 자동 검사로 고정(52,000건 실측 기준)</li><li>완료 기준: 기능 체크리스트 · sha256 전수 일치 · 성능 기준 · UAT 승인과 인계</li></ul><aside class="disc"><h4>논의 포인트</h4><ul><li>완료(인수) 기준을 문서로 고정</li><li>성능 · 검수 목표값 합의</li></ul></aside></div>
 </section>
 
-<section class="slide" data-no="10">
+<section class="slide" data-no="10" data-total="31">
   <h2>개발 범위 및 경계</h2>
   <p class="key">포함과 제외를 함께 정의해 일정 · 비용 · 기대치의 불일치를 예방합니다.</p>
   <div class="split"><ul class="bullets"><li>포함: TDB · MDB 전 업무 기능 · 운영 화면 · PDF 뷰어 · 마크업</li><li>포함: 기존 DB · 파일 전량 이행(sha256 검증) · 섀도 비교 · 전환 · 인계</li><li>제외: Ocean-H 연동 · 웹 DWG 열람 · 전문검색 · DRM · SSO · 자동 병합</li><li>제외(별도 단계): AWS 이관 · 유출 방지 2 · 3차 — 오늘은 방향만 결정</li><li>범위 변경은 요청 → 영향 분석 → 승인 → 기준선 갱신으로만 반영</li></ul><aside class="disc"><h4>논의 포인트</h4><ul><li>제외 범위를 함께 승인</li><li>AWS 이관 여부는 결정 1번 항목</li></ul></aside></div>
 </section>
 
-<section class="slide" data-no="11">
+<section class="slide" data-no="11" data-total="31">
   <h2>주요 사용자 및 업무 기능</h2>
   <p class="key">사용자 역할과 실제 업무 흐름(반출 → 수정 → 반입 → 검수 → 승인)을 기준으로 기능을 확정합니다.</p>
   <div class="split"><ul class="bullets"><li>사용자: 설비기술팀 CM 및 사내 수십 명 / 협력사는 접근 없음</li><li>업무 흐름: 반출 → 수정 → 반입 → 검수 → 승인 (동시 수정은 분기 보관)</li><li>TDB: 조회 · 상세 / 반입 · 검수 / 관리 · 보관함 / 반출이력 · 미입고</li><li>MDB: 조회 · 상세 / 관리(설비유형 · 폴더) / Tag 이력 적용 · 되돌리기</li><li>운영: 로그 · 사용자/그룹 · 권한(리프 36) · 백업 · 도움말 (+ 추가 4화면)</li></ul><aside class="disc"><h4>논의 포인트</h4><ul><li>화면별 확인 담당 CM 지정</li><li>추가 화면 4종 유지 여부 결정</li></ul></aside></div>
 </section>
 
-<section class="slide" data-no="12">
+<section class="slide" data-no="12" data-total="31">
   <h2>요구사항 정의 및 변경 관리</h2>
-  <p class="key">기존 시스템의 기능 인벤토리를 요구사항 기준선으로 삼고, 변경은 승인된 것만 반영합니다.</p>
+  <p class="key">기존 시스템의 기능 인벤토리를 요구사항 기준선으로 삼고, 변경은 승인된 것만 반영합니다. 별도의 헬프데스크를 운영 하고 요청사항을 빠르고 정확하게 지원합니다.</p>
   <div class="split"><ul class="bullets"><li>기준선: 기능 인벤토리(메뉴 9 · 화면 14 · 권한 36 · API 201) · 화면 요소 목록</li><li>확인: 2주차(11/27)까지 CM 검토로 요구사항 · 범위 기준선을 확정</li><li>우선순위: 필수(기존 동등) / 개선(합의 시 반영) / 제외(별도 단계)</li><li>변경: 요청 등록 → 영향 분석 → 승인 → 기준선 갱신 (구두 합의 불가)</li><li>추적: 요구사항 ↔ 구현 ↔ 테스트 케이스를 연결해 누락을 기계적으로 확인</li></ul><aside class="disc"><h4>논의 포인트</h4><ul><li>승인권자 · 검토 리드타임 합의</li><li>변경 요청 접수 창구 단일화</li></ul></aside></div>
 </section>
 
-<section class="slide" data-no="13">
+<section class="slide" data-no="13" data-total="31">
   <h2>사전 준비분 및 활용 범위</h2>
-  <p class="key">착수 전 선행 구축으로 골격은 준비돼 있습니다. 9주는 확정 · 이행 · 검증에 씁니다.</p>
+  <p class="key">착수 전 선행 구축으로 골격은 준비하고 . 9주는 확정 · 이행 · 검증 추가요건 반영합니다.</p>
   <div class="split"><ul class="bullets"><li>화면 14 + 추가 4 구현 완료(미완성 0) · 권한 리프 36 전수 동작</li><li>업무 흐름 자동 검증 138건 통과 · DB 29테이블 · 인덱스 93 적용</li><li>도면 52,000건(실데이터 5배) 적재 성능 측정 — 전 항목 목표치 이하</li><li>자동 배포 · 롤백 체계 구성(검사 → 빌드 → 배포 → 상태 확인)</li><li>※ 기준선 대조 전 상태 — 요구사항 확정 후 차이분을 구현에 반영</li></ul><aside class="disc"><h4>논의 포인트</h4><ul><li>사전 준비분 시연 여부</li><li>기준선 대조 범위 합의</li></ul></aside></div>
 </section>
 
-<section class="slide" data-no="14">
+<section class="slide" data-no="14" data-total="31">
   <h2>사전 구축 단계별 현황</h2>
   <p class="key">단계 0~7 은 착수 전 선행 구축분입니다. 이번 9주는 단계 8(이행 · 전환)에 집중합니다.</p>
   <ol class="flow" style="--n:6"><li><b>단계 0 · 1</b><span>기준선 · 데이터</span><span>완료 — 기능 인벤토리 · 스키마 29표</span></li><li><b>단계 2</b><span>골격 · 권한</span><span>완료 — 계약 · 인증 · 권한 리프 36</span></li><li><b>단계 3</b><span>조회 · PDF 뷰어</span><span>완료 — 목록 · 상세 · 뷰어 이식</span></li><li><b>단계 4 · 5</b><span>반입 · 검수 · 반출</span><span>완료 — 상태 머신 · 분기 리비전</span></li><li><b>단계 6 · 7</b><span>MDB · 운영</span><span>완료 — Tag 이력 · 로그 · 권한 · 백업</span></li><li><b>단계 8</b><span>이행 · 전환</span><span>이번 9주 — 대조 · 이행 · 검증</span></li></ol><p class="foot">단계 0~7 은 기준선 대조 전 상태 — 요구사항이 확정되면 차이분을 구현에 반영한다</p><p class="foot">※ 화면 14+4 · 권한 36 · 흐름 검증 138건 · 52,000건 성능 측정은 모두 단계 0~7 의 결과</p>
 </section>
 
-<section class="slide" data-no="15">
-  <h2>남은 일 — 이행 · 검증 · 전환</h2>
-  <p class="key">남은 일은 기능 개발이 아니라 옮기고 · 맞는지 증명하고 · 바꿔 다는 작업입니다.</p>
-  <div class="cards" style="--n:4"><article><h3>1 · 데이터 이행</h3><p>기존 DB · 파일을 새 구조로 — 파일 16,400개 재배치</p><p>건수와 sha256 전수 대조  ·  ※ 기존 자료 수령 필요</p></article><article><h3>2 · 변환 워커</h3><p>DWG · 오피스 변환 엔진을 운영 서버에 설치</p><p>대량 반입 · Zip · 백업을 실환경에서 검증</p></article><article><h3>3 · 동등성 검증</h3><p>섀도 비교 2주 — 신 · 구 응답 비교(쓰기는 기존만)</p><p>업무 영향 없음  ·  ※ CM 확인 참여 필요</p></article><article><h3>4 · 전환</h3><p>병행 운영 → 전환 → 1~2주 밀착 대응</p><p>실패 시 기존 시스템으로 즉시 복귀</p></article></div><p class="foot">1번과 3번은 고객사 협조가 있어야 시작된다 — 자료 수령(11/27)과 검증 참여 CM 지정이 일정의 출발점</p>
+<section class="slide" data-no="15" data-total="31">
+  <h2>이행 · 검증 · 전환</h2>
+  <p class="key"> 고객이 즉시 검증 확인 할수 있도록 실시간 시스템에 반영하고 실시간 개선 지원 합니다.</p>
+  <div class="cards" style="--n:4"><article><h3>1 · 데이터 이행</h3><p>기존 DB · 파일을 새 구조로 — 파일 16,400개 재배치</p><p>건수와 sha256 전수 대조  ·  ※ 기존 자료 수령 필요</p></article><article><h3>2 · 변환 워커</h3><p>DWG · 오피스 변환 엔진을 운영 서버에 설치</p><p>대량 반입 · Zip · 백업을 실환경에서 검증</p></article><article><h3>3 · 동등성 검증</h3><p>섀도 비교 2주 — 신 · 구 응답 비교(쓰기는 기존만)</p><p>업무 영향 없음  ·  ※ CM 확인 참여 필요</p></article><article><h3>4 · 전환</h3><p>병행 운영 → 전환 → 1~2주 밀착 대응</p><p>실패 시 기존 시스템으로 즉시 복귀</p></article></div><p class="foot">1번과 3번은 고객사 협조 필요.</p>
 </section>
 
-<section class="slide" data-no="16">
+<section class="slide" data-no="16" data-total="31">
   <h2>목표 시스템 아키텍처</h2>
-  <p class="key">프로세스 3종(API · 워커 · DB)과 nginx 파일 직송 구조로 장애 지점과 운영 부담을 줄입니다.</p>
-  <div class="split"><ul class="bullets"><li>브라우저(Vue 3) → nginx(TLS · IP 제한 · 업로드 제한) → API(Fastify)</li><li>파일은 nginx가 직송 — 애플리케이션이 파일 바이트를 만지지 않는다</li><li>저장소: 내용 해시(sha256) blob — 불변 · 중복 제거 · 디스크 작업 0</li><li>PostgreSQL 16: 업무 데이터 · 세션 · 폴더 트리 · 한글 검색 · 작업 큐</li><li>워커(Python 3.12): DWG · 오피스 변환 · Zip · 엑셀 · 백업 · 대량 반입</li></ul><aside class="disc"><h4>논의 포인트</h4><ul><li>운영 환경(사내 / AWS) 확정 필요</li><li>인증 · 백업 · 모니터링 배치는 상세 설계에서 확정</li></ul></aside></div>
+  <p class="key">프로세스 3종(API · 워커 · DB)과 nginx 파일 직송 구조로 장애 지점과 운영 부담을 제거.</p>
+  <div class="split"><ul class="bullets"><li>브라우저(Vue 3) → nginx(TLS · IP 제한 · 업로드 제한) → API(Fastify)</li><li>파일은 nginx가 직송 — 애플리케이션이 파일 바이트를 제어안함.</li><li>저장소: 내용 해시(sha256) blob — 불변 · 중복 제거 · 디스크 작업 0</li><li>PostgreSQL 16: 업무 데이터 · 세션 · 폴더 트리 · 한글 검색 · 작업 큐</li><li>워커(Python 3.12): DWG · 오피스 변환 · Zip · 엑셀 · 백업 · 대량 반입</li></ul><aside class="disc"><h4>논의 포인트</h4><ul><li>운영 환경(AWS) 확정</li><li>인증 · 백업 · 모니터링 배치는 상세 설계에서 확정</li></ul></aside></div>
 </section>
 
-<section class="slide" data-no="17">
+<section class="slide" data-no="17" data-total="31">
   <h2>아키텍처 구성도</h2>
-  <p class="key">프로세스 3종(API · 워커 · DB)과 nginx 파일 직송. 미들웨어를 하나도 늘리지 않았습니다.</p>
-  <div class="arch"><div class="arch-user"><p>사용자</p><p>CM · 사내 수십 명</p></div><div class="arch-col front"><h3>화면  ·  Frontend</h3><p class="sub">Vue 3 + Vite  |  화면 14 + 4</p><ul><li><b>TDB 조회 · 상세</b></li><li><b>TDB 반입 · 검수</b></li><li><b>TDB 관리 · 보관함</b></li><li><b>TDB 반출이력</b></li><li><b>MDB 조회 · 관리</b></li><li><b>운영 · 권한 · 백업</b></li><li><b>PDF 뷰어 · 마크업 이식  ·  화면별 코드 분할</b></li><li><b>데이터 흐름 — REST API(JSON)</b></li></ul></div><div class="arch-gate"><p>책임 분리</p><p>nginx 경계</p><p>API 게이트</p><p>TLS · IP 제한 · 업로드 제한</p></div><div class="arch-col back"><h3>API · 데이터  ·  Backend</h3><p class="sub">Fastify(Node 22)  |  업무 규칙과 저장</p><ul><li><b>API — Fastify / Node 22  ·  모듈 13 (기존 라우터와 1:1)</b></li><li><b>업무 규칙</b></li><li><b>권한 · 감사</b></li><li><b>작업 큐</b></li><li><b>상태 머신 · 리비전</b></li><li><b>선언 없으면 기동 실패</b></li><li><b>진행률 SSE</b></li><li><b>PostgreSQL 16</b></li><li><b>blob 저장소</b></li><li><b>워커 Python</b></li><li><b>폴더 트리 · 한글 검색</b></li><li><b>내용 해시 · 중복 제거</b></li><li><b>DWG 변환 · Zip · 백업</b></li><li><b>파일은 nginx 가 커널에서 직송 — 앱은 바이트를 만지지 않는다</b></li></ul></div></div>
+  <p class="key">프로세스 3종(API · 워커 · DB)과 nginx 파일 직송.</p>
+  <div class="arch"><div class="arch-user"><p>사용자</p><p>CM · 사내 수십 명</p></div><div class="arch-col front"><h3>화면  ·  Frontend</h3><p class="sub">Vue 3 + Vite  |  화면 14 + 4</p><ul><li><b>TDB 조회 · 상세</b></li><li><b>TDB 반입 · 검수</b></li><li><b>TDB 관리 · 보관함</b></li><li><b>TDB 반출이력</b></li><li><b>MDB 조회 · 관리</b></li><li><b>운영 · 권한 · 백업</b></li><li><b>PDF 뷰어 · 마크업 이식  ·  화면별 코드 분할</b></li><li><b>데이터 흐름 — REST API(JSON)</b></li></ul></div><div class="arch-gate"><p>책임 분리</p><p>nginx 경계</p><p>API 게이트</p><p>TLS · IP 제한 · 업로드 제한</p></div><div class="arch-col back"><h3>API · 데이터  ·  Backend</h3><p class="sub">Fastify(Node 22)  |  업무 규칙과 저장</p><ul><li><b>API — Fastify / Node 22  ·  모듈 13 (기존 라우터와 1:1)</b></li><li><b>업무 규칙</b></li><li><b>권한 · 감사</b></li><li><b>작업 큐</b></li><li><b>상태 머신 · 리비전</b></li><li><b>선언 없으면 기동 실패</b></li><li><b>진행률 SSE</b></li><li><b>PostgreSQL 16</b></li><li><b>blob 저장소</b></li><li><b>워커 Python</b></li><li><b>폴더 트리 · 한글 검색</b></li><li><b>내용 해시 · 중복 제거</b></li><li><b>DWG 변환 · Zip · 백업</b></li><li><b>파일은 커널에서 직접전송</b></li></ul></div></div>
 </section>
 
-<section class="slide" data-no="18">
+<section class="slide" data-no="18" data-total="31">
   <h2>기술 스택 및 적용 원칙</h2>
   <p class="key">기술 선택보다 일관된 구조 · 코딩 규칙 · 운영 가능성을 우선합니다.</p>
-  <ol class="flow" style="--n:3"><li><b>사용자 브라우저</b><span>Web / HTTPS</span></li><li><b>Frontend</b><span>Vue 3 + Vite</span></li><li><b>Backend API</b><span>Fastify · TypeScript</span></li></ol><div class="split"><ul class="bullets"><li>적용 원칙: 버전 고정 · 계약(타입) 1벌 공유 · 권한 · 감사 선언 강제 · 환경별 설정 분리 · 성능 기준 자동 검사</li></ul><aside class="disc"><h4>논의 포인트</h4><ul><li>Database</li><li>PostgreSQL 16</li></ul></aside></div><p class="foot">Docker 컨테이너 + Python 워커(DWG · 오피스 변환 · Zip · 엑셀 · 백업)  |  배포 · 롤백 자동화</p>
+  <ol class="flow" style="--n:3"><li><b>사용자 브라우저</b><span>Web / HTTPS</span></li><li><b>Frontend</b><span>Vue 3 + Vite</span></li><li><b>Backend API</b><span>Fastify · TypeScript</span></li></ol><div class="split"><ul class="bullets"><li>적용 원칙: 버전 고정 · 계약(타입) 공유 · 권한 · 감사 선언 강제 · 환경별 설정 분리 · 성능 기준 자동 검사</li></ul><aside class="disc"><h4>논의 포인트</h4><ul><li>Database</li><li>PostgreSQL 16</li></ul></aside></div><p class="foot">Docker 컨테이너 + Python 워커(DWG · 오피스 변환 · Zip · 엑셀 · 백업)  |  배포 · 롤백 자동화</p>
 </section>
 
-<section class="slide" data-no="19">
+<section class="slide" data-no="19" data-total="31">
   <h2>데이터 및 API 설계 원칙</h2>
-  <p class="key">계약(타입) 한 벌을 프런트 · 백엔드가 공유해 재작업과 불일치를 없앱니다.</p>
-  <div class="split"><ul class="bullets"><li>계약: 스키마 1벌이 입력 검증 · 응답 직렬화 · 화면 타입을 모두 만든다</li><li>API: 경로 · 상태 코드 · 오류 형식 통일, 기존 201개 경로와 호환 유지</li><li>데이터: 폴더는 테이블(ltree) · keyset 페이징 · 한글 검색은 trgm 색인</li><li>보안: 라우트마다 권한 · 감사를 선언하고, 선언이 빠지면 서버가 기동하지 않는다</li><li>변경: 마이그레이션은 번호순으로 앞으로만. 적용된 파일은 수정하지 않는다</li></ul><aside class="disc"><h4>논의 포인트</h4><ul><li>기존 OpenAPI 스냅샷 제공 요청</li><li>감사 로그 보존 기간 확인</li></ul></aside></div>
+  <p class="key">계약(타입) 을 front · backend가 공유해 재작업과 불일치를 없앱니다.</p>
+  <div class="split"><ul class="bullets"><li>계약: 스키마 단일처리로 입력 검증 · 응답 직렬화 · 화면 타입을 모두 처리.</li><li>API: 경로 · 상태 코드 · 오류 형식 통일, 기존 201개 경로와 호환 유지</li><li>데이터: 폴더는 테이블(ltree) · keyset 페이징 · 한글 검색은 trgm 색인</li><li>보안: 라우트마다 권한 · 감사를 선언하고, 선언이 빠지면 배포불가처리(코드안정성확보)</li><li>변경: 마이그레이션은 번호순으로 앞으로만. 적용된 파일은 수정하지 않는다</li></ul><aside class="disc"><h4>논의 포인트</h4><ul><li>기존 OpenAPI 스냅샷 제공 요청</li><li>감사 로그 보존 기간 확인</li></ul></aside></div>
 </section>
 
-<section class="slide" data-no="20">
-  <h2>9주 추진 일정 및 마일스톤</h2>
+<section class="slide" data-no="20" data-total="31">
+  <h2>추진 일정 및 마일스톤</h2>
   <p class="key">2026.11.17 착수 → 2027.01.15 완료(9주). 고객사 검토 · 승인이 제때 이뤄지는 것을 전제로 합니다.</p>
-  <div class="cards" style="--n:4"><article><h3>1단계 · 분석</h3><p>11/17 ~ 11/27</p><p>현행 분석 · 요구사항 · 범위 기준선 확정</p></article><article><h3>2단계 · 설계</h3><p>11/23 ~ 12/04</p><p>화면 · API · ERD 확정 · 운영 환경 결정</p></article><article><h3>3단계 · 구현 · 이행</h3><p>11/30 ~ 12/25</p><p>차이분 구현 · 변환 워커 · 데이터 이행 리허설</p></article><article><h3>4단계 · 검증 · 전환</h3><p>12/21 ~ 01/15</p><p>통합 · 섀도 비교 · UAT · 본 이행 · 인계</p></article></div><p class="foot">마일스톤: 11/27 기준선 승인 → 12/04 설계 · 환경 확정 → 12/11 이행 리허설 → 12/18 기능 시연 → 12/25 UAT 진입 → 01/08 UAT 승인 → 01/15 인계</p>
+  <div class="cards" style="--n:4"><article><h3>1단계 · 분석</h3><p>11/17 ~ 11/27</p><p>현행 분석 · 요구사항 · 범위 기준선 확정</p></article><article><h3>2단계 · 설계</h3><p>11/23 ~ 12/04</p><p>화면 · API · ERD 확정 · 운영 환경 결정</p></article><article><h3>3단계 · 구현 · 이행</h3><p>11/30 ~ 12/25</p><p>차이분 구현 · 변환 워커 · 데이터 이행 리허설</p></article><article><h3>4단계 · 검증 · 전환</h3><p>12/21 ~ 01/15</p><p>통합 · 섀도 비교 · UAT · 본 이행 · 인계</p></article></div><p class="foot">마일스톤: 11/27 기준선 승인 → 12/04 설계 · 환경 확정 → 12/11 이행 리허설 → 12/18 기능 시연 → 12/25 UAT 진입 → 01/08 UAT 승인 → 01/15 유지보수 체계로 진행.</p>
 </section>
 
-<section class="slide" data-no="21">
+<section class="slide" data-no="21" data-total="31">
+  <h2>전체 추진 타임라인</h2>
+  <p class="key">2026.11.11 개발 착수 → 12.26 최종 OPEN → 2027.01.07 AWS 이관 완료 → 2027.11.10까지 헬프데스크 운영 지원.</p>
+  <div class="tl"><div class="n"><div><b>2026.11.11</b><span>도면관리시스템 개발 착수</span></div></div><div class="n"><div><b>11.13</b><span>업무 · 시스템 구성 설계</span></div></div><div class="n"><div><b>11.19</b><span>구성안 개선방향 및 동작<br>1차 preview open</span></div></div><div class="n hi"><div><b>11.24</b><span>Kick-off Meeting</span></div></div><div class="n"><div><b>12.11</b><span>2차 preview open</span></div></div><div class="n"><div><b>12.18</b><span>3차 preview OPEN</span></div></div><div class="n"><div><b>12.26</b><span>최종 OPEN</span></div></div><div class="n"><div><b>12.30</b><span>운영 서비스 반영 대상<br>개발 완료</span></div></div><div class="n"><div><b>2027.01.01</b><span>AWS 생성 및<br>보안 연결 적용</span></div></div><div class="n"><div><b>01.07</b><span>AWS 이관 및 시스템 구성</span></div></div><div class="n"><div><b>~ 2027.11.10</b><span>헬프데스크 시스템을 이용한<br>개선 및 요청사항 지원</span></div></div></div>
+  <p class="foot">※ 구간 구분 — 설계 · Preview(11.11~12.18) / OPEN · 개발 완료(12.26~12.30) / AWS 이관(27.01.01~01.07) / 운영 지원(~27.11.10)</p>
+</section>
+
+<section class="slide" data-no="22" data-total="31">
   <h2>주차별 일정표</h2>
   <p class="key">2026.11.17 착수 → 2027.01.15 완료. 주차별로 겹치는 구간이 많아 승인 지연이 곧 일정 지연입니다.</p>
   <table class="gantt"><thead><tr><th></th><th>11/17</th><th>11/23</th><th>11/30</th><th>12/07</th><th>12/14</th><th>12/21</th><th>12/28</th><th>01/04</th><th>01/11</th></tr></thead><tbody><tr><th scope="row">착수 · 현행 분석 · 기준선 확정</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th scope="row">설계 확정 · 운영 환경 결정</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th scope="row">차이분 구현 · 변환 워커 구성</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th scope="row">데이터 이행 설계 · 리허설</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th scope="row">통합 · 성능 · 보안 점검</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th scope="row">섀도 비교 운영 (2주)</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th scope="row">UAT · 사용자 교육</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th scope="row">본 이행 → 전환 → 인수 인계</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></tbody></table><p class="foot">마일스톤:  11/27 기준선 승인  →  12/04 설계 · 환경 확정  →  12/11 이행 리허설  →  12/18 기능 시연  →  12/25 UAT 진입  →  01/08 UAT 승인  →  01/15 인계</p>
 </section>
 
-<section class="slide" data-no="22">
-  <h2>단계별 산출물 및 승인 게이트</h2>
+<section class="slide" data-no="23" data-total="31">
+  <h2>단계별 산출물 및 승인</h2>
   <p class="key">각 단계는 산출물 제출과 검토 · 승인을 거쳐 다음 단계로 넘어갑니다.</p>
   <ol class="flow" style="--n:3"><li><b>분석  ~11/27</b><span>인벤토리 대조표 · 범위 확정서</span></li><li><b>설계  ~12/04</b><span>화면 체크리스트 · API 계약 · ERD</span></li><li><b>구현 · 이행  ~12/25</b><span>차이분 구현 · 이행 스크립트 · 리허설 보고</span></li></ol><div class="split"><ul class="bullets"><li>승인 게이트: 요구사항 · 범위 기준선 → 설계 · 환경 확정 → 기능 시연 · 리허설 결과 → UAT 승인 → 최종 검수 · 운영 인계</li><li>산출물마다 작성자 · 검토자 · 승인자와 승인 기한을 지정한다</li><li>승인 지연은 그대로 일정 지연으로 반영된다 — 기한 내 회신이 없을 때의 처리 규칙도 함께 정한다</li></ul><aside class="disc"><h4>논의 포인트</h4><ul><li>검증 · 전환  ~01/15</li><li>동등성 대조 · UAT · 인수인계서</li></ul></aside></div>
 </section>
 
-<section class="slide" data-no="23">
+<section class="slide" data-no="24" data-total="31">
   <h2>프로젝트 조직 및 R&amp;R</h2>
   <p class="key">업무 결정권자와 기술 실행 책임자를 구분해 의사결정 지연을 줄입니다.</p>
-  <div class="cards" style="--n:6"><article><h3>고객사</h3><p>Sponsor</p><p>방향 · 범위 · 최종 승인</p></article><article><h3>고객사</h3><p>업무 책임자 · CM</p><p>요구사항 확인 · UAT 검수</p></article><article><h3>수행사</h3><p>PM</p><p>일정 · 범위 · 리스크 · 보고</p></article><article><h3>수행사</h3><p>Tech Lead</p><p>아키텍처 · 품질 기준</p></article><article><h3>수행사</h3><p>개발 · DevOps</p><p>차이분 구현 · 이행 · 배포</p></article><article><h3>수행사</h3><p>검증 담당</p><p>동등성 대조 · 성능 · 결함</p></article></div><p class="foot">의사결정: 범위 · 일정에 영향을 주는 사항은 고객사 Sponsor 승인, 기술 구현 방식은 수행사 Tech Lead 결정</p><p class="foot">※ 실제 담당자 이름 · 연락처와 대체 담당자를 Kick-off 후 조직도에 반영해 회의록과 함께 공유</p>
+  <div class="cards" style="--n:6"><article><h3>고객사</h3><p>Sponsor</p><p>방향 · 범위 · 최종 승인</p></article><article><h3>고객사</h3><p>업무 책임자 · CM</p><p>요구사항 확인 · UAT 검수</p></article><article><h3>수행사</h3><p>PM</p><p>일정 · 범위 · 리스크 · 보고</p></article><article><h3>수행사</h3><p>Tech Lead</p><p>아키텍처 · 품질 기준</p></article><article><h3>수행사</h3><p>개발 · DevOps</p><p>차이분 구현 · 이행 · 배포</p></article><article><h3>수행사</h3><p>검증 담당</p><p>동등성 대조 · 성능 · 결함</p></article></div><p class="foot">의사결정: 범위 · 일정에 영향을 주는 사항은 고객사 Sponsor 승인, 기술 구현 방식은 수행사 Tech Lead 결정</p><div class="roster"><h4>참여<br>인원</h4><ul><li><b>이순열</b><span>이사</span></li><li><b>박정욱</b><span>부장</span></li><li><b>이선우</b><span>선임</span></li><li><b>주우인</b><span>선임</span></li><li><b>강대현</b><span>팀장</span></li><li><b>여우선</b><span>팀장</span></li></ul></div>
+  <p class="foot">※ 역할 배정 · 연락처 · 대체 담당자는 Kick-off 회의록에 확정해 공유</p>
 </section>
 
-<section class="slide" data-no="24">
+<section class="slide" data-no="25" data-total="31">
   <h2>개발 협업 및 형상관리</h2>
   <p class="key">작업 단위 · 코드 리뷰 · 자동 검사를 표준화해 통합 위험을 조기에 발견합니다.</p>
   <div class="cards" style="--n:5"><article><h3>이슈</h3><p>요구 · 결함 · 과제 등록</p></article><article><h3>브랜치</h3><p>기능 단위 개발</p></article><article><h3>리뷰</h3><p>PR 코드 검토</p></article><article><h3>자동 검사</h3><p>타입 · 테스트 · 번들 · 성능</p></article><article><h3>배포</h3><p>승인된 변경만 자동 배포</p></article></div><p class="foot">품질 게이트를 통과해야 병합 · 배포하고, 실패하면 직전 버전으로 자동 복귀  |  비밀값은 저장소 밖에서 관리</p>
 </section>
 
-<section class="slide" data-no="25">
+<section class="slide" data-no="26" data-total="31">
   <h2>테스트 및 품질 전략</h2>
-  <p class="key">‘같다’를 말이 아니라 기계적 대조로 증명합니다. 품질은 마지막에 몰아서 확보하지 않습니다.</p>
+  <p class="key">기계적 대조. 실시간 품질 확인.</p>
   <div class="cards" style="--n:4"><article><h3>단위 · 통합</h3><p>업무 규칙 · API · DB</p><p>자동 검증 138건</p></article><article><h3>동등성 ① ②</h3><p>API 계약 스냅샷</p><p>화면 요소 체크리스트 대조</p></article><article><h3>동등성 ③</h3><p>섀도 비교 2주</p><p>신 · 구 응답 직접 비교</p></article><article><h3>UAT</h3><p>CM 시나리오 기반 검수</p><p>01/04 ~ 01/08</p></article></div><p class="foot">결함은 심각도 · 재현 절차 · 담당자 · 목표 조치일로 관리  |  성능 기준은 배포 때마다 자동 검사</p>
 </section>
 
-<section class="slide" data-no="26">
+<section class="slide" data-no="27" data-total="31">
   <h2>Docker 기반 배포 및 운영 전환</h2>
-  <p class="key">배포는 자동으로, 전환은 되돌릴 수 있게 준비합니다.</p>
+  <p class="key">배포는 자동으로, 전환은 되돌릴 수 있게 준비.</p>
   <ol class="flow" style="--n:4"><li><b>Build</b><span>이미지 빌드 · 태그</span></li><li><b>Migrate</b><span>DB 마이그레이션</span></li><li><b>Deploy</b><span>무중단 교체</span></li><li><b>Verify</b><span>상태 · 헬스체크</span></li></ol><div class="split"><ul class="bullets"><li>백업 2중: DB(스냅샷 · 시점 복구)와 파일(blob)을 각각 보관하고 복구 리허설 수행</li><li>전환: 병행 운영 → 전환 → 1~2주 밀착 대응. 기존 시스템으로 즉시 되돌릴 수 있는 상태 유지</li><li>인계: 운영 매뉴얼 · 배포 절차 · 장애 대응 문서를 01/15 제출하고 운영 책임자를 지정</li></ul><aside class="disc"><h4>논의 포인트</h4><ul><li>Rollback</li><li>실패 시 자동 복귀</li></ul></aside></div>
 </section>
 
-<section class="slide" data-no="27">
+<section class="slide" data-no="28" data-total="31">
   <h2>보안·리스크 및 대응 계획</h2>
   <p class="key">주요 위험을 먼저 드러내고 담당자 · 대응 기한을 지정합니다.</p>
   <ol class="flow" style="--n:3"><li><b>높음</b><span>기존 자료 수령 지연</span><span>→ 11월 말 1차 스냅샷</span></li><li><b>높음</b><span>운영 환경 미확정</span><span>→ 12월 첫 주 확정</span></li><li><b>중간</b><span>기존 데이터 불일치</span><span>→ 리허설에서 조기 발견</span></li></ol><div class="split"><ul class="bullets"><li>보안 보완 과제 25건 중 높음 7건은 구조에서 해소 — nginx 접근통제 · 업로드 검증 · 선언형 권한 · 자동 배포/롤백</li><li>연말 휴무(12/28~01/01)는 섀도 비교 구간에 배치해 일정 손실을 줄인다</li><li>리스크는 가능성 · 영향도 · 대응책 · 담당자 · 기한으로 관리하고 해소될 때까지 주간 보고에서 닫지 않는다</li></ul><aside class="disc"><h4>논의 포인트</h4><ul><li>중간</li><li>도면 유출 위험</li><li>→ 워터마크 · 열람이력 · 상한</li></ul></aside></div>
 </section>
 
-<section class="slide" data-no="28">
+<section class="slide" data-no="29" data-total="31">
   <h2>커뮤니케이션 및 의사결정 체계</h2>
   <p class="key">정기 보고와 단일 이슈 채널을 통해 문제를 빠르게 공유하고 결정합니다.</p>
   <ol class="flow" style="--n:4"><li><b>Daily</b><span>개발 진행 · 블로커</span></li><li><b>Weekly</b><span>진척 · 이슈 · 다음 주</span></li><li><b>Milestone</b><span>산출물 시연 · 승인</span></li><li><b>Issue</b><span>담당자 → PM → 책임자</span></li></ol><div class="split"><ul class="bullets"><li>주간 보고: 진척 · 이슈 · 리스크 · 다음 주 계획을 한 장으로 (요일 · 형식은 오늘 합의)</li><li>구두 합의만으로 범위를 바꾸지 않는다 — 모든 요청과 결정은 이슈 · 회의록에 남긴다</li><li>회의록은 당일 공유하고 결정 사항 · 담당자 · 기한을 확인받는다</li></ul><aside class="disc"><h4>논의 포인트</h4><ul><li>Record</li><li>회의록 · 결정 · 기한</li></ul></aside></div>
 </section>
 
-<section class="slide" data-no="29">
-  <h2>프로젝트 성공 기준 및 다음 액션</h2>
+<section class="slide" data-no="30" data-total="31">
+  <h2>프로젝트 완료 및 사후관리</h2>
   <p class="key">성공은 합의된 범위의 구현 · 증명 · 검수 · 인계가 모두 끝난 상태입니다.</p>
   <div class="cards" style="--n:2"><article><h3>완료 기준 ①</h3><p>기능 체크리스트 전수 통과 · 도면 · MDB 전량 이행 + sha256 전수 일치</p><p>다음 액션 · 고객사</p><p>자료 1차 전달 11/27 · 검증 CM 지정 11/27 · 운영 환경 확정 12/04</p></article><article><h3>완료 기준 ②</h3><p>성능 기준 자동 검사 통과 · 반출 → 반입 → 검수 → 승인 1회전 성공</p><p>다음 액션 · 양사</p><p>기준선 승인 11/27 · 유출 방지 범위 12/04 · 인수 기준 · UAT 시나리오 12/11</p></article></div>
 </section>
 
-<section class="slide" data-no="30">
+<section class="slide" data-no="31" data-total="31">
   <h2>G.HUB TDMS  ·  도면관리 시스템(TDMS) 구축</h2>
   
   <div class="cards" style="--n:2"><article><h3>오늘 결정 사항과 미결 사항은 회의록으로 공유합니다</h3><p>결정 사항  운영 환경 · 자료 전달 창구 · 검증 참여 CM · 인수 기준</p><p>회의록 당일 공유  →  확인 요청  →  다음 주 이행 설계 착수</p><p>2026. 11. 17. 착수  —  2027. 01. 15. 완료  |  도면관리 시스템(TDMS) 구축</p></article><article><h3>NEXT STEP</h3><p>11/27</p><p>자료 1차 전달</p><p>기준선 승인</p><p>운영 환경 확정</p><p>CM 지정</p></article></div><p class="foot">Q &amp; A 질의응답</p>
+  <p class="end">끝.</p>
 </section>
 
 </div></div>
 <div id="bar"></div>
 <div id="hint">← → 이동 · F 전체화면 · P 인쇄</div>
+<button id="rdmode" type="button" aria-pressed="false" aria-label="가독 모드 전환" title="가독 모드 전환  (R)"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="8.3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 1.7a8.3 8.3 0 0 1 0 16.6z" fill="currentColor"/></svg></button>
 <script>
 (function(){
   var s=[].slice.call(document.querySelectorAll('.slide')),deck=document.getElementById('deck'),
       bar=document.getElementById('bar'),hint=document.getElementById('hint'),i=0;
+  var root=document.documentElement,rd=document.getElementById('rdmode');
+  function setRead(on){root.setAttribute('data-read',on?'on':'off');
+    rd.setAttribute('aria-pressed',on?'true':'false');
+    try{localStorage.setItem('tdms-read',on?'1':'0')}catch(e){}}
+  function toggleRead(){setRead(root.getAttribute('data-read')!=='on');}
+  setRead((function(){try{return localStorage.getItem('tdms-read')==='1'}catch(e){return false}})());
+  rd.addEventListener('click',function(e){e.stopPropagation();toggleRead();});
+  s.forEach(function(x){x.setAttribute('data-total',('0'+s.length).slice(-2))});
   function fit(){var k=Math.min((innerWidth-24)/1280,(innerHeight-24)/720);deck.style.transform='scale('+k+')';}
   function show(n){i=Math.max(0,Math.min(s.length-1,n));
     s.forEach(function(x,k){x.classList.toggle('on',k===i)});
@@ -312,6 +436,7 @@
     else if(k==='ArrowLeft'||k==='PageUp'){show(i-1);e.preventDefault();}
     else if(k==='Home')show(0); else if(k==='End')show(s.length-1);
     else if(k==='f'||k==='F'){document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();}
+    else if(k==='r'||k==='R'){toggleRead();e.preventDefault();}
     else if(k==='p'||k==='P')print();});
   addEventListener('click',function(e){show(e.clientX<innerWidth*0.25?i-1:i+1)});
   setTimeout(function(){hint.style.opacity=0},5000);
