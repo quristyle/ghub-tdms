@@ -501,14 +501,17 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
 .btn-icon { width: 32px; padding: 0; }
 .btn-icon.btn-sm { width: 26px; }
 
-/* ---------- 필터 바 ----------
-   규칙: 모든 입력 칸은 같은 너비(--field-w), 같은 높이.
-   조회 조건 라벨은 ui/FloatField.vue — 칸 위 테두리에 걸쳐 떠 있는 라벨. */
+/* ---------- 필터 바 (검색 조건 섹션) ----------
+   규칙:
+     · 검색섹션(.filter-bar) 컨테이너에만 padding을 부여하고, 내부 레이아웃은 flex로 구성한다.
+     · 각 항목의 padding, margin을 제거하고 항목 간격은 오직 gap으로 조절한다.
+     · FloatField(.ff), 체크박스(.check-inline), 버튼, 콤보박스 모두 높이 32px 기준으로 수직·수평 정렬을 맞춘다.
+     · 모바일/반응형 환경에서는 2열로 균등 배치되어 세로 한 줄로 길게 늘어지지 않게 한다. */
 .filter-bar {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 0.5rem 0.75rem;
+  padding: 14px 16px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -517,28 +520,37 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
 
 .filter-row {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
 }
 
 .filter-fields {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 10px 8px;
   flex-wrap: wrap;
   flex: 1 1 auto;
   min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+
+/* 필터 바 내부 항목들의 개별 margin을 제거하여 gap으로만 간격 조절 */
+.filter-bar .ff {
+  margin: 0;
 }
 
 .filter-search {
   width: 220px;
   height: 32px;
-  margin-left: auto;
+  margin: 0;
 }
 
 /* 라벨 + 입력 한 벌 */
-.field { display: flex; flex-direction: column; gap: 5px; }
+.field { display: flex; flex-direction: column; gap: 5px; margin: 0; padding: 0; }
 
 .field > label {
   font-size: 11px;
@@ -564,9 +576,11 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
   color: var(--text-muted);
   font-size: 12.5px;
   white-space: nowrap;
+  margin: 0;
+  padding: 0;
 }
 
-.field-check { margin-right: 8px; }
+.field-check { margin: 0; }
 
 /* 조회 조건 라벨은 굵게·흐린 색 (전 화면 공통) */
 .filter-bar .field > label,
@@ -575,17 +589,139 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
 .filter-actions {
   flex: 0 0 auto;
   display: flex;
+  align-items: center;
   gap: 8px;
-  margin-right: -6px;
+  margin: 0;
+  padding: 0;
 }
 .filter-actions button,
-.cart-btn { width: 132px; text-align: center; }
+.cart-btn {
+  height: 32px;
+  min-width: 100px;
+  margin: 0;
+  text-align: center;
+}
 
-.filter-divider { width: 1px; align-self: stretch; background: var(--border); margin: 0 4px; }
+.filter-divider { width: 1px; align-self: stretch; background: var(--border); margin: 0; }
 
 /* 검색창·검색버튼이 filter-fields 안에 있는 화면들 */
 .filter-fields .search-btn,
-.filter-fields #search-btn { width: 66px; flex-shrink: 0; }
+.filter-fields #search-btn,
+.filter-fields #imp-search-btn {
+  width: 66px;
+  height: 32px;
+  flex-shrink: 0;
+  margin: 0;
+}
+
+/* ── 필터 바 반응형 (태블릿 / 중소형 화면) ── */
+@media (max-width: 900px) {
+  .filter-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .filter-actions {
+    justify-content: flex-end;
+    width: 100%;
+  }
+
+  .filter-actions button {
+    width: auto;
+    min-width: 110px;
+  }
+}
+
+/* ── 필터 바 반응형 (모바일 화면) ──
+   모바일에서 세로 한 줄로 길게 늘어지던 콤보박스·입력란들을 2열로 균등 배치하고,
+   검색창 및 검색버튼이 가로 공간에 맞게 조화롭게 배치되도록 처리 */
+@media (max-width: 640px) {
+  .filter-bar {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .filter-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .filter-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+  }
+
+  /* 입력란, 콤보박스(select), 날짜, 드롭다운: 모바일 2열 배치 */
+  .filter-fields > .ff {
+    flex: 1 1 calc(50% - 4px);
+    width: calc(50% - 4px);
+    min-width: 120px;
+    max-width: 100%;
+  }
+
+  .filter-fields > .ff > select,
+  .filter-fields > .ff > input,
+  .filter-fields > .ff > .hideable-dropdown,
+  .filter-fields > .ff > .ms-dropdown,
+  .filter-fields > .ff > .ms-dropdown .dropdown-toggle {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* 체크박스는 2열 기준 50% 폭에 자연스럽게 배치 */
+  .filter-fields > .check-inline {
+    flex: 1 1 calc(50% - 4px);
+    width: calc(50% - 4px);
+    min-width: 120px;
+    font-size: 11.5px;
+  }
+
+  /* 상태 버튼 묶음 (UsersPage)은 100% 폭 */
+  .filter-fields > .ff.ff-is-group {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  /* 검색창 및 태그 검색창 */
+  .filter-fields > .filter-search,
+  .filter-fields > .tagwrap {
+    flex: 1 1 160px;
+    min-width: 140px;
+    width: auto;
+  }
+
+  .filter-fields > .tagwrap {
+    display: flex;
+  }
+
+  .filter-fields > .tagwrap > .filter-search {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .filter-fields .search-btn,
+  .filter-fields #search-btn,
+  .filter-fields #imp-search-btn {
+    flex: 0 0 66px;
+    width: 66px;
+    height: 32px;
+  }
+
+  /* 모바일에서 초기화 버튼은 하단 전체 너비로 터치 편의성 향상 */
+  .filter-actions {
+    width: 100%;
+  }
+
+  .filter-actions button {
+    width: 100%;
+    height: 34px;
+  }
+}
 
 /* ---------- 상태 바 ---------- */
 .status-bar {

@@ -546,10 +546,6 @@ const columns = computed<Column<MdbListItem>[]>(() => [
 }
 .table-box > * { flex: 1; min-width: 0; }
 
-/* 검색대상 드롭박스와 검색칸이 한 묶음으로 오른쪽 끝에 붙게 한다 (기존 style.css 규칙) */
-.search-lead { margin-left: auto; }
-.filter-search { margin-left: 0; }
-
 .cart-scroll { max-height: 60vh; }
 .tree-count { color: var(--text-faint); font-size: 11px; font-weight: 400; }
 

@@ -709,10 +709,6 @@ async function uploadZip(ev: Event) {
 </template>
 
 <style scoped>
-/* 검색대상 드롭박스와 검색칸이 한 묶음으로 오른쪽 끝에 붙게 한다 (MDB 조회와 같은 규칙) */
-.search-lead { margin-left: auto; }
-.filter-search { margin-left: 0; }
-
 .edit-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .group-label {
   font-size: 11.5px; font-weight: 700; color: var(--text-dark-gray); min-width: 62px;
