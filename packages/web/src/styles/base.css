@@ -408,15 +408,26 @@ input[type="search"] {
 
 select {
   height: 32px;
-  padding: 0 14px 0 10px;
+  padding: 0 28px 0 10px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-  background: var(--surface);
+  background-color: var(--surface);
   color: var(--text);
   font-family: inherit;
   font-size: 12.5px;
   outline: none;
   transition: border-color 0.12s;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%23a3a39b' d='M4.5 6.5l3.5 4 3.5-4z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 11px 11px;
+}
+
+select::-ms-expand {
+  display: none;
 }
 
 textarea {
@@ -440,7 +451,7 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 input:focus, select:focus, textarea:focus { border-color: var(--text); }
 
 input:disabled, select:disabled, textarea:disabled {
-  background: var(--surface-sunken);
+  background-color: var(--surface-sunken);
   color: var(--text-faint);
   cursor: var(--cursor-forbidden);
 }
@@ -556,14 +567,14 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
 /* 필터 바 내부 항목들의 개별 margin을 제거하여 gap으로만 간격 조절 */
 .filter-bar .ff {
   margin: 0;
-  min-width: 0;
+  min-width: 100px;
   max-width: 100%;
 }
 
 .filter-search {
   width: 220px;
   max-width: 100%;
-  min-width: 0;
+  min-width: 100px;
   height: 32px;
   margin: 0;
 }
@@ -585,7 +596,7 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
 .field > .hideable-dropdown {
   width: var(--field-w, 128px);
   max-width: 100%;
-  min-width: 0;
+  min-width: 100px;
 }
 
 .check-inline {
@@ -694,11 +705,11 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
     min-width: 0;
   }
 
-  /* 입력란, 콤보박스(select), 날짜, 드롭다운: 모바일 2열 배치 (min-width를 0으로 풀어 컨테이너 초과 방지) */
+  /* 입력란, 콤보박스(select), 날짜, 드롭다운: 모바일 2열 배치 (최소너비 90px로 모바일 화면에 맞추되 과도한 축소 방지) */
   .filter-fields > .ff {
     flex: 1 1 calc(50% - 4px);
     width: calc(50% - 4px);
-    min-width: 0;
+    min-width: 90px;
     max-width: 100%;
   }
 
@@ -709,14 +720,14 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
   .filter-fields > .ff > .ms-dropdown .dropdown-toggle {
     width: 100% !important;
     max-width: 100% !important;
-    min-width: 0 !important;
+    min-width: 90px !important;
   }
 
   /* 체크박스는 2열 기준 50% 폭에 자연스럽게 배치되며 말줄임 처리로 넘침 방지 */
   .filter-fields > .check-inline {
     flex: 1 1 calc(50% - 4px);
     width: calc(50% - 4px);
-    min-width: 0;
+    min-width: 90px;
     max-width: 100%;
     font-size: 11.5px;
     overflow: hidden;
@@ -728,7 +739,7 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
     flex: 1 1 100%;
     width: 100%;
     max-width: 100%;
-    min-width: 0;
+    min-width: 90px;
   }
 
   /* 검색창 및 태그 검색창:
@@ -738,7 +749,7 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
   .filter-fields > .tagwrap {
     flex: 1 1 100%;
     width: 100%;
-    min-width: 0;
+    min-width: 90px;
     max-width: 100%;
   }
 
@@ -749,14 +760,14 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
   .filter-fields > .tagwrap > .filter-search {
     flex: 1 1 100%;
     width: 100%;
-    min-width: 0;
+    min-width: 90px;
     max-width: 100%;
   }
 
   .filter-fields > .tagwrap > .filter-search > input {
     width: 100% !important;
     max-width: 100% !important;
-    min-width: 0 !important;
+    min-width: 90px !important;
   }
 
   /* 검색버튼과 함께 있는 검색창/태그랩: 버튼과 함께 한 줄을 100% 꽉 채움 */
@@ -768,7 +779,7 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
   .filter-fields > .tagwrap:has(+ #imp-search-btn) {
     flex: 1 1 calc(100% - 74px);
     width: calc(100% - 74px);
-    min-width: 0;
+    min-width: 90px;
     max-width: 100%;
   }
 
@@ -1036,9 +1047,9 @@ input.nav-pos-input {
 .dropdown-toggle {
   width: 100%;
   max-width: 100%;
-  min-width: 0;
+  min-width: 100px;
   height: 32px;
-  padding: 0 14px 0 10px;
+  padding: 0 10px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   background: var(--surface);
@@ -1055,7 +1066,7 @@ input.nav-pos-input {
   content: "▾";
   color: var(--text-faint);
   margin-left: 8px;
-  margin-right: 2px;
+  margin-right: 0;
   flex-shrink: 0;
   font-size: 11px;
 }

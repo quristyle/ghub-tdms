@@ -1224,10 +1224,10 @@ function size(b: number): string {
   display: flex; flex-wrap: wrap; align-items: flex-end;
   gap: 8px 10px; margin-bottom: 28px;
 }
-.sel-row .ff { flex: 1 1 0; min-width: 0; }
-.sel-row .ff select { width: 100%; }
-.sel-row .ff.field-date { flex: 0 0 auto; }
-.sel-row .ff.field-date input[type="date"] { width: 132px; }
+.sel-row .ff { flex: 1 1 0; min-width: 100px; }
+.sel-row .ff select { width: 100%; min-width: 100px; }
+.sel-row .ff.field-date { flex: 0 0 auto; min-width: 100px; }
+.sel-row .ff.field-date input[type="date"] { width: 132px; min-width: 100px; }
 .sel-row .sel-count, .sel-row > button { flex: none; }
 
 /* 건수가 0~999건까지 늘어나도 글자 위치가 고정되게 최대 자리수 너비를 미리 잡는다 */
@@ -1282,4 +1282,116 @@ function size(b: number): string {
   border-bottom: 1px solid var(--border); background: var(--surface-alt);
 }
 .nopdf { padding: 40px 16px; color: var(--text-faint); text-align: center; }
+
+/* ── 반입등록 및 신규 자료 등록 반응형 (모바일) ── */
+@media (max-width: 640px) {
+  .bulk-block-head {
+    padding: 10px 12px;
+    gap: 6px;
+  }
+  .bulk-block-body {
+    padding: 12px;
+  }
+  .bulk-block-body .page-desc {
+    margin-top: 8px;
+    font-size: 11.5px;
+  }
+
+  /* 반입등록 (개별 자료) - 검색조건 레이아웃과 동일하게 2열 균등 배치 */
+  .sel-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    width: 100%;
+  }
+
+  .sel-row .ff {
+    flex: 1 1 calc(50% - 4px);
+    width: calc(50% - 4px);
+    min-width: 90px;
+    max-width: 100%;
+  }
+
+  .sel-row .ff select,
+  .sel-row .ff input {
+    width: 100% !important;
+    min-width: 90px !important;
+  }
+
+  .sel-row .ff.field-date {
+    flex: 1 1 calc(50% - 4px);
+    width: calc(50% - 4px);
+    min-width: 90px;
+  }
+
+  .sel-row .ff.field-date input[type="date"] {
+    width: 100% !important;
+    min-width: 90px !important;
+  }
+
+  /* 반출 Zip 묶음과 자료검색 버튼을 검색창+검색버튼처럼 배치 */
+  .sel-row .ff:has(#sel-zip) {
+    flex: 1 1 calc(100% - 74px);
+    width: calc(100% - 74px);
+    min-width: 90px;
+  }
+
+  .sel-row > button.primary {
+    flex: 0 0 66px;
+    width: 66px;
+    height: 32px;
+    min-width: 66px;
+    margin: 0;
+  }
+
+  .sel-row .sel-count {
+    flex: 1 1 100%;
+    width: 100%;
+    height: auto;
+    line-height: 1.4;
+    padding: 2px 0;
+    font-size: 12px;
+  }
+
+  /* 신규 자료 등록 - 2열 균등 배치 및 폴더 전체 폭 */
+  .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 8px;
+    margin-bottom: 14px;
+  }
+
+  .form-grid > .field:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .form-grid .field {
+    min-width: 90px;
+  }
+
+  .form-grid .field > input[type="text"],
+  .form-grid .field > select {
+    width: 100% !important;
+    min-width: 90px !important;
+  }
+
+  /* 파일 업로드 행 반응형 */
+  .bulk-block-body > .file-row {
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .file-row input[type="file"] {
+    flex: 1 1 calc(100% - 74px);
+    min-width: 0;
+  }
+
+  .file-row > button.primary {
+    flex: 0 0 66px;
+    min-width: 66px;
+    height: 32px;
+  }
+}
 </style>

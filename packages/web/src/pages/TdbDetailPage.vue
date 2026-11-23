@@ -595,7 +595,7 @@ const DIST_COLUMNS: Column<DistRow>[] = [
   border-bottom: 1px solid var(--border);
 }
 .source-bar .sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 6px; }
-.rev-select { padding: 2px 4px; }
+.rev-select { padding: 2px 24px 2px 6px; }
 .icon { padding: 0 6px; line-height: 1.4; }
 .old-pdf-bar {
   flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding: 6px 12px;
@@ -623,5 +623,31 @@ h2 { font-size: var(--fs-base); margin: 20px 0 8px; }
 .tag {
   font-size: 10px; padding: 1px 5px; border-radius: 8px; margin-left: 4px;
   background: var(--accent); color: var(--primary-fg);
+}
+
+@media (max-width: 640px) {
+  .upload {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .upload > input[type="text"] {
+    flex: 1 1 100%;
+    width: 100% !important;
+    min-width: 90px;
+  }
+
+  .upload > input[type="file"] {
+    flex: 1 1 calc(100% - 74px);
+    min-width: 0;
+  }
+
+  .upload > button {
+    flex: 0 0 66px;
+    width: 66px;
+    height: 32px;
+  }
 }
 </style>

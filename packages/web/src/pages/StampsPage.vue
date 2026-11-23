@@ -732,12 +732,20 @@ async function toggleEnabled(s: StampItem) {
 .form-row { display: flex; flex-direction: column; gap: 4px; }
 .form-row-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .label-text { font-size: var(--fs-xs); font-weight: 600; color: var(--text-muted); }
-.input, .select {
+.input {
   padding: 6px 8px;
   font-size: var(--fs-sm);
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg);
+  color: inherit;
+}
+.select {
+  padding: 6px 26px 6px 8px;
+  font-size: var(--fs-sm);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background-color: var(--bg);
   color: inherit;
 }
 .checkbox-row { display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); cursor: pointer; }
