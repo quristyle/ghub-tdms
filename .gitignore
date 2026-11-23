@@ -28,6 +28,11 @@ test-results/
 .DS_Store
 *.local
 
+# 오피스 문서 잠금 파일 — docs/발표자료/ 의 pptx·docx 를 열어 두면 생긴다.
+# 파일을 닫으면 사라지는 편집 중 표시라 커밋할 내용이 아니다.
+.~lock.*#
+~$*
+
 # 개발서버 제어판
 devctl/run/
 devctl/logs/
