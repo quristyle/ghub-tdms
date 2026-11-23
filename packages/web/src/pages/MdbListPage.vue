@@ -549,11 +549,11 @@ const columns = computed<Column<MdbListItem>[]>(() => [
 .cart-scroll { max-height: 60vh; }
 .tree-count { color: var(--text-faint); font-size: 11px; font-weight: 400; }
 
-.tagwrap { position: relative; }
+.tagwrap { position: relative; max-width: 100%; min-width: 0; }
 .hints {
   position: absolute; top: 100%; left: 0; z-index: 10; margin: 2px 0 0; padding: 0;
   list-style: none; background: var(--surface); border: 1px solid var(--border-strong);
-  border-radius: var(--radius); min-width: 180px; max-height: 220px; overflow: auto;
+  border-radius: var(--radius); min-width: 180px; max-width: min(280px, calc(100vw - 48px)); max-height: 220px; overflow: auto;
   box-shadow: var(--shadow-sm);
 }
 .hints li { padding: 6px 10px; cursor: pointer; font-size: 12.5px; }

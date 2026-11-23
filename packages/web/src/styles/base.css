@@ -393,10 +393,22 @@ input[type="text"],
 input[type="password"],
 input[type="number"],
 input[type="date"],
-input[type="search"],
-select {
+input[type="search"] {
   height: 32px;
   padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  outline: none;
+  transition: border-color 0.12s;
+}
+
+select {
+  height: 32px;
+  padding: 0 14px 0 10px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   background: var(--surface);
@@ -516,6 +528,7 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   flex: 0 0 auto;
+  max-width: 100%;
 }
 
 .filter-row {
@@ -525,6 +538,7 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
   gap: 10px;
   margin: 0;
   padding: 0;
+  max-width: 100%;
 }
 
 .filter-fields {
@@ -534,6 +548,7 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
   flex-wrap: wrap;
   flex: 1 1 auto;
   min-width: 0;
+  max-width: 100%;
   margin: 0;
   padding: 0;
 }
@@ -541,16 +556,20 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
 /* 필터 바 내부 항목들의 개별 margin을 제거하여 gap으로만 간격 조절 */
 .filter-bar .ff {
   margin: 0;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .filter-search {
   width: 220px;
+  max-width: 100%;
+  min-width: 0;
   height: 32px;
   margin: 0;
 }
 
 /* 라벨 + 입력 한 벌 */
-.field { display: flex; flex-direction: column; gap: 5px; margin: 0; padding: 0; }
+.field { display: flex; flex-direction: column; gap: 5px; margin: 0; padding: 0; min-width: 0; max-width: 100%; }
 
 .field > label {
   font-size: 11px;
@@ -565,7 +584,8 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
 .field > input[type="date"],
 .field > .hideable-dropdown {
   width: var(--field-w, 128px);
-  max-width: none;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .check-inline {
@@ -578,6 +598,8 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
   white-space: nowrap;
   margin: 0;
   padding: 0;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .field-check { margin: 0; }
@@ -598,6 +620,7 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
 .cart-btn {
   height: 32px;
   min-width: 100px;
+  max-width: 100%;
   margin: 0;
   text-align: center;
 }
@@ -630,22 +653,35 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
   .filter-actions button {
     width: auto;
     min-width: 110px;
+    max-width: 100%;
+  }
+
+  .filter-fields {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .filter-search {
+    max-width: 100%;
   }
 }
 
 /* ── 필터 바 반응형 (모바일 화면) ──
    모바일에서 세로 한 줄로 길게 늘어지던 콤보박스·입력란들을 2열로 균등 배치하고,
+   고정너비·최소너비로 인한 컨테이너 레이아웃 초과를 방지하며,
    검색창 및 검색버튼이 가로 공간에 맞게 조화롭게 배치되도록 처리 */
 @media (max-width: 640px) {
   .filter-bar {
     padding: 10px 12px;
     gap: 8px;
+    max-width: 100%;
   }
 
   .filter-row {
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
+    max-width: 100%;
   }
 
   .filter-fields {
@@ -654,13 +690,15 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
     gap: 8px;
     align-items: center;
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
   }
 
-  /* 입력란, 콤보박스(select), 날짜, 드롭다운: 모바일 2열 배치 */
+  /* 입력란, 콤보박스(select), 날짜, 드롭다운: 모바일 2열 배치 (min-width를 0으로 풀어 컨테이너 초과 방지) */
   .filter-fields > .ff {
     flex: 1 1 calc(50% - 4px);
     width: calc(50% - 4px);
-    min-width: 120px;
+    min-width: 0;
     max-width: 100%;
   }
 
@@ -671,28 +709,37 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
   .filter-fields > .ff > .ms-dropdown .dropdown-toggle {
     width: 100% !important;
     max-width: 100% !important;
+    min-width: 0 !important;
   }
 
-  /* 체크박스는 2열 기준 50% 폭에 자연스럽게 배치 */
+  /* 체크박스는 2열 기준 50% 폭에 자연스럽게 배치되며 말줄임 처리로 넘침 방지 */
   .filter-fields > .check-inline {
     flex: 1 1 calc(50% - 4px);
     width: calc(50% - 4px);
-    min-width: 120px;
+    min-width: 0;
+    max-width: 100%;
     font-size: 11.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   /* 상태 버튼 묶음 (UsersPage)은 100% 폭 */
   .filter-fields > .ff.ff-is-group {
     flex: 1 1 100%;
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
   }
 
-  /* 검색창 및 태그 검색창 */
+  /* 검색창 및 태그 검색창:
+     홀수 항목 옆의 50% 공간에 끼어들어 컨테이너를 초과하지 않도록 새 줄 전체 너비(100%)를 차지.
+     검색버튼이 바로 뒤에 있는 경우 버튼(66px + gap 8px) 너비를 뺀 너비로 같은 줄에 나란히 배치 */
   .filter-fields > .filter-search,
   .filter-fields > .tagwrap {
-    flex: 1 1 160px;
-    min-width: 140px;
-    width: auto;
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
   }
 
   .filter-fields > .tagwrap {
@@ -702,6 +749,27 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
   .filter-fields > .tagwrap > .filter-search {
     flex: 1 1 100%;
     width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .filter-fields > .tagwrap > .filter-search > input {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* 검색버튼과 함께 있는 검색창/태그랩: 버튼과 함께 한 줄을 100% 꽉 채움 */
+  .filter-fields > .filter-search:has(+ .search-btn),
+  .filter-fields > .filter-search:has(+ #search-btn),
+  .filter-fields > .filter-search:has(+ #imp-search-btn),
+  .filter-fields > .tagwrap:has(+ .search-btn),
+  .filter-fields > .tagwrap:has(+ #search-btn),
+  .filter-fields > .tagwrap:has(+ #imp-search-btn) {
+    flex: 1 1 calc(100% - 74px);
+    width: calc(100% - 74px);
+    min-width: 0;
+    max-width: 100%;
   }
 
   .filter-fields .search-btn,
@@ -710,6 +778,7 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
     flex: 0 0 66px;
     width: 66px;
     height: 32px;
+    margin: 0;
   }
 
   /* 모바일에서 초기화 버튼은 하단 전체 너비로 터치 편의성 향상 */
@@ -720,6 +789,8 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
   .filter-actions button {
     width: 100%;
     height: 34px;
+    min-width: 0;
+    max-width: 100%;
   }
 }
 
@@ -964,9 +1035,10 @@ input.nav-pos-input {
 
 .dropdown-toggle {
   width: 100%;
-  max-width: none;
+  max-width: 100%;
+  min-width: 0;
   height: 32px;
-  padding: 0 10px;
+  padding: 0 14px 0 10px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   background: var(--surface);
@@ -979,7 +1051,14 @@ input.nav-pos-input {
   align-items: center;
   justify-content: space-between;
 }
-.dropdown-toggle::after { content: "▾"; color: var(--text-faint); margin-left: 8px; }
+.dropdown-toggle::after {
+  content: "▾";
+  color: var(--text-faint);
+  margin-left: 8px;
+  margin-right: 2px;
+  flex-shrink: 0;
+  font-size: 11px;
+}
 .dropdown-toggle:hover { border-color: var(--text-faint); background: var(--surface); }
 
 .dropdown-list {
@@ -1002,9 +1081,9 @@ input.nav-pos-input {
 .dropdown-group-label { padding: 8px 10px 3px; font-size: 11px; font-weight: 600; color: var(--text-faint); }
 .dropdown-group-label:first-child { padding-top: 6px; }
 
-.ms-dropdown .dropdown-toggle { width: 220px; }
+.ms-dropdown .dropdown-toggle { width: 220px; max-width: 100%; min-width: 0; }
 .ms-dropdown .dropdown-list { max-height: none; overflow-y: visible; }
-.field > .ms-dropdown .dropdown-toggle { width: var(--field-w, 128px); }
+.field > .ms-dropdown .dropdown-toggle { width: var(--field-w, 128px); max-width: 100%; min-width: 0; }
 
 /* ---------- 모달 공통 ---------- */
 .modal-overlay {

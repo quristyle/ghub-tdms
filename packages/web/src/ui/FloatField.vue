@@ -56,6 +56,8 @@ onMounted(() => {
   flex-direction: column;
   /* 테두리 위로 튀어나온 라벨 몫 — 줄바꿈될 때 윗줄과 겹치지 않게 */
   margin-top: 7px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .ff > select,
@@ -66,12 +68,13 @@ onMounted(() => {
 .ff > .hideable-dropdown,
 .ff > .ms-dropdown .dropdown-toggle {
   width: var(--field-w, 128px);
-  max-width: none;
+  max-width: 100%;
+  min-width: 0;
 }
 
 /* 검색창 — 기존 .filter-search 폭(220px)을 감싼 쪽이 갖고 안의 입력은 꽉 채운다 */
-.ff.filter-search { height: auto; }
-.ff.filter-search > input[type="text"] { width: 100%; }
+.ff.filter-search { height: auto; max-width: 100%; }
+.ff.filter-search > input[type="text"] { width: 100%; max-width: 100%; min-width: 0; }
 
 .ff-label {
   position: absolute;
