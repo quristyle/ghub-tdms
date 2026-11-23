@@ -259,7 +259,19 @@ async function logout() {
           <ThemeToggle />
 
           <a href="#" class="mypage-link" @click.prevent="mypageOpen = true">{{ session.me?.name }}</a>
-          <button type="button" class="small" @click="logout">로그아웃</button>
+          <button
+            type="button"
+            class="small logout-icon-btn"
+            title="로그아웃"
+            aria-label="로그아웃"
+            @click="logout"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M10 17l5-5-5-5M15 12H3" />
+              <path d="M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6" />
+            </svg>
+          </button>
         </div>
       </div>
     </header>
@@ -289,6 +301,8 @@ async function logout() {
    기본 활성 클래스가 밑줄을 두 번 긋지 않게만 정리한다. */
 .app-nav a.router-link-active:not(.active) { text-decoration-line: none; color: var(--text-muted); }
 .mypage-link { cursor: pointer; }
+.logout-icon-btn { width: 30px; height: 30px; padding: 0; color: var(--text-muted); }
+.logout-icon-btn:hover { color: var(--danger, #97453e); }
 
 /* 햄버거 + 로고 묶음 */
 .app-brand-box { display: flex; align-items: center; gap: 12px; min-width: 0; }
