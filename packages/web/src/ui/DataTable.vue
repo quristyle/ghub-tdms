@@ -954,7 +954,7 @@ async function exportExcel() {
   font-weight: 600; font-size: 11.5px; color: var(--text-muted);
   letter-spacing: 0.02em;
 }
-.dt-head .dt-cell { justify-content: center; }
+.dt-head .dt-cell { position: relative; justify-content: center; }
 .dt-th { position: relative; user-select: none; justify-content: center; }
 .dt-th.sortable { cursor: pointer; }
 .dt-th.sortable:hover { color: var(--text); }
@@ -964,9 +964,10 @@ async function exportExcel() {
 
 
 /* 컬럼 사이 구분선 — 머리글에서만, 머리글 높이의 80% 정도로 */
-.dt-head .dt-th:not(:last-child)::after {
+.dt-head .dt-cell:not(:last-child)::after {
   content: ""; position: absolute; right: 0; top: 10%; bottom: 10%;
   width: 1px; background: var(--border-strong);
+  pointer-events: none;
 }
 
 /* 너비 손잡이 — 칸 경계에 걸친다 */
