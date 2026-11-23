@@ -392,7 +392,6 @@ h3 { font-size: 12px; font-weight: 600; margin: 18px 0 6px; color: var(--text-mu
 input[type="text"],
 input[type="password"],
 input[type="number"],
-input[type="date"],
 input[type="search"] {
   height: 32px;
   padding: 0 10px;
@@ -404,6 +403,50 @@ input[type="search"] {
   font-size: 12.5px;
   outline: none;
   transition: border-color 0.12s;
+}
+
+/* 날짜 입력란:
+   브라우저 엔진(특히 Android Chrome 등 모바일 환경)에서 캘린더 아이콘 대신 드롭다운 화살표(▼)나
+   스피너가 노출되거나 캘린더 표시가 사라지는 문제를 방지하기 위해,
+   선명한 캘린더(달력 📅) SVG 아이콘을 우측에 배치하고 기본 스피너/화살표를 제거한다.
+   또한 기본 캘린더 인디케이터를 투명하게 전체 영역으로 확장하여 터치/클릭 시 캘린더 피커가 열리도록 보장한다. */
+input[type="date"] {
+  height: 32px;
+  padding: 0 28px 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  outline: none;
+  transition: border-color 0.12s;
+  position: relative;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23a3a39b'%3E%3Cpath d='M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z'/%3E%3Cpath d='M4.5 6.5h2v2h-2v-2zm3 0h2v2h-2v-2zm3 0h2v2h-2v-2zm-6 3h2v2h-2v-2zm3 0h2v2h-2v-2zm3 0h2v2h-2v-2z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 13px 13px;
+  cursor: pointer;
+}
+
+/* 브라우저 기본 스피너(위아래 화살표) 제거 */
+input[type="date"]::-webkit-inner-spin-button {
+  display: none;
+  -webkit-appearance: none;
+}
+
+/* 브라우저 기본 인디케이터를 투명하게 전체 영역으로 확장하여
+   인풋 및 우측 캘린더 아이콘 어디를 클릭해도 캘린더 팝업이 바로 열리게 처리 */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
 }
 
 select {
@@ -428,6 +471,10 @@ select {
 
 select::-ms-expand {
   display: none;
+}
+
+:root[data-theme="dark"] input[type="date"] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%236f6f67'%3E%3Cpath d='M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z'/%3E%3Cpath d='M4.5 6.5h2v2h-2v-2zm3 0h2v2h-2v-2zm3 0h2v2h-2v-2zm-6 3h2v2h-2v-2zm3 0h2v2h-2v-2zm3 0h2v2h-2v-2z'/%3E%3C/svg%3E");
 }
 
 textarea {
@@ -592,11 +639,16 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
 
 .field > select,
 .field > input[type="text"],
-.field > input[type="date"],
 .field > .hideable-dropdown {
   width: var(--field-w, 128px);
   max-width: 100%;
   min-width: 100px;
+}
+
+.field > input[type="date"] {
+  width: var(--field-w, 128px);
+  max-width: 100%;
+  min-width: 124px;
 }
 
 .check-inline {

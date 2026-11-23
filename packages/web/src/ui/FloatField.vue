@@ -64,12 +64,17 @@ onMounted(() => {
 .ff > input[type="text"],
 .ff > input[type="search"],
 .ff > input[type="number"],
-.ff > input[type="date"],
 .ff > .hideable-dropdown,
 .ff > .ms-dropdown .dropdown-toggle {
   width: var(--field-w, 128px);
   max-width: 100%;
   min-width: 100px;
+}
+
+.ff > input[type="date"] {
+  width: var(--field-w, 128px);
+  max-width: 100%;
+  min-width: 124px;
 }
 
 /* 검색창 — 기존 .filter-search 폭(220px)을 감싼 쪽이 갖고 안의 입력은 꽉 채운다 */
