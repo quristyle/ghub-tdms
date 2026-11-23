@@ -203,7 +203,7 @@ const companyName = computed(() => {
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
           <circle cx="12" cy="7" r="4" />
         </svg>
-        기본 정보 및 연락처
+        <span class="tab-label">기본 정보 및 연락처</span>
       </button>
       <button
         type="button"
@@ -217,7 +217,7 @@ const companyName = computed(() => {
           <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
           <path d="M7 11V7a5 5 0 0 1 10 0v4" />
         </svg>
-        비밀번호 변경
+        <span class="tab-label">비밀번호 변경</span>
       </button>
       <button
         type="button"
@@ -230,7 +230,7 @@ const companyName = computed(() => {
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tab-icon">
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
         </svg>
-        보안 및 활동 현황
+        <span class="tab-label">보안 및 활동 현황</span>
       </button>
     </div>
 
@@ -464,6 +464,8 @@ const companyName = computed(() => {
   gap: 16px;
   color: var(--text);
   font-family: inherit;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .mypage-page:not(.in-modal) {
@@ -569,6 +571,16 @@ const companyName = computed(() => {
   gap: 6px;
   border-bottom: 2px solid var(--border);
   padding-bottom: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE, Edge */
+  -webkit-overflow-scrolling: touch;
+}
+
+.mypage-tabs::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 
 .tab-btn {
@@ -586,6 +598,7 @@ const companyName = computed(() => {
   cursor: pointer;
   transition: all 0.15s ease;
   border-radius: 0;
+  white-space: nowrap;
 }
 
 .tab-btn:hover {
@@ -601,6 +614,11 @@ const companyName = computed(() => {
 
 .tab-icon {
   flex-shrink: 0;
+}
+
+.tab-label {
+  display: inline-block;
+  line-height: 1.3;
 }
 
 /* ── 탭 콘텐츠 공통 ──────────────────────────────────────────────── */
@@ -907,7 +925,7 @@ input:focus {
 }
 
 /* ── 모바일 반응형 ────────────────────────────────────────────────── */
-@media (max-width: 600px) {
+@media (max-width: 640px) {
   .profile-hero {
     flex-direction: column;
     text-align: center;
@@ -927,9 +945,50 @@ input:focus {
   .info-grid {
     grid-template-columns: 1fr;
   }
+  .security-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* 탭 컨테이너 가로스크롤 및 스크롤바 숨김 */
+  .mypage-tabs {
+    gap: 2px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-width: 100%;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mypage-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* 각 탭: 아이콘 위, 텍스트 아래, 텍스트 크기 축소 */
   .tab-btn {
-    padding: 8px 10px;
-    font-size: 12px;
+    flex: 1 0 auto;
+    min-width: max-content;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 7px 4px 6px;
+    font-size: 11px;
+    line-height: 1.25;
+    text-align: center;
+  }
+
+  .tab-icon {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+  }
+
+  .tab-label {
+    display: block;
+    font-size: 11px;
+    line-height: 1.2;
+    text-align: center;
+    white-space: nowrap;
   }
 }
 </style>
