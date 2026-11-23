@@ -571,6 +571,7 @@ const companyName = computed(() => {
   gap: 6px;
   border-bottom: 2px solid var(--border);
   padding-bottom: 0;
+  margin-bottom: 16px;
   overflow-x: auto;
   overflow-y: hidden;
   max-width: 100%;
@@ -587,17 +588,17 @@ const companyName = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 9px 16px;
+  padding: 10px 18px 12px;
   background: transparent;
   border: none;
-  border-bottom: 2px solid transparent;
+  border-bottom: 3px solid transparent;
   margin-bottom: -2px;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 13.5px;
+  font-weight: 500;
   color: var(--text-muted);
   cursor: pointer;
   transition: all 0.15s ease;
-  border-radius: 0;
+  border-radius: 6px 6px 0 0;
   white-space: nowrap;
 }
 
@@ -608,17 +609,24 @@ const companyName = computed(() => {
 
 .tab-btn.active {
   color: var(--primary, #0070c0);
-  border-bottom-color: var(--primary, #0070c0);
-  background: transparent;
+  border-bottom: 3px solid var(--primary, #0070c0);
+  background: var(--primary-soft, #e8f4fc);
+  font-weight: 700;
 }
 
 .tab-icon {
   flex-shrink: 0;
+  transition: stroke 0.15s ease;
+}
+
+.tab-btn.active .tab-icon {
+  stroke: var(--primary, #0070c0);
+  stroke-width: 2.3;
 }
 
 .tab-label {
   display: inline-block;
-  line-height: 1.3;
+  line-height: 1.35;
 }
 
 /* ── 탭 콘텐츠 공통 ──────────────────────────────────────────────── */
@@ -626,7 +634,7 @@ const companyName = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 18px;
-  padding: 4px 0 10px;
+  padding: 2px 0 16px;
 }
 
 .mypage-section {
@@ -951,7 +959,8 @@ input:focus {
 
   /* 탭 컨테이너 가로스크롤 및 스크롤바 숨김 */
   .mypage-tabs {
-    gap: 2px;
+    gap: 4px;
+    margin-bottom: 14px;
     overflow-x: auto;
     overflow-y: hidden;
     max-width: 100%;
@@ -970,11 +979,12 @@ input:focus {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    padding: 7px 4px 6px;
-    font-size: 11px;
-    line-height: 1.25;
+    gap: 5px;
+    padding: 8px 8px 11px;
+    font-size: 11.5px;
+    line-height: 1.3;
     text-align: center;
+    border-radius: 6px 6px 0 0;
   }
 
   .tab-icon {
@@ -985,10 +995,11 @@ input:focus {
 
   .tab-label {
     display: block;
-    font-size: 11px;
-    line-height: 1.2;
+    font-size: 11.5px;
+    line-height: 1.25;
     text-align: center;
     white-space: nowrap;
+    padding-bottom: 1px;
   }
 }
 </style>
