@@ -87,7 +87,7 @@ onMounted(() => {
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: 0.02em;
-  color: var(--text-dark-gray);
+  color: var(--text-muted);
   /* 테두리 선을 끊어 보이게 — 바탕색으로 칠한다 */
   background: var(--ff-bg, var(--surface));
   border-radius: 3px;
@@ -99,7 +99,7 @@ onMounted(() => {
 /* 포커스 — 살짝 작게, 살짝 위로, 진하게 */
 .ff:focus-within > .ff-label {
   font-size: 10.5px;
-  color: var(--text);
+  color: var(--text-muted-strong);
   transform: translateY(-62%);
 }
 

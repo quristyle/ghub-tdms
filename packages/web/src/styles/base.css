@@ -568,9 +568,9 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
 
 .field-check { margin-right: 8px; }
 
-/* 조회 조건 라벨은 굵게 (전 화면 공통) */
+/* 조회 조건 라벨은 굵게·흐린 색 (전 화면 공통) */
 .filter-bar .field > label,
-.filter-bar .check-inline { font-weight: 700; color: var(--text-dark-gray); }
+.filter-bar .check-inline { font-weight: 700; color: var(--text-muted); }
 
 .filter-actions {
   flex: 0 0 auto;
