@@ -406,10 +406,13 @@ input[type="search"] {
 }
 
 /* 날짜 입력란:
-   브라우저 엔진(특히 Android Chrome 등 모바일 환경)에서 캘린더 아이콘 대신 드롭다운 화살표(▼)나
-   스피너가 노출되거나 캘린더 표시가 사라지는 문제를 방지하기 위해,
-   선명한 캘린더(달력 📅) SVG 아이콘을 우측에 배치하고 기본 스피너/화살표를 제거한다.
-   또한 기본 캘린더 인디케이터를 투명하게 전체 영역으로 확장하여 터치/클릭 시 캘린더 피커가 열리도록 보장한다. */
+   드롭박스(select/화살표)와 날짜(input[type="date"]/캘린더)는 엄격하게 구분된다.
+   - 드롭박스는 옵션 선택을 나타내는 아래 화살표(▼) 아이콘을 표시한다.
+   - 날짜 입력란은 오직 캘린더(달력 📅) 아이콘만 표시하며, 드롭박스의 화살표나 브라우저 기본 화살표/스피너가 절대 겹쳐서 나타나지 않는다.
+   브라우저 엔진(Chrome, WebKit/Safari, Firefox, Android 등)에서 네이티브 컨트롤로 인해 나타나는
+   드롭다운 화살표, 스피너, 클리어 버튼 등을 완벽히 제거하고,
+   선명한 캘린더 SVG 아이콘만 우측에 단독 표시한다.
+   또한 기본 캘린더 인디케이터의 외형을 제거하고 투명하게 전체 영역으로 확장하여 터치/클릭 시 캘린더 피커가 즉시 열리도록 보장한다. */
 input[type="date"] {
   height: 32px;
   padding: 0 28px 0 10px;
@@ -422,6 +425,9 @@ input[type="date"] {
   outline: none;
   transition: border-color 0.12s;
   position: relative;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23a3a39b'%3E%3Cpath d='M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z'/%3E%3Cpath d='M4.5 6.5h2v2h-2v-2zm3 0h2v2h-2v-2zm3 0h2v2h-2v-2zm-6 3h2v2h-2v-2zm3 0h2v2h-2v-2zm3 0h2v2h-2v-2z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 10px center;
@@ -429,14 +435,27 @@ input[type="date"] {
   cursor: pointer;
 }
 
-/* 브라우저 기본 스피너(위아래 화살표) 제거 */
-input[type="date"]::-webkit-inner-spin-button {
+/* 브라우저 기본 스피너(위아래 화살표) 및 X 버튼 제거 */
+input[type="date"]::-webkit-inner-spin-button,
+input[type="date"]::-webkit-outer-spin-button {
+  display: none;
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="date"]::-webkit-clear-button {
   display: none;
   -webkit-appearance: none;
 }
 
-/* 브라우저 기본 인디케이터를 투명하게 전체 영역으로 확장하여
-   인풋 및 우측 캘린더 아이콘 어디를 클릭해도 캘린더 팝업이 바로 열리게 처리 */
+/* IE/Edge 기본 표시 제거 */
+input[type="date"]::-ms-clear,
+input[type="date"]::-ms-reveal {
+  display: none;
+}
+
+/* 브라우저 기본 인디케이터의 기본 화살표/심볼을 완전히 지우고,
+   투명하게 전체 영역으로 확장하여 인풋 및 우측 캘린더 아이콘 어디를 클릭해도 캘린더 피커가 열리도록 처리 */
 input[type="date"]::-webkit-calendar-picker-indicator {
   position: absolute;
   top: 0;
@@ -445,7 +464,13 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   bottom: 0;
   width: 100%;
   height: 100%;
+  margin: 0;
+  padding: 0;
   opacity: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  color: transparent;
   cursor: pointer;
 }
 
@@ -475,6 +500,10 @@ select::-ms-expand {
 
 :root[data-theme="dark"] input[type="date"] {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%236f6f67'%3E%3Cpath d='M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z'/%3E%3Cpath d='M4.5 6.5h2v2h-2v-2zm3 0h2v2h-2v-2zm3 0h2v2h-2v-2zm-6 3h2v2h-2v-2zm3 0h2v2h-2v-2zm3 0h2v2h-2v-2z'/%3E%3C/svg%3E");
+}
+
+:root[data-theme="dark"] select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%236f6f67' d='M4.5 6.5l3.5 4 3.5-4z'/%3E%3C/svg%3E");
 }
 
 textarea {

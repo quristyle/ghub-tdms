@@ -34,6 +34,17 @@ onMounted(() => {
   if (!el.id) el.id = `${uid}-c`
   forId.value = el.id
   if (el instanceof HTMLInputElement && !el.placeholder) el.placeholder = ' '
+  if (el instanceof HTMLInputElement && el.type === 'date') {
+    el.addEventListener('click', () => {
+      try {
+        if ('showPicker' in el) {
+          (el as any).showPicker()
+        }
+      } catch {
+        // 브라우저에 따라 이미 피커가 열려있거나 비활성화된 경우 안전하게 무시
+      }
+    })
+  }
 })
 </script>
 
