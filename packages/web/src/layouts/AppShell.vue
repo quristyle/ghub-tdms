@@ -6,7 +6,6 @@ import { useQuery } from '@tanstack/vue-query'
 import type { FavoriteCountResponse } from '@tdms/contracts'
 import FavoritesHost from '@/ui/FavoritesHost.vue'
 import NoticeButtons from '@/ui/NoticeButtons.vue'
-import MyPageModal from '@/ui/MyPageModal.vue'
 import ThemeToggle from '@/ui/ThemeToggle.vue'
 import NavSidebar from '@/ui/NavSidebar.vue'
 import { api } from '@/lib/api'
@@ -152,9 +151,6 @@ const { data: favCount, refetch: refetchFavCount } = useQuery({
 watch(countVersion, () => { void refetchFavCount() })
 function openFavorites() { favListOpen.value = true }
 
-// ── 마이페이지 ────────────────────────────────────────────────────────
-const mypageOpen = ref(false)
-
 async function logout() {
   await session.logout()
   void router.push('/login')
@@ -258,7 +254,12 @@ async function logout() {
 
           <ThemeToggle />
 
-          <a href="#" class="mypage-link" title="마이페이지" @click.prevent="mypageOpen = true">{{ session.me?.name }}</a>
+          <RouterLink
+            to="/mypage"
+            class="mypage-link"
+            :class="{ active: isOn('/mypage') }"
+            title="마이페이지"
+          >{{ session.me?.name }}</RouterLink>
           <button
             type="button"
             class="small logout-icon-btn"
@@ -279,7 +280,6 @@ async function logout() {
     <RouterView />
 
     <FavoritesHost />
-    <MyPageModal v-if="mypageOpen" @close="mypageOpen = false" />
 
     <!-- 모바일 트리 사이드바 메뉴 (왼쪽에서 슬라이드) -->
     <NavSidebar
@@ -289,7 +289,7 @@ async function logout() {
       :fav-count="favCount"
       @close="navSidebarOpen = false"
       @open-favorites="openFavorites"
-      @open-mypage="mypageOpen = true"
+      @open-mypage="router.push('/mypage')"
       @logout="logout"
     />
   </div>

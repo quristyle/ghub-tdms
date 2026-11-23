@@ -30,6 +30,8 @@ describe('동적 메뉴 라우팅', () => {
   it('/mypage 라우트가 마이페이지 화면으로 매칭된다', () => {
     const r = router.resolve('/mypage')
     expect(r.path).toBe('/mypage')
+    expect(r.name).toBe('menu_mypage')
+    expect(r.meta.menuCode).toBe('mypage')
     expect(r.meta.title).toBe('마이페이지')
   })
 })

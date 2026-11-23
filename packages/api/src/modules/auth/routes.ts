@@ -107,7 +107,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
         passwordDeferred: user.passwordDeferred,
         totpEnabled: user.totpEnabled,
         permissions: perms,
-        menu: (await visibleMenu()).filter((m) => user.role === 'ADMIN' || permissions.has(m.permission)),
+        menu: (await visibleMenu()).filter((m) => user.role === 'ADMIN' || !m.permission || m.permission === 'common' || permissions.has(m.permission)),
         employeeNumber: user.employeeNumber ?? null,
         email: user.email ?? null,
         phone: user.phone ?? null,

@@ -123,6 +123,13 @@ export const MENU_ROUTE_DEFINITIONS: Record<string, MenuRouteDef> = {
     permission: 'screen.users.access',
     defaultTitle: '스탬프 관리',
   },
+  mypage: {
+    code: 'mypage',
+    defaultPath: '/mypage',
+    component: () => import('@/pages/MyPage.vue'),
+    permission: '',
+    defaultTitle: '마이페이지',
+  },
 }
 
 /** 고정된 기본 라우트 (메뉴에 종속되지 않는 화면들) */
@@ -133,7 +140,6 @@ const staticRoutes: RouteRecordRaw[] = [
   { path: '/documents/:id', component: () => import('@/pages/TdbDetailPage.vue'), meta: { title: 'TDB 자료 상세' } },
   { path: '/mdb/:id',       component: () => import('@/pages/MdbDetailPage.vue'), meta: { title: 'MDB 자료 상세' } },
   { path: '/help',          component: () => import('@/pages/HelpPage.vue'), meta: { title: '도움말' } },
-  { path: '/mypage',        component: () => import('@/pages/MyPage.vue'), meta: { title: '마이페이지' } },
 
   { path: '/no-access', component: () => import('@/pages/NoAccessPage.vue'), meta: { bare: true } },
   {

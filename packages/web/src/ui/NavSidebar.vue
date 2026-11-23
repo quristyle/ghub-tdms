@@ -186,13 +186,14 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="user-actions">
-          <button
-            type="button"
+          <RouterLink
+            to="/mypage"
             class="user-action-btn"
-            @click="emit('openMypage'); emit('close')"
+            :class="{ active: isOn('/mypage') }"
+            @click="emit('close')"
           >
             내 정보
-          </button>
+          </RouterLink>
           <button
             type="button"
             class="user-action-btn"
@@ -504,6 +505,11 @@ onBeforeUnmount(() => {
 .user-action-btn {
   flex: 1;
   height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  box-sizing: border-box;
   font-size: 11.5px;
   font-weight: 600;
   padding: 0 8px;
@@ -519,6 +525,12 @@ onBeforeUnmount(() => {
 .user-action-btn:hover {
   background: var(--surface-sunken);
   color: var(--text);
+}
+.user-action-btn.active {
+  background: var(--surface-sunken);
+  color: var(--primary, #0070c0);
+  border-color: var(--primary, #0070c0);
+  font-weight: 700;
 }
 .user-action-btn.logout-btn {
   color: var(--text-muted);

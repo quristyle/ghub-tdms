@@ -90,6 +90,12 @@ defineProps<{ path: string; code?: string }>()
       <path d="M1.5 12.8h13" />
     </template>
 
+    <!-- 마이페이지 — 사용자 프로필 -->
+    <template v-else-if="code === 'mypage' || path === '/mypage'">
+      <circle cx="8" cy="5.2" r="2.8" />
+      <path d="M2.5 13.8c0-2.6 2.5-4.2 5.5-4.2s5.5 1.6 5.5 4.2" />
+    </template>
+
     <!-- 도움말 -->
     <template v-else-if="path === '/help'">
       <circle cx="8" cy="8" r="6" />
