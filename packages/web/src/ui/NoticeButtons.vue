@@ -214,7 +214,15 @@ const OUTSTANDING_COLUMNS: Column<DistributionRow>[] = [
 }
 .notice-summary b { color: var(--text); font-weight: 700; }
 
-.notice-grid { height: 56vh; min-height: 280px; display: flex; }
+.notice-grid {
+  height: 56vh;
+  min-height: 280px;
+  display: flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
 .notice-grid > * { flex: 1; min-width: 0; }
 /* 모바일 — 조건 칸과 건수 요약을 내려 쌓는다 (요약 글이 길어 팝업을 밀던 것) */
 @media (max-width: 700px) {
