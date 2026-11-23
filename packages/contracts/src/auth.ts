@@ -105,8 +105,29 @@ export const MeResponse = z.object({
   permissions: z.array(z.string()),
   /** 접근 가능한 메뉴만 추려서 내려준다(순서 유지) */
   menu: z.array(MenuItem),
+  /** 사용자 프로필 확장 정보 (마이페이지 화면 등) */
+  employeeNumber: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  extensionNumber: z.string().nullable().optional(),
+  department: z.string().nullable().optional(),
+  position: z.string().nullable().optional(),
+  companyCode: z.string().optional(),
+  partnerCompanyName: z.string().nullable().optional(),
+  employmentStatus: z.string().optional(),
+  lastLoginAt: z.string().nullable().optional(),
+  previousLoginAt: z.string().nullable().optional(),
+  createdAt: z.string().nullable().optional(),
 })
 export type MeResponse = z.infer<typeof MeResponse>
+
+/** PUT /auth/profile — 마이페이지 내 정보(연락처 등) 수정 */
+export const UpdateProfileRequest = z.object({
+  email: z.string().max(200).nullable().optional(),
+  phone: z.string().max(40).nullable().optional(),
+  extensionNumber: z.string().max(40).nullable().optional(),
+})
+export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequest>
 
 // 스키마에 대응하는 타입 — 화면에서 응답 타입을 그대로 쓴다
 export type LoginRequest = z.infer<typeof LoginRequest>

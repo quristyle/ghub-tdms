@@ -156,3 +156,24 @@ export function enableTotp(userId: number, sealedSecret: string, step: number) {
     [userId, sealedSecret, step],
   )
 }
+
+/** 마이페이지 — 본인의 연락처 정보(이메일, 전화번호, 내선번호) 수정 */
+export function updateMyProfile(
+  userId: number,
+  data: { email?: string | null; phone?: string | null; extensionNumber?: string | null },
+) {
+  return query(
+    `UPDATE users
+        SET email = COALESCE($2, email),
+            phone = COALESCE($3, phone),
+            extension_number = COALESCE($4, extension_number),
+            updated_at = now()
+      WHERE id = $1`,
+    [
+      userId,
+      data.email !== undefined ? data.email : null,
+      data.phone !== undefined ? data.phone : null,
+      data.extensionNumber !== undefined ? data.extensionNumber : null,
+    ],
+  )
+}

@@ -17,6 +17,18 @@ export interface SessionUser {
   passwordDeferred: boolean
   /** 인증 앱(TOTP) 등록을 마쳤는가 */
   totpEnabled: boolean
+  employeeNumber?: string | null
+  email?: string | null
+  phone?: string | null
+  extensionNumber?: string | null
+  department?: string | null
+  position?: string | null
+  companyCode?: string
+  partnerCompanyName?: string | null
+  employmentStatus?: string
+  lastLoginAt?: Date | string | null
+  previousLoginAt?: Date | string | null
+  createdAt?: Date | string | null
 }
 
 export interface AuthContext {
@@ -61,10 +73,21 @@ export async function loadSession(sessionId: string): Promise<SessionUser | unde
             u.must_change_password AS "mustChangePassword",
             s.password_deferred    AS "passwordDeferred",
             (u.totp_enabled_at IS NOT NULL) AS "totpEnabled",
+            u.employee_number      AS "employeeNumber",
+            u.email, u.phone,
+            u.extension_number     AS "extensionNumber",
+            u.department, u.position,
+            u.company_code         AS "companyCode",
+            pc.name                AS "partnerCompanyName",
+            u.employment_status    AS "employmentStatus",
+            u.last_login_at        AS "lastLoginAt",
+            u.previous_login_at    AS "previousLoginAt",
+            u.created_at           AS "createdAt",
             (s.last_seen_at < now() - ($2 || ' milliseconds')::interval) AS needs_touch
        FROM sessions s
        JOIN users u  ON u.id = s.user_id
   LEFT JOIN groups g ON g.id = u.group_id
+  LEFT JOIN partner_companies pc ON pc.id = u.partner_company_id
       WHERE s.id = $1 AND s.expires_at > now() AND u.is_active`,
     [sessionId, String(config.session.touchIntervalMs)],
     'session_load',
@@ -86,6 +109,18 @@ export async function loadSession(sessionId: string): Promise<SessionUser | unde
     mustChangePassword: row.mustChangePassword,
     passwordDeferred: row.passwordDeferred,
     totpEnabled: row.totpEnabled,
+    employeeNumber: row.employeeNumber as string | null | undefined,
+    email: row.email as string | null | undefined,
+    phone: row.phone as string | null | undefined,
+    extensionNumber: row.extensionNumber as string | null | undefined,
+    department: row.department as string | null | undefined,
+    position: row.position as string | null | undefined,
+    companyCode: (row.companyCode as string | undefined) ?? 'SKGAS',
+    partnerCompanyName: row.partnerCompanyName as string | null | undefined,
+    employmentStatus: (row.employmentStatus as string | undefined) ?? 'ACTIVE',
+    lastLoginAt: row.lastLoginAt as Date | string | null | undefined,
+    previousLoginAt: row.previousLoginAt as Date | string | null | undefined,
+    createdAt: row.createdAt as Date | string | null | undefined,
   }
 }
 

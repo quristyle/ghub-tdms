@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify'
 import {
   LoginRequest, LoginResult, MeResponse, PasswordChangeRequest,
   MfaVerifyRequest, MfaVerifyResult, ErrorResponse, MENU, LEAF_KEYS,
+  UpdateProfileRequest,
 } from '@tdms/contracts'
 import { AUTHENTICATED, PUBLIC, defineRoute } from '../../core/route.js'
 import {
@@ -11,6 +12,7 @@ import {
 } from '../../core/session.js'
 import { cached } from '../../core/cache.js'
 import { listEnabledMenus } from '../admin/queries.js'
+import { updateMyProfile } from './queries.js'
 import * as svc from './service.js'
 
 /**
@@ -106,7 +108,41 @@ export function registerAuthRoutes(app: FastifyInstance): void {
         totpEnabled: user.totpEnabled,
         permissions: perms,
         menu: (await visibleMenu()).filter((m) => user.role === 'ADMIN' || permissions.has(m.permission)),
+        employeeNumber: user.employeeNumber ?? null,
+        email: user.email ?? null,
+        phone: user.phone ?? null,
+        extensionNumber: user.extensionNumber ?? null,
+        department: user.department ?? null,
+        position: user.position ?? null,
+        companyCode: user.companyCode ?? 'SKGAS',
+        partnerCompanyName: user.partnerCompanyName ?? null,
+        employmentStatus: user.employmentStatus ?? 'ACTIVE',
+        lastLoginAt: user.lastLoginAt ? new Date(user.lastLoginAt).toISOString() : null,
+        previousLoginAt: user.previousLoginAt ? new Date(user.previousLoginAt).toISOString() : null,
+        createdAt: user.createdAt ? new Date(user.createdAt).toISOString() : null,
       }
+    },
+  })
+
+  // 마이페이지 — 본인의 연락처 정보(이메일, 휴대전화, 내선번호) 수정
+  defineRoute(app, {
+    method: 'PUT',
+    url: '/auth/profile',
+    access: AUTHENTICATED,
+    audit: { screen: '마이페이지', action: '내 정보 수정' },
+    schema: {
+      body: UpdateProfileRequest,
+      response: { 200: z.object({ ok: z.literal(true) }), 422: ErrorResponse },
+    },
+    handler: async (req) => {
+      const b = req.body as UpdateProfileRequest
+      await updateMyProfile(req.auth.user.id, {
+        email: b.email,
+        phone: b.phone,
+        extensionNumber: b.extensionNumber,
+      })
+      req.setAuditTarget(req.auth.user.loginId)
+      return { ok: true as const }
     },
   })
 

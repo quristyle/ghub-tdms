@@ -258,7 +258,7 @@ async function logout() {
 
           <ThemeToggle />
 
-          <a href="#" class="mypage-link" @click.prevent="mypageOpen = true">{{ session.me?.name }}</a>
+          <a href="#" class="mypage-link" title="마이페이지" @click.prevent="mypageOpen = true">{{ session.me?.name }}</a>
           <button
             type="button"
             class="small logout-icon-btn"

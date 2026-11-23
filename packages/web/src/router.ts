@@ -133,6 +133,7 @@ const staticRoutes: RouteRecordRaw[] = [
   { path: '/documents/:id', component: () => import('@/pages/TdbDetailPage.vue'), meta: { title: 'TDB 자료 상세' } },
   { path: '/mdb/:id',       component: () => import('@/pages/MdbDetailPage.vue'), meta: { title: 'MDB 자료 상세' } },
   { path: '/help',          component: () => import('@/pages/HelpPage.vue'), meta: { title: '도움말' } },
+  { path: '/mypage',        component: () => import('@/pages/MyPage.vue'), meta: { title: '마이페이지' } },
 
   { path: '/no-access', component: () => import('@/pages/NoAccessPage.vue'), meta: { bare: true } },
   {
