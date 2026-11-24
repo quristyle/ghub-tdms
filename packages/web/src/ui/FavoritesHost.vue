@@ -6,6 +6,7 @@ import type { FavoriteItem, FavoriteListResponse } from '@tdms/contracts'
 import Modal from '@/ui/Modal.vue'
 import PdfViewer from '@/ui/PdfViewer.vue'
 import { api, ApiError } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import { downloadXlsx } from '@/lib/xlsx'
 import {
   FAV_LIST_TITLE, FAV_SAVE_TITLE, asidePreview, bumpCount, favDefaultName, favPreviewUrl,
@@ -69,7 +70,7 @@ watch(req, (o) => {
   saveErr.value = ''
   if (!o) return
   if (!o.target || (!o.target.documentId && !o.target.mdbFileId)) {
-    window.alert('보관할 자료를 알 수 없습니다. 자료를 열고 다시 눌러 주세요.')
+    toast.warn('보관할 자료를 알 수 없습니다. 자료를 열고 다시 눌러 주세요.')
     req.value = null
     return
   }
@@ -103,8 +104,9 @@ async function deleteSlot(s: FavSlot) {
   if (!ok) return
   try {
     await api.delete(`/favorites/${s.id}`)
+    toast.ok('보관 목록에서 지웠습니다.')
   } catch (e) {
-    window.alert(e instanceof ApiError ? e.message : '지우지 못했습니다.')
+    toast.err(e instanceof ApiError ? e.message : '지우지 못했습니다.')
     return
   }
   slots.value = slots.value.filter((x) => x.id !== s.id)
@@ -126,7 +128,7 @@ function exportSlots() {
 
 function previewSlot(s: FavSlot) {
   const url = favPreviewUrl(s.kind, s.pdf_file_id)
-  if (!url) { window.alert('이 자료는 미리볼 PDF 가 없습니다.'); return }
+  if (!url) { toast.warn('이 자료는 미리볼 PDF 가 없습니다.'); return }
   asidePreview.value = { title: slotTargetName(s), fileUrl: url, favoriteId: s.has_markup ? s.id : null }
 }
 
@@ -169,9 +171,11 @@ async function submitSave() {
     bumpCount()
     void qc.invalidateQueries({ queryKey: ['favorites'] })
     try { o.onSaved?.(r.id) } catch { /* 미리보기가 그 사이 닫혔으면 넘어간다 */ }
-    window.alert('보관했습니다.')
+    toast.ok('보관했습니다.')
   } catch (e) {
-    saveErr.value = e instanceof ApiError ? e.message : '보관하지 못했습니다.'
+    const msg = e instanceof ApiError ? e.message : '보관하지 못했습니다.'
+    saveErr.value = msg
+    toast.err(msg)
   } finally {
     saving.value = false
   }
@@ -223,7 +227,7 @@ function openItem(i: FavoriteItem) {
 
 function previewItem(i: FavoriteItem) {
   const url = favPreviewUrl(i.kind, i.pdfFileId)
-  if (!url) { window.alert('이 자료는 미리볼 PDF 가 없습니다.'); return }
+  if (!url) { toast.warn('이 자료는 미리볼 PDF 가 없습니다.'); return }
   asidePreview.value = { title: i.currentName ?? i.name, fileUrl: url, favoriteId: i.hasMarkup ? i.id : null }
 }
 
@@ -240,10 +244,13 @@ async function deleteChecked() {
     await api.post('/favorites/delete', { ids })
     checked.value = new Set()
     listErr.value = ''
+    toast.ok(`${ids.length}건을 보관 목록에서 지웠습니다.`)
     bumpCount()
     await refetch()
   } catch (e) {
-    listErr.value = e instanceof ApiError ? e.message : '지우지 못했습니다.'
+    const msg = e instanceof ApiError ? e.message : '지우지 못했습니다.'
+    listErr.value = msg
+    toast.err(msg)
   }
 }
 
@@ -255,9 +262,12 @@ async function saveEdit(i: FavoriteItem) {
   try {
     await api.post(`/favorites/${i.id}/note`, { note: editText.value.trim() || null })
     editingId.value = null
+    toast.ok('설명을 저장했습니다.')
     await refetch()
   } catch (e) {
-    listErr.value = e instanceof ApiError ? e.message : '설명을 저장하지 못했습니다.'
+    const msg = e instanceof ApiError ? e.message : '설명을 저장하지 못했습니다.'
+    listErr.value = msg
+    toast.err(msg)
   }
 }
 

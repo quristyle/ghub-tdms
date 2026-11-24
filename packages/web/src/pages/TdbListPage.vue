@@ -14,6 +14,7 @@ import Modal from '@/ui/Modal.vue'
 import ProjectManager from '@/ui/ProjectManager.vue'
 import JobProgress from '@/ui/JobProgress.vue'
 import { api, ApiError, qs } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import { qk, staleTime } from '@/lib/queryKeys'
 import { useSession } from '@/lib/session'
 import { DOC_STATUS_BADGE as STATUS_BADGE, DOC_STATUS_LABEL as STATUS_LABEL } from '@/lib/labels'
@@ -145,7 +146,7 @@ async function loadPage(page: number) {
     next.set(page, r.items)
     loaded.value = next
   } catch (e) {
-    message.value = { kind: 'err', text: e instanceof ApiError ? e.message : '목록을 불러오지 못했습니다.' }
+    toast.err(e instanceof ApiError ? e.message : '목록을 불러오지 못했습니다.')
   } finally {
     const n = new Set(loadingPages.value)
     n.delete(page)
@@ -193,7 +194,7 @@ watch(cart, (m) => {
   try {
     sessionStorage.setItem(CART_KEY, JSON.stringify([...m.values()]))
   } catch {
-    message.value = { kind: 'err', text: '반출대기함이 너무 커서 저장하지 못했습니다. 새로고침하면 비워집니다.' }
+    toast.err('반출대기함이 너무 커서 저장하지 못했습니다. 새로고침하면 비워집니다.')
   }
 })
 
@@ -259,13 +260,13 @@ function clearChecked() {
 /** [선택 반출] — 체크한 줄을 대기함에 담고 체크는 푼다 */
 function addCheckedToCart() {
   if (!checked.value.size) {
-    message.value = { kind: 'err', text: '반출대기함에 담을 자료를 먼저 체크하세요.' }
+    toast.err('반출대기함에 담을 자료를 먼저 체크하세요.')
     return
   }
   const picked = rows.value.filter((r) => checked.value.has(r.id))
   const added = addToCart(picked)
   clearChecked()
-  message.value = { kind: 'ok', text: `${added}건을 반출대기함에 담았습니다. (대기함 ${cart.value.size}건)` }
+  toast.ok(`${added}건을 반출대기함에 담았습니다. (대기함 ${cart.value.size}건)`)
 }
 
 // [폴더 반출] — 체크와 무관하게 지금 고른 폴더(하위 폴더 포함)의 자료 전부를 담는다.
@@ -274,7 +275,7 @@ const folderLoading = ref(false)
 
 async function startFolderAdd() {
   if (!folder.value) {
-    message.value = { kind: 'err', text: '먼저 좌측에서 폴더를 선택해주세요.' }
+    toast.err('먼저 좌측에서 폴더를 선택해주세요.')
     return
   }
   if (folderLoading.value) return
@@ -286,12 +287,12 @@ async function startFolderAdd() {
       includeIsometric: includeIsometric.value,
     })}`)
     if (!r.items.length) {
-      message.value = { kind: 'err', text: '이 폴더에는 자료가 없습니다.' }
+      toast.err('이 폴더에는 자료가 없습니다.')
       return
     }
     folderAdd.value = { name: folder.value.name, items: r.items }
   } catch (e) {
-    message.value = { kind: 'err', text: e instanceof ApiError ? e.message : '폴더 자료를 불러오지 못했습니다.' }
+    toast.err(e instanceof ApiError ? e.message : '폴더 자료를 불러오지 못했습니다.')
   } finally {
     folderLoading.value = false
   }
@@ -300,7 +301,7 @@ async function startFolderAdd() {
 function confirmFolderAdd() {
   if (!folderAdd.value) return
   const added = addToCart(folderAdd.value.items)
-  message.value = { kind: 'ok', text: `${added}건을 반출대기함에 담았습니다. (대기함 ${cart.value.size}건)` }
+  toast.ok(`${added}건을 반출대기함에 담았습니다. (대기함 ${cart.value.size}건)`)
   folderAdd.value = null
 }
 
@@ -398,15 +399,9 @@ async function startServerExport() {
       filename: `TDB_자료목록_${new Date().toISOString().slice(0, 10)}.xlsx`,
     })
     exportJobId.value = res.jobId
-    message.value = {
-      kind: 'ok',
-      text: '전체 엑셀 생성을 서버에 요청했습니다. 아래 진행률에서 완료 후 다운로드할 수 있습니다.',
-    }
+    toast.ok('전체 엑셀 생성을 서버에 요청했습니다. 아래 진행률에서 완료 후 다운로드할 수 있습니다.')
   } catch (e) {
-    message.value = {
-      kind: 'err',
-      text: e instanceof ApiError ? e.message : '엑셀 내보내기 요청에 실패했습니다.',
-    }
+    toast.err(e instanceof ApiError ? e.message : '엑셀 내보내기 요청에 실패했습니다.')
   } finally {
     exportingServer.value = false
   }
@@ -444,7 +439,6 @@ function openDistribute() {
   distOpen.value = true
 }
 const distJobId = ref<number | null>(null)
-const message = ref<{ kind: 'ok' | 'err'; text: string } | null>(null)
 const warnings = ref<CreateDistributionResult['duplicateWarnings']>([])
 
 const dist = ref({
@@ -584,11 +578,17 @@ async function submitDistribution() {
     distOpen.value = false
     distJobId.value = r.jobId
     warnings.value = r.duplicateWarnings
-    message.value = {
-      kind: r.duplicateWarnings.length ? 'err' : 'ok',
-      text: r.duplicateWarnings.length
-        ? `${r.created}건을 반출했습니다. ${r.duplicateWarnings.length}건은 이미 다른 업체가 수정 중입니다.`
-        : `${r.created}건을 반출했습니다. (${r.zipName})`,
+    if (r.duplicateWarnings.length) {
+      toast.warn(
+        `${r.created}건을 반출했습니다. ${r.duplicateWarnings.length}건은 이미 다른 업체가 수정 중입니다.`,
+        {
+          sub: r.duplicateWarnings.map(
+            (w) => `· ${w.drawingNo} — ${w.vendorName} 대여중 (${w.distributedAt.slice(0, 10)})`,
+          ),
+        },
+      )
+    } else {
+      toast.ok(`${r.created}건을 반출했습니다. (${r.zipName})`)
     }
     clearCart()
     void qc.invalidateQueries({ queryKey: qk.documents.all })
@@ -803,17 +803,6 @@ function recentClass(r: DocumentListItem): string {
       </div>
     </div>
 
-    <div v-if="message" class="msg" :class="message.kind">
-      <div>
-        {{ message.text }}
-        <div v-for="w in warnings" :key="w.documentId" class="sub">
-          · {{ w.drawingNo }} — {{ w.vendorName }} 대여중 ({{ w.distributedAt.slice(0, 10) }})
-        </div>
-      </div>
-      <span style="flex:1" />
-      <button class="small" @click="message = null; warnings = []">닫기</button>
-    </div>
-
     <div v-if="distJobId !== null" class="card">
       <JobProgress :job-id="distJobId" />
     </div>
@@ -824,7 +813,7 @@ function recentClass(r: DocumentListItem): string {
         <span style="flex:1" />
         <button class="small" @click="exportJobId = null">닫기</button>
       </div>
-      <JobProgress :job-id="exportJobId" @done="message = { kind: 'ok', text: '전체 엑셀 생성이 완료되었습니다. 받기를 눌러 다운로드하세요.' }" />
+      <JobProgress :job-id="exportJobId" @done="toast.ok('전체 엑셀 생성이 완료되었습니다. 받기를 눌러 다운로드하세요.')" />
     </div>
 
     <!-- 폴더 반출 확인 -->

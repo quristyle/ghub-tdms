@@ -6,19 +6,14 @@ import DataTable, { type Column } from '@/ui/DataTable.vue'
 import Switch from '@/ui/Switch.vue'
 import Modal from '@/ui/Modal.vue'
 import { api, ApiError } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import { useSession } from '@/lib/session'
 
 const session = useSession()
 const qc = useQueryClient()
 
-const message = ref<{ kind: 'ok' | 'err'; text: string } | null>(null)
-const say = (kind: 'ok' | 'err', text: string) => {
-  message.value = { kind, text }
-  setTimeout(() => {
-    if (message.value?.text === text) message.value = null
-  }, 4000)
-}
-const fail = (e: unknown) => say('err', e instanceof ApiError ? e.message : '처리하지 못했습니다.')
+const say = (kind: 'ok' | 'err', text: string) => toast.show(kind, text)
+const fail = (e: unknown) => toast.err(e instanceof ApiError ? e.message : '처리하지 못했습니다.')
 
 const { data, isLoading } = useQuery({
   queryKey: ['stamps', 'all'],
@@ -360,11 +355,6 @@ async function toggleEnabled(s: StampItem) {
       <div class="page-actions">
         <button class="primary" type="button" @click="openCreate">＋ 새 스탬프 등록</button>
       </div>
-    </div>
-
-    <!-- 알림 메시지 -->
-    <div v-if="message" class="toast" :class="message.kind">
-      {{ message.text }}
     </div>
 
     <div class="panel body">
@@ -822,18 +812,6 @@ async function toggleEnabled(s: StampItem) {
 }
 .preview-info { font-size: 11px; color: var(--text-muted); }
 
-.toast {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  padding: 10px 16px;
-  border-radius: 6px;
-  font-size: var(--fs-sm);
-  z-index: 1000;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
-.toast.ok  { background: var(--ok); color: var(--surface); }
-.toast.err { background: var(--danger); color: var(--surface); }
 .btn-danger { background: var(--danger); color: var(--primary-fg); }
 .btn-danger:hover { filter: brightness(0.9); }
 .fs-xs { font-size: 11px; }

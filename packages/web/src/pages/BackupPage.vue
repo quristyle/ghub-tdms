@@ -5,6 +5,7 @@ import type { BackupListResponse, BackupRunRow, BackupStatus } from '@tdms/contr
 import JobProgress from '@/ui/JobProgress.vue'
 import Modal from '@/ui/Modal.vue'
 import { api, ApiError } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import { staleTime } from '@/lib/queryKeys'
 import { useSession } from '@/lib/session'
 import { downloadXlsx } from '@/lib/xlsx'
@@ -17,9 +18,8 @@ const qc = useQueryClient()
 const canRun = computed(() => session.can('screen.backup.run'))
 const canDeleteFile = computed(() => session.can('screen.backup.delete_file'))
 
-const message = ref<{ kind: 'ok' | 'err'; text: string } | null>(null)
-const say = (kind: 'ok' | 'err', text: string) => (message.value = { kind, text })
-const fail = (e: unknown) => say('err', e instanceof ApiError ? e.message : '처리하지 못했습니다.')
+const say = (kind: 'ok' | 'err', text: string) => toast.show(kind, text)
+const fail = (e: unknown) => toast.err(e instanceof ApiError ? e.message : '처리하지 못했습니다.')
 
 const { data: status } = useQuery({
   queryKey: ['backup-status'],
@@ -129,11 +129,6 @@ function exportRuns() {
           백업 관리<span class="page-title-sub">자료 백업 상태 확인 및 복구</span>
         </h1>
       </div>
-    </div>
-
-    <div v-if="message" class="msg" :class="message.kind">
-      {{ message.text }}<span style="flex:1" />
-      <button class="btn btn-sm" @click="message = null">닫기</button>
     </div>
 
     <!-- 지금 상태 -->

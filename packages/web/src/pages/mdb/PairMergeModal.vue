@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/vue-query'
 import type { MdbPairCandidateResponse, MdbPairMergeResult } from '@tdms/contracts'
 import Modal from '@/ui/Modal.vue'
 import { api, ApiError } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import { useSession } from '@/lib/session'
 
 /**
@@ -43,11 +44,14 @@ async function merge() {
       text: `${r.merged}건을 합쳤습니다.` + (r.skipped.length ? ` ${r.skipped.length}건은 합치지 못했습니다.` : ''),
       skipped: r.skipped,
     }
+    toast.show(result.value.kind, result.value.text)
     picked.value = new Set()
     void refetch()
     emit('merged')
   } catch (e) {
-    result.value = { kind: 'err', text: e instanceof ApiError ? e.message : '병합하지 못했습니다.', skipped: [] }
+    const msg = e instanceof ApiError ? e.message : '병합하지 못했습니다.'
+    result.value = { kind: 'err', text: msg, skipped: [] }
+    toast.err(msg)
   } finally {
     busy.value = false
   }

@@ -7,6 +7,7 @@ import type {
 import Modal from '@/ui/Modal.vue'
 import TypeListModal from './TypeListModal.vue'
 import { api, ApiError, qs } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import { useSession } from '@/lib/session'
 
 /**
@@ -22,9 +23,8 @@ const session = useSession()
 const qc = useQueryClient()
 const canTag = computed(() => session.can('screen.mdb_editor.tag'))
 
-const message = ref<{ kind: 'ok' | 'err'; text: string } | null>(null)
-const say = (kind: 'ok' | 'err', text: string) => (message.value = { kind, text })
-const fail = (e: unknown) => say('err', e instanceof ApiError ? e.message : '처리하지 못했습니다.')
+const say = (kind: 'ok' | 'err', text: string) => toast.show(kind, text)
+const fail = (e: unknown) => toast.err(e instanceof ApiError ? e.message : '처리하지 못했습니다.')
 
 const { data: history } = useQuery({
   queryKey: ['mdb-tag-history'],
@@ -172,7 +172,6 @@ async function submitForm() {
       설비 Tag 가 바뀌면(설비 교체·체계 변경·오기 정정) 해당 자료의 Tag 를 한꺼번에 고칩니다.
       <strong>적용 전에 바뀔 대상을 먼저 확인</strong>하고, 적용한 뒤에도 되돌릴 수 있습니다.
     </p>
-    <div v-if="message" class="msg" :class="message.kind">{{ message.text }}</div>
 
     <div class="bar">
       <select v-model="fYear">

@@ -8,6 +8,7 @@ import type {
 import PermissionTree from '@/ui/PermissionTree.vue'
 import Tabs from '@/ui/Tabs.vue'
 import { api, ApiError } from '@/lib/api'
+import { toast } from '@/lib/toast'
 
 /**
  * 접속권한 관리 — 권한을 **그룹과 사람 양쪽**에 매긴다.
@@ -39,9 +40,8 @@ const pickedUser = ref<number | null>(null)
 const userFilter = ref('')
 const memberFilter = ref('')
 
-const message = ref<{ kind: 'ok' | 'err'; text: string } | null>(null)
-const say = (k: 'ok' | 'err', text: string) => (message.value = { kind: k, text })
-const fail = (e: unknown) => say('err', e instanceof ApiError ? e.message : '저장하지 못했습니다.')
+const say = (k: 'ok' | 'err', text: string) => toast.show(k, text)
+const fail = (e: unknown) => toast.err(e instanceof ApiError ? e.message : '저장하지 못했습니다.')
 const saving = ref(false)
 
 // ── 바탕 자료 ──────────────────────────────────────────────────────────
@@ -226,12 +226,10 @@ const draft = ref<Set<string>>(new Set())
 watch([groupPerms, userPerms, kind, pickedGroup], () => {
   if (isUnassignedGroup.value) {
     draft.value = new Set()
-    message.value = null
     return
   }
   const src = kind.value === 'groups' ? groupPerms.value?.granted : userPerms.value?.granted
   draft.value = new Set(src ?? [])
-  message.value = null
 }, { immediate: true })
 
 /** 사람을 고른 경우에만 상속분이 있다 */
@@ -302,7 +300,6 @@ async function save() {
 
 function reset() {
   draft.value = new Set(saved.value)
-  message.value = null
 }
 </script>
 
@@ -314,11 +311,6 @@ function reset() {
           접속권한 관리<span class="page-title-sub">그룹별 화면·기능 접근 권한 설정</span>
         </h1>
       </div>
-    </div>
-
-    <div v-if="message" class="msg" :class="message.kind">
-      {{ message.text }}<span style="flex:1" />
-      <button class="btn btn-sm" @click="message = null">닫기</button>
     </div>
 
     <div class="cols">

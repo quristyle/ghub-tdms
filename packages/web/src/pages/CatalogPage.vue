@@ -113,11 +113,6 @@ const columns = computed<Column<CatalogItem>[]>(() => [
       </div>
     </div>
 
-    <p v-if="error" class="msg err">
-      {{ error }}<span style="flex:1" />
-      <button class="small" @click="error = ''">닫기</button>
-    </p>
-
     <div class="status-bar">
       <span class="status-bar-left">
         <span class="total-count">전체 {{ rows.length.toLocaleString() }}건</span>

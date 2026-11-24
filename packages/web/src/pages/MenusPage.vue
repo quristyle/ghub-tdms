@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type { MenuListResponse } from '@tdms/contracts'
 import { api, ApiError } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import { qk } from '@/lib/queryKeys'
 import { useSession } from '@/lib/session'
 import { syncDynamicRoutes } from '@/router'
@@ -18,9 +19,8 @@ import NavIcon from '@/ui/NavIcon.vue'
 const session = useSession()
 const qc = useQueryClient()
 
-const message = ref<{ kind: 'ok' | 'err'; text: string } | null>(null)
-const say = (kind: 'ok' | 'err', text: string) => (message.value = { kind, text })
-const fail = (e: unknown) => say('err', e instanceof ApiError ? e.message : '저장하지 못했습니다.')
+const say = (kind: 'ok' | 'err', text: string) => toast.show(kind, text)
+const fail = (e: unknown) => toast.err(e instanceof ApiError ? e.message : '저장하지 못했습니다.')
 
 const { data, isLoading } = useQuery({
   queryKey: ['menus'],
@@ -226,7 +226,6 @@ function reset() {
       isEnabled: m.isEnabled,
     }))
   }
-  message.value = null
 }
 
 async function save() {
@@ -288,13 +287,6 @@ async function save() {
         </button>
       </div>
       </div>
-    </div>
-
-    <!-- 알림 메시지 -->
-    <div v-if="message" class="msg" :class="message.kind">
-      {{ message.text }}
-      <span style="flex:1" />
-      <button class="btn btn-sm" @click="message = null">닫기</button>
     </div>
 
     <!-- 메인 패널 -->

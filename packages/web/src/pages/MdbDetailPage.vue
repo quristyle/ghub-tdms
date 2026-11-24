@@ -7,6 +7,7 @@ import Tabs from '@/ui/Tabs.vue'
 import PdfViewer from '@/ui/PdfViewer.vue'
 import DrawingPreview from '@/ui/DrawingPreview.vue'
 import { api, ApiError, qs } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import { staleTime } from '@/lib/queryKeys'
 import { useSession } from '@/lib/session'
 import { loadSearch, toServerFilters } from '@/lib/mdbSearch'
@@ -126,10 +127,13 @@ async function saveEdit() {
   try {
     await api.patch(`/mdb-editor/files/${doc.value.id}`, body)
     editing.value = null
+    toast.ok('저장했습니다.')
     await qc.invalidateQueries({ queryKey: ['mdb'] })
     if (f === 'equipmentType' || f === 'docType') void qc.invalidateQueries({ queryKey: ['mdb-meta'] })
   } catch (e) {
-    editErr.value = e instanceof ApiError ? e.message : '저장하지 못했습니다.'
+    const msg = e instanceof ApiError ? e.message : '저장하지 못했습니다.'
+    editErr.value = msg
+    toast.err(msg)
   } finally {
     savingEdit.value = false
   }

@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, ApiError } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import { useSession } from '@/lib/session'
 import { useQuery } from '@tanstack/vue-query'
 import type { FavoriteCountResponse } from '@tdms/contracts'
@@ -52,10 +53,14 @@ async function saveLayoutPreferences() {
       layoutMode: selectedLayoutMode.value,
       sidebarPinned: selectedSidebarPinned.value,
     })
-    layoutSuccess.value = '화면 내비게이션 및 레이아웃 설정이 성공적으로 저장되었습니다.'
+    const okMsg = '화면 내비게이션 및 레이아웃 설정이 성공적으로 저장되었습니다.'
+    layoutSuccess.value = okMsg
+    toast.ok(okMsg)
     setTimeout(() => { layoutSuccess.value = '' }, 3000)
   } catch (e) {
-    layoutError.value = e instanceof ApiError ? e.message : '레이아웃 설정을 저장하지 못했습니다.'
+    const errMsg = e instanceof ApiError ? e.message : '레이아웃 설정을 저장하지 못했습니다.'
+    layoutError.value = errMsg
+    toast.err(errMsg)
   } finally {
     layoutSaving.value = false
   }
@@ -94,10 +99,14 @@ async function saveProfile() {
     })
     await session.load()
     syncFromSession()
-    profileSuccess.value = '연락처 정보가 성공적으로 저장되었습니다.'
+    const okMsg = '연락처 정보가 성공적으로 저장되었습니다.'
+    profileSuccess.value = okMsg
+    toast.ok(okMsg)
     setTimeout(() => { profileSuccess.value = '' }, 3000)
   } catch (e) {
-    profileError.value = e instanceof ApiError ? e.message : '연락처 정보를 저장하지 못했습니다.'
+    const errMsg = e instanceof ApiError ? e.message : '연락처 정보를 저장하지 못했습니다.'
+    profileError.value = errMsg
+    toast.err(errMsg)
   } finally {
     profileSaving.value = false
   }
@@ -132,14 +141,18 @@ async function changePassword() {
       currentPassword: currentPassword.value,
       newPassword: newPassword.value,
     })
-    pwSuccess.value = '비밀번호가 변경되었습니다. 보안을 위해 다시 로그인해 주세요.'
+    const okMsg = '비밀번호가 변경되었습니다. 보안을 위해 다시 로그인해 주세요.'
+    pwSuccess.value = okMsg
+    toast.ok(okMsg)
     session.clear()
     setTimeout(() => {
       if (props.isModal) emit('close')
       void router.push('/login')
     }, 1200)
   } catch (e) {
-    pwError.value = e instanceof ApiError ? e.message : '비밀번호를 변경하지 못했습니다.'
+    const errMsg = e instanceof ApiError ? e.message : '비밀번호를 변경하지 못했습니다.'
+    pwError.value = errMsg
+    toast.err(errMsg)
   } finally {
     pwBusy.value = false
   }

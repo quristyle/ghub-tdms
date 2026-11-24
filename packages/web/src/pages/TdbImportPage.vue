@@ -15,6 +15,7 @@ import JobProgress from '@/ui/JobProgress.vue'
 import LazyTree from '@/ui/LazyTree.vue'
 import PdfViewer from '@/ui/PdfViewer.vue'
 import { api, ApiError, qs } from '@/lib/api'
+import { toast, type ToastKind } from '@/lib/toast'
 import { IMPORT_REASON_LABEL } from '@/lib/labels'
 import { staleTime } from '@/lib/queryKeys'
 import { useSession } from '@/lib/session'
@@ -50,7 +51,14 @@ const canRepath = computed(() => session.can('screen.tdb_import.issue.repath'))
 const canRecheck = computed(() => session.can('screen.tdb_import.issue.recheck'))
 const canDiscard = computed(() => session.can('screen.tdb_import.issue.reject'))
 
-const message = ref<{ kind: 'ok' | 'err' | 'warn'; text: string } | null>(null)
+const message = {
+  get value(): { kind: ToastKind; text: string } | null {
+    return null
+  },
+  set value(v: { kind: ToastKind; text: string } | null) {
+    if (v) toast.show(v.kind, v.text)
+  },
+}
 
 function fail(e: unknown, fallback = '처리하지 못했습니다.') {
   message.value = { kind: 'err', text: e instanceof ApiError ? e.message : fallback }
@@ -732,12 +740,6 @@ function size(b: number): string {
           <button type="button" @click="resetFilter">조건 초기화</button>
         </div>
       </div>
-    </div>
-
-    <div v-if="message" class="msg" :class="message.kind">
-      {{ message.text }}
-      <span style="flex:1" />
-      <button class="small" @click="message = null">닫기</button>
     </div>
 
     <!-- 검수 대기 -->

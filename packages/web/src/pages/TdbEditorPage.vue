@@ -14,6 +14,7 @@ import Modal from '@/ui/Modal.vue'
 import JobProgress from '@/ui/JobProgress.vue'
 import ProjectManager from '@/ui/ProjectManager.vue'
 import { api, ApiError, qs } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import { DOC_STATUS_BADGE, DOC_STATUS_LABEL } from '@/lib/labels'
 import { qk, staleTime } from '@/lib/queryKeys'
 import { useSession } from '@/lib/session'
@@ -30,9 +31,8 @@ const canRetire = computed(() => session.can('screen.tdb_editor.retire'))
 const canRestore = computed(() => session.can('screen.tdb_editor.restore'))
 const canTrashNote = computed(() => session.can('common.note_edit.tdb_trash'))
 
-const message = ref<{ kind: 'ok' | 'err'; text: string } | null>(null)
-function say(kind: 'ok' | 'err', text: string) { message.value = { kind, text } }
-function fail(e: unknown) { say('err', e instanceof ApiError ? e.message : '처리하지 못했습니다.') }
+function say(kind: 'ok' | 'err', text: string) { toast.show(kind, text) }
+function fail(e: unknown) { toast.err(e instanceof ApiError ? e.message : '처리하지 못했습니다.') }
 
 function refreshAll() {
   void qc.invalidateQueries({ queryKey: qk.folders.all })
@@ -698,12 +698,6 @@ const catalogOpen = ref<'projects' | 'vendors' | null>(null)
       </div>
 
       <JobProgress :job-id="zipJobId" @done="onZipDone" />
-    </div>
-
-    <div v-if="message" class="msg" :class="message.kind">
-      {{ message.text }}
-      <span style="flex:1" />
-      <button class="small" @click="message = null">닫기</button>
     </div>
 
     <div class="main-layout">

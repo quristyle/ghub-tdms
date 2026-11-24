@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type { GroupListResponse, GroupMenuPermissionsResponse, GroupMenuPermissionSaveItem } from '@tdms/contracts'
 import { api, ApiError } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import NavIcon from '@/ui/NavIcon.vue'
 
 /**
@@ -14,9 +15,8 @@ import NavIcon from '@/ui/NavIcon.vue'
 
 const qc = useQueryClient()
 
-const message = ref<{ kind: 'ok' | 'err'; text: string } | null>(null)
-const say = (kind: 'ok' | 'err', text: string) => (message.value = { kind, text })
-const fail = (e: unknown) => say('err', e instanceof ApiError ? e.message : '저장하지 못했습니다.')
+const say = (kind: 'ok' | 'err', text: string) => toast.show(kind, text)
+const fail = (e: unknown) => toast.err(e instanceof ApiError ? e.message : '저장하지 못했습니다.')
 const saving = ref(false)
 
 // ── 그룹 목록 조회 ───────────────────────────────────────────────────────
@@ -211,7 +211,6 @@ function setBatchMode(mode: 'all' | 'none' | 'readonly') {
 async function onSave() {
   if (!pickedGroupId.value) return
   saving.value = true
-  message.value = null
   try {
     const payload: { permissions: GroupMenuPermissionSaveItem[] } = {
       permissions: draft.value.map((i) => ({
@@ -234,7 +233,6 @@ async function onSave() {
 }
 
 function onReset() {
-  message.value = null
   refetch()
 }
 </script>
@@ -258,12 +256,6 @@ function onReset() {
         </button>
       </div>
     </header>
-
-    <!-- 메시지 바 -->
-    <div v-if="message" class="message-banner" :class="message.kind">
-      <span>{{ message.text }}</span>
-      <button type="button" class="btn-close" @click="message = null">✕</button>
-    </div>
 
     <!-- 메인 레이아웃: 좌측 그룹 목록 / 우측 메뉴 권한 매트릭스 -->
     <div class="layout-body">

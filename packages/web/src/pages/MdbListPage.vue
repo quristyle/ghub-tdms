@@ -12,6 +12,7 @@ import DataTable, { type Column, type SortDir } from '@/ui/DataTable.vue'
 import JobProgress from '@/ui/JobProgress.vue'
 import Modal from '@/ui/Modal.vue'
 import { api, ApiError, qs } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import { staleTime } from '@/lib/queryKeys'
 import { useSession } from '@/lib/session'
 import { downloadXlsx } from '@/lib/xlsx'
@@ -117,7 +118,6 @@ const CART_MAX = 5000
 const cart = ref<MdbCartItem[]>(loadCart())
 watch(cart, (v) => saveCart(v), { deep: true })
 const cartIds = computed(() => new Set(cart.value.map((c) => c.id)))
-const message = ref<{ kind: 'ok' | 'err'; text: string } | null>(null)
 
 function addToCart(items: MdbCartItem[]): number {
   const have = new Set(cartIds.value)
@@ -126,7 +126,7 @@ function addToCart(items: MdbCartItem[]): number {
   const taking = add.slice(0, Math.max(0, room))
   cart.value = [...cart.value, ...taking]
   if (taking.length < add.length) {
-    message.value = { kind: 'err', text: `다운대기함은 ${CART_MAX.toLocaleString()}건까지 담을 수 있습니다. ${add.length - taking.length}건은 담지 못했습니다.` }
+    toast.err(`다운대기함은 ${CART_MAX.toLocaleString()}건까지 담을 수 있습니다. ${add.length - taking.length}건은 담지 못했습니다.`)
   }
   return taking.length
 }
@@ -140,33 +140,31 @@ const toCartItems = (r: MdbListItem): MdbCartItem[] =>
 
 function addSelected() {
   const picked = rows.value.filter((r) => selected.value.has(r.id)).flatMap(toCartItems)
-  if (!picked.length) { message.value = { kind: 'err', text: '담을 자료를 표에서 체크하세요.' }; return }
+  if (!picked.length) { toast.err('담을 자료를 표에서 체크하세요.'); return }
   const n = addToCart(picked)
   selected.value = new Set()
-  if (!message.value || message.value.kind === 'ok') {
-    message.value = { kind: 'ok', text: `${n}건을 다운대기함에 담았습니다.${picked.length > n ? ` (${picked.length - n}건은 이미 담겨 있습니다)` : ''}` }
-  }
+  toast.ok(`${n}건을 다운대기함에 담았습니다.${picked.length > n ? ` (${picked.length - n}건은 이미 담겨 있습니다)` : ''}`)
 }
 
 /** 폴더 다운 — 고른 폴더(하위폴더 전체보기를 따른다) 안 자료를 전부 담는다 */
 const folderLoading = ref(false)
 async function addFolder() {
   const f = s.value.folder
-  if (!f) { message.value = { kind: 'err', text: '왼쪽 트리에서 폴더를 먼저 고르세요.' }; return }
+  if (!f) { toast.err('왼쪽 트리에서 폴더를 먼저 고르세요.'); return }
   folderLoading.value = true
   try {
     const r = await api.get<MdbIdsByFolderResponse>(
       `/mdb/ids-by-folder${qs({ folderId: f.id, recursive: s.value.recursive })}`,
     )
-    if (!r.items.length) { message.value = { kind: 'err', text: `"${f.name}" 폴더에 자료가 없습니다.` }; return }
+    if (!r.items.length) { toast.err(`"${f.name}" 폴더에 자료가 없습니다.`); return }
     const n = addToCart(r.items)
-    message.value = {
-      kind: r.truncated ? 'err' : 'ok',
-      text: `"${f.name}" 폴더의 ${n}건을 다운대기함에 담았습니다.` +
-        (r.truncated ? ` 폴더 자료가 ${CART_MAX.toLocaleString()}건을 넘어 앞의 ${CART_MAX.toLocaleString()}건만 담았습니다.` : ''),
+    if (r.truncated) {
+      toast.warn(`"${f.name}" 폴더의 ${n}건을 다운대기함에 담았습니다. 폴더 자료가 ${CART_MAX.toLocaleString()}건을 넘어 앞의 ${CART_MAX.toLocaleString()}건만 담았습니다.`)
+    } else {
+      toast.ok(`"${f.name}" 폴더의 ${n}건을 다운대기함에 담았습니다.`)
     }
   } catch (e) {
-    message.value = { kind: 'err', text: e instanceof ApiError ? e.message : '폴더 자료를 불러오지 못했습니다.' }
+    toast.err(e instanceof ApiError ? e.message : '폴더 자료를 불러오지 못했습니다.')
   } finally {
     folderLoading.value = false
   }
@@ -204,7 +202,7 @@ async function downloadCart() {
     cartOpen.value = false
     cartClear()
   } catch (e) {
-    message.value = { kind: 'err', text: e instanceof ApiError ? e.message : 'Zip 을 요청하지 못했습니다.' }
+    toast.err(e instanceof ApiError ? e.message : 'Zip 을 요청하지 못했습니다.')
   }
 }
 
@@ -222,7 +220,7 @@ async function startServerExport() {
     })
     exportJobId.value = r.jobId
   } catch (e) {
-    message.value = { kind: 'err', text: e instanceof ApiError ? e.message : '엑셀 내보내기 요청에 실패했습니다.' }
+    toast.err(e instanceof ApiError ? e.message : '엑셀 내보내기 요청에 실패했습니다.')
   } finally {
     exporting.value = false
   }
@@ -431,17 +429,12 @@ const columns = computed<Column<MdbListItem>[]>(() => [
       </div>
     </div>
 
-    <div v-if="message" class="msg" :class="message.kind">
-      {{ message.text }}<span style="flex:1" />
-      <button class="small" @click="message = null">닫기</button>
-    </div>
-
     <div v-if="exportJobId !== null" class="card">
       <div class="section-head">
         <span>전체 엑셀 다운로드 (서버 작업)</span><span style="flex:1" />
         <button class="small" @click="exportJobId = null">닫기</button>
       </div>
-      <JobProgress :job-id="exportJobId" />
+      <JobProgress :job-id="exportJobId" @done="toast.ok('전체 엑셀 생성이 완료되었습니다. 받기를 눌러 다운로드하세요.')" />
     </div>
 
     <div v-if="zipJobId !== null" class="card">

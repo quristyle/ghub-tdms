@@ -10,6 +10,7 @@ import FloatField from '@/ui/FloatField.vue'
 import Modal from '@/ui/Modal.vue'
 import ZipStatusModal from '@/ui/ZipStatusModal.vue'
 import { api, ApiError, qs } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import { staleTime } from '@/lib/queryKeys'
 import { DISTRIBUTION_STATE_LABEL, PURPOSE_LABEL } from '@/lib/labels'
 import { useSession } from '@/lib/session'
@@ -22,9 +23,8 @@ const qc = useQueryClient()
 const canManualReturn = computed(() => session.can('screen.tdb_distributions.confirm.manual_return'))
 const canNote = computed(() => session.can('common.note_edit.distribution'))
 
-const message = ref<{ kind: 'ok' | 'err'; text: string } | null>(null)
-const say = (kind: 'ok' | 'err', text: string) => (message.value = { kind, text })
-const fail = (e: unknown) => say('err', e instanceof ApiError ? e.message : '처리하지 못했습니다.')
+const say = (kind: 'ok' | 'err', text: string) => toast.show(kind, text)
+const fail = (e: unknown) => toast.err(e instanceof ApiError ? e.message : '처리하지 못했습니다.')
 
 // ── 보기 모드 · 검색 조건 ─────────────────────────────────────────────
 const byZip = ref(false)
@@ -370,11 +370,6 @@ const zipRows = computed(() => zips.value.map((z, i) => ({ ...z, id: i + 1 })))
     </div>
 
     <JobProgressSlot :job-id="exportJobId" />
-
-    <div v-if="message" class="msg" :class="message.kind">
-      {{ message.text }}<span style="flex:1" />
-      <button class="small" @click="message = null">닫기</button>
-    </div>
 
     <div class="table-box">
       <!-- 자료별 -->

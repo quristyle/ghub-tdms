@@ -10,6 +10,7 @@ import Tabs from '@/ui/Tabs.vue'
 import PdfViewer from '@/ui/PdfViewer.vue'
 import DrawingPreview from '@/ui/DrawingPreview.vue'
 import { api, ApiError, qs } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import { qk, staleTime } from '@/lib/queryKeys'
 import { useSession } from '@/lib/session'
 import { DOC_STATUS_LABEL, PURPOSE_LABEL, REVIEW_STATUS_LABEL } from '@/lib/labels'
@@ -243,7 +244,6 @@ onBeforeUnmount(() => {
 // 엉뚱한 자료의 Rev 를 고른 채로 보이거나, 올리려던 파일이 다른 자료에 붙는다.
 watch(id, () => {
   if (isDrawingFull.value) closeDrawingFull()
-  noteMsg.value = null
   previewRevKey.value = null
   previewSource.value = 'pdf'
   resetUpload()
@@ -258,7 +258,6 @@ const uploadVendor = ref('')
 const uploadFiles = ref<File[]>([])
 const uploadInput = ref<HTMLInputElement | null>(null)
 const uploading = ref(false)
-const uploadMsg = ref<{ kind: 'ok' | 'err'; text: string } | null>(null)
 
 /** 아직 돌아오지 않은 반출의 업체 — 대개 이 중 하나가 반입한다 */
 const vendorCandidates = computed(() => [
@@ -286,23 +285,18 @@ async function submitUpload() {
   for (const f of uploadFiles.value) fd.append('file', f)
 
   uploading.value = true
-  uploadMsg.value = null
   try {
     const out = (await api.upload<UploadResult>(`/documents/${id.value}/revisions`, fd)).body
-    uploadMsg.value = {
-      kind: out.warning || out.branched ? 'err' : 'ok',
-      text: `${out.created}개 파일을 ${out.revLabel} 로 반입했습니다. 검수 대기로 넘어갑니다.`
-        + (out.branched ? ' (중복반출로 분기됨)' : '')
-        + (out.warning ? ' — 파일명의 업체 표기 Rev 가 다릅니다. 검수 때 확인하세요.' : ''),
-    }
+    const text = `${out.created}개 파일을 ${out.revLabel} 로 반입했습니다. 검수 대기로 넘어갑니다.`
+      + (out.branched ? ' (중복반출로 분기됨)' : '')
+      + (out.warning ? ' — 파일명의 업체 표기 Rev 가 다릅니다. 검수 때 확인하세요.' : '')
+    if (out.warning || out.branched) toast.warn(text)
+    else toast.ok(text)
     resetUpload()
     void qc.invalidateQueries({ queryKey: qk.documents.detail(id.value) })
     void qc.invalidateQueries({ queryKey: ['pending-review'] })
   } catch (e) {
-    uploadMsg.value = {
-      kind: 'err',
-      text: e instanceof ApiError ? e.message : '올리지 못했습니다. 연결을 확인하세요.',
-    }
+    toast.err(e instanceof ApiError ? e.message : '올리지 못했습니다. 연결을 확인하세요.')
   } finally {
     uploading.value = false
   }
@@ -312,15 +306,14 @@ async function submitUpload() {
 // 칸을 벗어나면(change) 저장한다. 권한이 없으면 칸을 잠근다 — 서버도 같은 권한으로 막는다.
 const canRevNote = computed(() => session.can('common.note_edit.revision'))
 const canDistNote = computed(() => session.can('common.note_edit.distribution'))
-const noteMsg = ref<{ kind: 'ok' | 'err'; text: string } | null>(null)
 
 async function saveNote(path: string, body: Record<string, unknown>, which: 'revisions' | 'distributions') {
   try {
     await api.post(path, body)
-    noteMsg.value = { kind: 'ok', text: '비고를 저장했습니다.' }
+    toast.ok('비고를 저장했습니다.')
     void qc.invalidateQueries({ queryKey: [...qk.documents.detail(id.value), which] })
   } catch (e) {
-    noteMsg.value = { kind: 'err', text: e instanceof ApiError ? e.message : '비고를 저장하지 못했습니다.' }
+    toast.err(e instanceof ApiError ? e.message : '비고를 저장하지 못했습니다.')
   }
 }
 
@@ -516,7 +509,6 @@ const DIST_COLUMNS: Column<DistRow>[] = [
               <button class="btn btn-sm" :disabled="!uploadVendor.trim() || !uploadFiles.length || uploading"
                       @click="submitUpload">{{ uploading ? '올리는 중…' : '반입등록' }}</button>
             </div>
-            <div v-if="uploadMsg" class="upload-msg" :class="uploadMsg.kind">{{ uploadMsg.text }}</div>
           </template>
         </section>
 
@@ -646,8 +638,6 @@ const DIST_COLUMNS: Column<DistRow>[] = [
             <span v-if="approvedOnly && revAll > revRows.length" class="muted small">
               (전체 {{ revAll }}건 중 승인 {{ revRows.length }}건)
             </span>
-            <span style="flex:1" />
-            <span v-if="noteMsg" class="note-msg" :class="noteMsg.kind">{{ noteMsg.text }}</span>
           </div>
           <div class="table-box">
             <DataTable
@@ -679,10 +669,6 @@ const DIST_COLUMNS: Column<DistRow>[] = [
 
         <!-- 반출 이력 -->
         <section v-else class="pad grid-tab">
-          <div v-if="noteMsg" class="tab-bar">
-            <span style="flex:1" />
-            <span class="note-msg" :class="noteMsg.kind">{{ noteMsg.text }}</span>
-          </div>
           <div class="table-box">
             <DataTable
               :columns="DIST_COLUMNS" :rows="distributions?.items ?? []"

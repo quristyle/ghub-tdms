@@ -12,6 +12,7 @@ import DataTable, { type Column, type SortDir } from '@/ui/DataTable.vue'
 import Modal from '@/ui/Modal.vue'
 import JobProgress from '@/ui/JobProgress.vue'
 import { api, ApiError, qs } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import { qk, staleTime } from '@/lib/queryKeys'
 import { useSession } from '@/lib/session'
 import TypeListModal from './mdb/TypeListModal.vue'
@@ -32,9 +33,8 @@ const canRetire = computed(() => session.can('screen.mdb_editor.retire'))
 const canRestore = computed(() => session.can('screen.mdb_editor.restore'))
 const canTrashNote = computed(() => session.can('common.note_edit.mdb_trash'))
 
-const message = ref<{ kind: 'ok' | 'err'; text: string } | null>(null)
-const say = (kind: 'ok' | 'err', text: string) => (message.value = { kind, text })
-const fail = (e: unknown) => say('err', e instanceof ApiError ? e.message : '처리하지 못했습니다.')
+const say = (kind: 'ok' | 'err', text: string) => toast.show(kind, text)
+const fail = (e: unknown) => toast.err(e instanceof ApiError ? e.message : '처리하지 못했습니다.')
 
 function refreshAll() {
   void qc.invalidateQueries({ queryKey: qk.folders.all })
@@ -524,11 +524,6 @@ async function uploadZip(ev: Event) {
       </div>
 
       <JobProgress v-if="zipJobId !== null" :job-id="zipJobId" @done="refreshAll" />
-    </div>
-
-    <div v-if="message" class="msg" :class="message.kind">
-      {{ message.text }}<span style="flex:1" />
-      <button class="small" @click="message = null">닫기</button>
     </div>
 
     <div class="main-layout">

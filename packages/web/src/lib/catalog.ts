@@ -2,6 +2,7 @@ import { computed, ref, type Ref } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type { CatalogItem, CatalogListResponse } from '@tdms/contracts'
 import { api, ApiError } from './api.js'
+import { toast } from './toast.js'
 import { qk } from './queryKeys.js'
 
 /**
@@ -37,7 +38,9 @@ export function useCatalog(kind: Ref<'projects' | 'vendors'>) {
       await qc.invalidateQueries({ queryKey: qk.catalog.all })
       return true
     } catch (e) {
-      error.value = e instanceof ApiError ? e.message : '처리하지 못했습니다.'
+      const msg = e instanceof ApiError ? e.message : '처리하지 못했습니다.'
+      error.value = msg
+      toast.err(msg)
       return false
     }
   }

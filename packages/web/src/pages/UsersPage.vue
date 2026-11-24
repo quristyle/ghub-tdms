@@ -9,15 +9,15 @@ import DataTable, { type Column } from '@/ui/DataTable.vue'
 import FloatField from '@/ui/FloatField.vue'
 import Modal from '@/ui/Modal.vue'
 import { api, ApiError } from '@/lib/api'
+import { toast } from '@/lib/toast'
 
 /** 사용자 관리 — 왼쪽 그룹/소속 탭 목록과 오른쪽 사용자 목록으로 그룹별·소속별 사용자를 확인하고 드래그 앤 드롭으로 소속/그룹을 변경한다. */
 
 const qc = useQueryClient()
 const router = useRouter()
 
-const message = ref<{ kind: 'ok' | 'err'; text: string } | null>(null)
-const say = (kind: 'ok' | 'err', text: string) => (message.value = { kind, text })
-const fail = (e: unknown) => say('err', e instanceof ApiError ? e.message : '처리하지 못했습니다.')
+const say = (kind: 'ok' | 'err', text: string) => toast.show(kind, text)
+const fail = (e: unknown) => toast.err(e instanceof ApiError ? e.message : '처리하지 못했습니다.')
 
 // ── 데이터 조회 ────────────────────────────────────────────────────────
 const keyword = ref('')
@@ -706,11 +706,6 @@ async function confirmDeletePartner() {
           <button type="button" @click="resetFilter">조건 초기화</button>
         </div>
       </div>
-    </div>
-
-    <div v-if="message" class="msg" :class="message.kind">
-      {{ message.text }}<span style="flex:1" />
-      <button class="btn btn-sm" @click="message = null">닫기</button>
     </div>
 
     <!-- 드래그 안내 배너 -->

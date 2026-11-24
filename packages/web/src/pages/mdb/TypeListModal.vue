@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type { TypeListItem, TypeListKind, TypeListResponse, TypeRenameResult } from '@tdms/contracts'
 import Modal from '@/ui/Modal.vue'
 import { api, ApiError } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import { useSession } from '@/lib/session'
 
 /**
@@ -34,9 +35,8 @@ const { data, refetch } = useQuery({
   queryFn: () => api.get<TypeListResponse>(`/${kind.value}?includeHidden=true`),
 })
 
-const message = ref<{ kind: 'ok' | 'err'; text: string } | null>(null)
 const fail = (e: unknown) =>
-  (message.value = { kind: 'err', text: e instanceof ApiError ? e.message : '처리하지 못했습니다.' })
+  toast.err(e instanceof ApiError ? e.message : '처리하지 못했습니다.')
 
 function changed() {
   void refetch()
@@ -53,7 +53,7 @@ async function add() {
   if (!name) return
   try {
     await api.post(`/${kind.value}`, { name })
-    message.value = { kind: 'ok', text: `"${name}" 을(를) 추가했습니다.` }
+    toast.ok(`"${name}" 을(를) 추가했습니다.`)
     newName.value = ''
     changed()
   } catch (e) { fail(e) }
@@ -69,11 +69,8 @@ async function saveEdit(it: TypeListItem) {
   if (!name || name === it.name) return
   try {
     const r = await api.patch<TypeRenameResult>(`/${kind.value}/${it.id}`, { name })
-    message.value = {
-      kind: 'ok',
-      text: `"${it.name}" → "${name}" 로 바꿨습니다.` +
-        (r.updatedFiles ? ` 이 값을 쓰던 파일 ${r.updatedFiles}개도 함께 바뀌었습니다.` : ''),
-    }
+    toast.ok(`"${it.name}" → "${name}" 로 바꿨습니다.` +
+      (r.updatedFiles ? ` 이 값을 쓰던 파일 ${r.updatedFiles}개도 함께 바뀌었습니다.` : ''))
     changed()
   } catch (e) { fail(e) }
 }
@@ -92,7 +89,7 @@ async function confirmDelete() {
   if (!it) return
   try {
     await api.delete(`/${kind.value}/${it.id}`)
-    message.value = { kind: 'ok', text: `"${it.name}" 을(를) 목록에서 지웠습니다.` }
+    toast.ok(`"${it.name}" 을(를) 목록에서 지웠습니다.`)
     changed()
   } catch (e) { fail(e) }
 }
@@ -102,7 +99,7 @@ async function confirmDelete() {
   <Modal title="목록 관리" @close="emit('close')">
     <div class="tabs">
       <button v-for="t in TABS" :key="t.kind" class="btn btn-sm" :class="{ 'btn-primary': kind === t.kind }"
-              @click="kind = t.kind; editingId = null; message = null">{{ t.label }}</button>
+              @click="kind = t.kind; editingId = null">{{ t.label }}</button>
     </div>
     <p class="muted hint">
       <template v-if="kind === 'mdb-tag-reasons'">
@@ -113,8 +110,6 @@ async function confirmDelete() {
         지워도 이미 지정된 자료의 값은 남습니다. 이름에 '/' 는 쓸 수 없습니다.
       </template>
     </p>
-
-    <div v-if="message" class="msg" :class="message.kind">{{ message.text }}</div>
 
     <div class="add">
       <input v-model="newName" type="text" :placeholder="`새 ${label}`" maxlength="100"

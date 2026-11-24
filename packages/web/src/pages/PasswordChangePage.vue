@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, ApiError } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import { useSession } from '@/lib/session'
 
 /**
@@ -32,10 +33,13 @@ async function submit() {
   try {
     await api.post('/auth/password', { currentPassword: current.value, newPassword: next.value })
     // 모든 세션이 끊겼다 — 다시 로그인한다
+    toast.ok('비밀번호가 변경되었습니다. 다시 로그인해 주세요.')
     session.clear()
     void router.push('/login')
   } catch (e) {
-    error.value = e instanceof ApiError ? e.message : '변경에 실패했습니다.'
+    const msg = e instanceof ApiError ? e.message : '변경에 실패했습니다.'
+    error.value = msg
+    toast.err(msg)
   } finally {
     busy.value = false
   }
@@ -48,7 +52,9 @@ async function defer() {
     await session.deferPasswordChange()
     void router.push(session.firstAllowedPath ?? '/')
   } catch (e) {
-    error.value = e instanceof ApiError ? e.message : '미루기에 실패했습니다.'
+    const msg = e instanceof ApiError ? e.message : '미루기에 실패했습니다.'
+    error.value = msg
+    toast.err(msg)
   } finally {
     busy.value = false
   }

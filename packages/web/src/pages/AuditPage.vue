@@ -8,6 +8,7 @@ import Modal from '@/ui/Modal.vue'
 import ZipStatusModal from '@/ui/ZipStatusModal.vue'
 import JobProgress from '@/ui/JobProgress.vue'
 import { api, ApiError } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import { staleTime } from '@/lib/queryKeys'
 
 /** 시스템 로그 — 기존 audit.html 구성을 재현한다. 기록은 수정·삭제할 수 없다. */
@@ -189,7 +190,7 @@ async function startServerExport() {
     })
     exportJobId.value = r.jobId
   } catch (e) {
-    exportErr.value = e instanceof ApiError ? e.message : '엑셀 내보내기 요청에 실패했습니다.'
+    toast.err(e instanceof ApiError ? e.message : '엑셀 내보내기 요청에 실패했습니다.')
   } finally {
     exporting.value = false
   }
@@ -300,17 +301,12 @@ async function startServerExport() {
       </DataTable>
     </div>
 
-    <div v-if="exportErr" class="msg err">
-      {{ exportErr }}<span style="flex:1" />
-      <button class="btn btn-sm" @click="exportErr = ''">닫기</button>
-    </div>
-
     <div v-if="exportJobId !== null" class="panel">
       <div class="job-head">
         <span>전체 엑셀 다운로드 (서버 작업)</span><span style="flex:1" />
         <button class="btn btn-sm" @click="exportJobId = null">닫기</button>
       </div>
-      <JobProgress :job-id="exportJobId" />
+      <JobProgress :job-id="exportJobId" @done="toast.ok('전체 엑셀 생성이 완료되었습니다. 받기를 눌러 다운로드하세요.')" />
     </div>
 
     <!-- Zip 상세 현황 (반출이력과 공용 팝업) -->
