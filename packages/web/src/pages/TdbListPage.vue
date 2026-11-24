@@ -992,7 +992,15 @@ function recentClass(r: DocumentListItem): string {
 .table-box > * { flex: 1; min-width: 0; }
 
 /* 창 안의 그리드 — 스크롤은 DataTable 이 맡으므로 높이만 내준다 */
-.cart-grid { height: 60vh; min-height: 280px; display: flex; }
+.cart-grid {
+  height: 60vh;
+  min-height: 280px;
+  display: flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
 .cart-grid > * { flex: 1; min-width: 0; }
 
 .purpose-row { display: flex; gap: 40px; }

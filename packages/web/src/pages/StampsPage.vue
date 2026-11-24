@@ -374,17 +374,18 @@ async function toggleEnabled(s: StampItem) {
         <span class="count-badge muted">미사용 <strong>{{ stamps.filter(s => !s.isEnabled).length }}</strong>개</span>
       </div>
 
-      <DataTable
-        :columns="COLUMNS"
-        :rows="stamps"
-        :total="stamps.length"
-        :row-height="64"
-        default-sort-key="sortOrder"
-        default-sort-dir="asc"
-        storage-key="stamps-list"
-        excel-name="스탬프_목록"
-        empty-text="등록된 스탬프가 없습니다."
-      >
+      <div class="table-box">
+        <DataTable
+          :columns="COLUMNS"
+          :rows="stamps"
+          :total="stamps.length"
+          :row-height="64"
+          default-sort-key="sortOrder"
+          default-sort-dir="asc"
+          storage-key="stamps-list"
+          excel-name="스탬프_목록"
+          empty-text="등록된 스탬프가 없습니다."
+        >
         <template #cell:preview="{ row }">
           <div class="thumb-cell">
             <img :src="row.imageUrl" :alt="row.name" class="table-thumb" />
@@ -438,6 +439,7 @@ async function toggleEnabled(s: StampItem) {
           </div>
         </template>
       </DataTable>
+      </div>
     </div>
 
     <!-- 등록 / 수정 모달 -->

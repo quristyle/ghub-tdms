@@ -1258,7 +1258,15 @@ function size(b: number): string {
 .tree-box { height: 420px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); }
 
 .picker-modal :deep(.box.wide) { width: 1180px; max-width: 92vw; }
-.picker-grid { height: 440px; display: flex; flex-direction: column; }
+.picker-grid {
+  height: 440px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
 .picker-grid > :deep(.dt) { flex: 1; min-height: 0; }
 
 .preview-modal :deep(.box.wide) { width: 96vw; max-width: 1600px; height: 94vh; }

@@ -931,6 +931,18 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
 .cart-status { display: inline-flex; align-items: center; gap: 8px; margin-right: 10px; }
 
 /* ---------- 표 ---------- */
+/* 그리드 감싸는 상자 (전 화면 공통) */
+.table-box {
+  flex: 1 1 auto;
+  min-height: 240px;
+  display: flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.table-box > * { flex: 1; min-width: 0; }
+
 .table-scroll {
   background: var(--surface);
   border: 1px solid var(--border);

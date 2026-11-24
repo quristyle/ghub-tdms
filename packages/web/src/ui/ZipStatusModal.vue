@@ -76,6 +76,14 @@ const COLUMNS: Column<DistributionRow>[] = [
 </template>
 
 <style scoped>
-.zip-grid { height: 55vh; min-height: 260px; display: flex; }
+.zip-grid {
+  height: 55vh;
+  min-height: 260px;
+  display: flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
 .zip-grid > * { flex: 1; min-width: 0; }
 </style>

@@ -812,9 +812,14 @@ async function save() {
   font-size: var(--fs-xs);
 }
 
-.folder-table-wrapper,
+.folder-table-wrapper {
+  overflow-x: auto;
+}
 .flat-table-wrapper {
   overflow-x: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
 }
 
 /* ── 플랫 테이블 스타일 ────────────────────────────────── */

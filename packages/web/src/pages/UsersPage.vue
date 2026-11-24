@@ -1672,7 +1672,15 @@ async function confirmDeletePartner() {
   opacity: 0.7;
 }
 
-.tablewrap { flex: 1; min-height: 420px; display: flex; }
+.tablewrap {
+  flex: 1;
+  min-height: 420px;
+  display: flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
 .tablewrap > * { flex: 1; min-width: 0; }
 
 /* 행 드래그 핸들 */

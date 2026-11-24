@@ -540,7 +540,15 @@ export default { components: { JobProgressSlot } }
 .sub-inline { margin-left: 6px; }
 
 /* 창 안의 그리드 — 스크롤은 DataTable 이 맡으므로 높이만 내준다 */
-.modal-grid { height: 55vh; min-height: 260px; display: flex; }
+.modal-grid {
+  height: 55vh;
+  min-height: 260px;
+  display: flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
 .modal-grid > * { flex: 1; min-width: 0; }
 .sub { font-size: 11px; }
 .summary { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; font-size: 12px; }

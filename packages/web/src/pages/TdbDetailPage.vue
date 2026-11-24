@@ -649,30 +649,32 @@ const DIST_COLUMNS: Column<DistRow>[] = [
             <span style="flex:1" />
             <span v-if="noteMsg" class="note-msg" :class="noteMsg.kind">{{ noteMsg.text }}</span>
           </div>
-          <DataTable
-            :columns="REV_COLUMNS" :rows="revRows" :total="revRows.length"
-            :row-class="(r) => (r.isCurrent ? 'cur' : '')"
-            storage-key="detail-revisions" :excel-name="`${doc.drawingNo} Revision 이력`"
-            :empty-text="approvedOnly && revAll ? '승인된 Revision 이 없습니다. [승인만 보기] 를 끄면 전부 보입니다.' : 'Revision 이력이 없습니다.'"
-          >
-            <template #cell:label="{ row }">
-              <span>{{ row.label }}</span>
-              <span v-if="row.isCurrent" class="tag">최신본</span>
-            </template>
+          <div class="table-box">
+            <DataTable
+              :columns="REV_COLUMNS" :rows="revRows" :total="revRows.length"
+              :row-class="(r) => (r.isCurrent ? 'cur' : '')"
+              storage-key="detail-revisions" :excel-name="`${doc.drawingNo} Revision 이력`"
+              :empty-text="approvedOnly && revAll ? '승인된 Revision 이 없습니다. [승인만 보기] 를 끄면 전부 보입니다.' : 'Revision 이력이 없습니다.'"
+            >
+              <template #cell:label="{ row }">
+                <span>{{ row.label }}</span>
+                <span v-if="row.isCurrent" class="tag">최신본</span>
+              </template>
 
-            <template #cell:view="{ row }">
-              <button class="btn btn-sm icon" :disabled="!canPreviewSet(revSets.find((s) => s.key === revKey(row.rev, row.branch)))"
-                      :title="canPreviewSet(revSets.find((s) => s.key === revKey(row.rev, row.branch))) ? `${row.label} 미리보기` : '볼 도면(PDF·DWG) 없음'"
-                      @click.stop="previewRevRow(row)">🔍</button>
-            </template>
+              <template #cell:view="{ row }">
+                <button class="btn btn-sm icon" :disabled="!canPreviewSet(revSets.find((s) => s.key === revKey(row.rev, row.branch)))"
+                        :title="canPreviewSet(revSets.find((s) => s.key === revKey(row.rev, row.branch))) ? `${row.label} 미리보기` : '볼 도면(PDF·DWG) 없음'"
+                        @click.stop="previewRevRow(row)">🔍</button>
+              </template>
 
-            <template #cell:note="{ row }">
-              <input type="text" :value="row.note ?? ''" :placeholder="canRevNote ? '비고' : ''"
-                     :disabled="!canRevNote" :title="canRevNote ? '' : '비고 작성 권한이 없습니다'"
-                     style="width:100%" @click.stop
-                     @change="saveRevNote(row, ($event.target as HTMLInputElement).value)" />
-            </template>
-          </DataTable>
+              <template #cell:note="{ row }">
+                <input type="text" :value="row.note ?? ''" :placeholder="canRevNote ? '비고' : ''"
+                       :disabled="!canRevNote" :title="canRevNote ? '' : '비고 작성 권한이 없습니다'"
+                       style="width:100%" @click.stop
+                       @change="saveRevNote(row, ($event.target as HTMLInputElement).value)" />
+              </template>
+            </DataTable>
+          </div>
         </section>
 
         <!-- 반출 이력 -->
@@ -681,20 +683,22 @@ const DIST_COLUMNS: Column<DistRow>[] = [
             <span style="flex:1" />
             <span class="note-msg" :class="noteMsg.kind">{{ noteMsg.text }}</span>
           </div>
-          <DataTable
-            :columns="DIST_COLUMNS" :rows="distributions?.items ?? []"
-            :total="distributions?.items.length ?? 0"
-            :row-class="(x) => (x.state === 'OUTSTANDING' || x.state === 'ISSUE' ? 'warn' : '')"
-            storage-key="detail-distributions" :excel-name="`${doc.drawingNo} 반출이력`"
-            empty-text="반출 이력이 없습니다."
-          >
-            <template #cell:note="{ row }">
-              <input type="text" :value="row.note ?? ''" :placeholder="canDistNote ? '비고' : ''"
-                     :disabled="!canDistNote" :title="canDistNote ? '' : '비고 작성 권한이 없습니다'"
-                     style="width:100%" @click.stop
-                     @change="saveDistNote(row, ($event.target as HTMLInputElement).value)" />
-            </template>
-          </DataTable>
+          <div class="table-box">
+            <DataTable
+              :columns="DIST_COLUMNS" :rows="distributions?.items ?? []"
+              :total="distributions?.items.length ?? 0"
+              :row-class="(x) => (x.state === 'OUTSTANDING' || x.state === 'ISSUE' ? 'warn' : '')"
+              storage-key="detail-distributions" :excel-name="`${doc.drawingNo} 반출이력`"
+              empty-text="반출 이력이 없습니다."
+            >
+              <template #cell:note="{ row }">
+                <input type="text" :value="row.note ?? ''" :placeholder="canDistNote ? '비고' : ''"
+                       :disabled="!canDistNote" :title="canDistNote ? '' : '비고 작성 권한이 없습니다'"
+                       style="width:100%" @click.stop
+                       @change="saveDistNote(row, ($event.target as HTMLInputElement).value)" />
+              </template>
+            </DataTable>
+          </div>
         </section>
       </div>
     </template>
@@ -716,7 +720,17 @@ const DIST_COLUMNS: Column<DistRow>[] = [
   display: flex; flex-direction: column;
   min-height: 0; flex: 1; overflow: hidden;
 }
-.grid-tab > :deep(.dt) { flex: 1; min-height: 0; }
+.grid-tab .table-box {
+  flex: 1 1 auto;
+  min-height: 240px;
+  display: flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.grid-tab .table-box > * { flex: 1; min-width: 0; }
+.grid-tab > :deep(.dt), .grid-tab .table-box > :deep(.dt) { flex: 1; min-height: 0; }
 .preview { display: flex; flex-direction: column; }
 .source-bar {
   flex: 0 0 auto; display: flex; align-items: center; gap: 4px; padding: 6px 12px;
