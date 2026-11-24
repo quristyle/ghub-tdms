@@ -88,6 +88,10 @@ export const MenuItem = z.object({
 })
 export type MenuItem = z.infer<typeof MenuItem>
 
+/** 화면 내비게이션 레이아웃 모드: 둘 다 사용, 상단만 사용, 사이드바만 사용 */
+export const LayoutMode = z.enum(['both', 'top', 'sidebar'])
+export type LayoutMode = z.infer<typeof LayoutMode>
+
 /** GET /auth/me — 화면이 메뉴를 그리고 버튼을 켜고 끄는 데 쓰는 전부 */
 export const MeResponse = z.object({
   id: z.number().int(),
@@ -118,16 +122,29 @@ export const MeResponse = z.object({
   lastLoginAt: z.string().nullable().optional(),
   previousLoginAt: z.string().nullable().optional(),
   createdAt: z.string().nullable().optional(),
+  /** 내비게이션 레이아웃 모드 */
+  layoutMode: LayoutMode.optional().default('both'),
+  /** 사이드바 고정(Pin) 여부 */
+  sidebarPinned: z.boolean().optional().default(false),
 })
 export type MeResponse = z.infer<typeof MeResponse>
 
-/** PUT /auth/profile — 마이페이지 내 정보(연락처 등) 수정 */
+/** PUT /auth/profile — 마이페이지 내 정보(연락처 및 레이아웃 등) 수정 */
 export const UpdateProfileRequest = z.object({
   email: z.string().max(200).nullable().optional(),
   phone: z.string().max(40).nullable().optional(),
   extensionNumber: z.string().max(40).nullable().optional(),
+  layoutMode: LayoutMode.optional(),
+  sidebarPinned: z.boolean().optional(),
 })
 export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequest>
+
+/** PUT /auth/layout — 내비게이션 레이아웃 및 핀 설정 */
+export const UpdateLayoutRequest = z.object({
+  layoutMode: LayoutMode.optional(),
+  sidebarPinned: z.boolean().optional(),
+})
+export type UpdateLayoutRequest = z.infer<typeof UpdateLayoutRequest>
 
 /** 그룹별 자동 로그인용 사용자 정보 */
 export const QuickLoginUser = z.object({

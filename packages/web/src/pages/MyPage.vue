@@ -27,8 +27,39 @@ const session = useSession()
 const router = useRouter()
 
 // ── 탭 관리 ────────────────────────────────────────────────────────────
-type TabKey = 'profile' | 'password' | 'security'
+type TabKey = 'profile' | 'password' | 'security' | 'layout'
 const currentTab = ref<TabKey>('profile')
+
+// ── 화면 레이아웃 설정 ──────────────────────────────────────────────────
+type LayoutModeOption = 'both' | 'top' | 'sidebar'
+const selectedLayoutMode = ref<LayoutModeOption>(session.layoutMode)
+const selectedSidebarPinned = ref<boolean>(session.isSidebarPinned)
+const layoutSaving = ref(false)
+const layoutError = ref('')
+const layoutSuccess = ref('')
+
+function syncLayoutFromSession() {
+  selectedLayoutMode.value = session.layoutMode
+  selectedSidebarPinned.value = session.isSidebarPinned
+}
+
+async function saveLayoutPreferences() {
+  layoutError.value = ''
+  layoutSuccess.value = ''
+  layoutSaving.value = true
+  try {
+    await session.updateLayoutPreferences({
+      layoutMode: selectedLayoutMode.value,
+      sidebarPinned: selectedSidebarPinned.value,
+    })
+    layoutSuccess.value = '화면 내비게이션 및 레이아웃 설정이 성공적으로 저장되었습니다.'
+    setTimeout(() => { layoutSuccess.value = '' }, 3000)
+  } catch (e) {
+    layoutError.value = e instanceof ApiError ? e.message : '레이아웃 설정을 저장하지 못했습니다.'
+  } finally {
+    layoutSaving.value = false
+  }
+}
 
 // ── 연락처 수정 폼 ──────────────────────────────────────────────────────
 const email = ref('')
@@ -48,6 +79,7 @@ function syncFromSession() {
 
 onMounted(() => {
   syncFromSession()
+  syncLayoutFromSession()
 })
 
 async function saveProfile() {
@@ -231,6 +263,20 @@ const companyName = computed(() => {
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
         </svg>
         <span class="tab-label">보안 및 활동 현황</span>
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="tab-btn"
+        :class="{ active: currentTab === 'layout' }"
+        :aria-selected="currentTab === 'layout'"
+        @click="currentTab = 'layout'"
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tab-icon">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <path d="M3 9h18M9 21V9" />
+        </svg>
+        <span class="tab-label">화면 레이아웃 설정</span>
       </button>
     </div>
 
@@ -452,6 +498,143 @@ const companyName = computed(() => {
             보관함 열기 &rarr;
           </button>
         </div>
+      </section>
+    </div>
+
+    <!-- 탭 4: 화면 레이아웃 설정 -->
+    <div v-if="currentTab === 'layout'" class="tab-content layout-tab" role="tabpanel">
+      <section class="mypage-section">
+        <div class="section-heading-row">
+          <h3 class="section-heading">내비게이션 및 메뉴 레이아웃 선택</h3>
+          <span class="section-desc">업무 환경에 맞춰 상단 가로 메뉴와 왼쪽 사이드바 트리 메뉴 사용 방식을 선택할 수 있습니다.</span>
+        </div>
+
+        <form class="layout-form" @submit.prevent="saveLayoutPreferences">
+          <div class="layout-options-grid">
+            <!-- 옵션 1: 둘 다 사용 -->
+            <label
+              class="layout-card"
+              :class="{ selected: selectedLayoutMode === 'both' }"
+            >
+              <div class="layout-card-head">
+                <input
+                  v-model="selectedLayoutMode"
+                  type="radio"
+                  name="layoutMode"
+                  value="both"
+                  class="layout-radio"
+                />
+                <div class="layout-card-title-box">
+                  <strong class="layout-card-title">상단 메뉴 + 사이드바 모두 사용</strong>
+                  <span class="layout-badge badge-both">기본 권장</span>
+                </div>
+              </div>
+              <p class="layout-card-desc">
+                화면 상단에 가로 메뉴를 배치하고, 왼쪽 햄버거 메뉴 및 핀 고정 사이드바를 함께 사용합니다.
+              </p>
+              <div class="layout-preview-mock mock-both" aria-hidden="true">
+                <div class="mock-topbar mock-accent">
+                  <div class="mock-dot" />
+                  <div class="mock-lines" />
+                </div>
+                <div class="mock-body-area">
+                  <div class="mock-sidebar mock-soft" />
+                  <div class="mock-content" />
+                </div>
+              </div>
+            </label>
+
+            <!-- 옵션 2: 상단 메뉴만 사용 -->
+            <label
+              class="layout-card"
+              :class="{ selected: selectedLayoutMode === 'top' }"
+            >
+              <div class="layout-card-head">
+                <input
+                  v-model="selectedLayoutMode"
+                  type="radio"
+                  name="layoutMode"
+                  value="top"
+                  class="layout-radio"
+                />
+                <div class="layout-card-title-box">
+                  <strong class="layout-card-title">상단 메뉴만 사용</strong>
+                  <span class="layout-badge">간결형</span>
+                </div>
+              </div>
+              <p class="layout-card-desc">
+                상단 가로 메뉴바만 제공하며 왼쪽 사이드바는 숨깁니다. 표와 도면 열람 공간을 넓게 확보할 수 있습니다.
+              </p>
+              <div class="layout-preview-mock mock-top" aria-hidden="true">
+                <div class="mock-topbar mock-accent">
+                  <div class="mock-dot" />
+                  <div class="mock-lines" />
+                </div>
+                <div class="mock-body-area">
+                  <div class="mock-content full" />
+                </div>
+              </div>
+            </label>
+
+            <!-- 옵션 3: 사이드바만 사용 -->
+            <label
+              class="layout-card"
+              :class="{ selected: selectedLayoutMode === 'sidebar' }"
+            >
+              <div class="layout-card-head">
+                <input
+                  v-model="selectedLayoutMode"
+                  type="radio"
+                  name="layoutMode"
+                  value="sidebar"
+                  class="layout-radio"
+                />
+                <div class="layout-card-title-box">
+                  <strong class="layout-card-title">사이드바만 사용</strong>
+                  <span class="layout-badge">트리 탐색형</span>
+                </div>
+              </div>
+              <p class="layout-card-desc">
+                상단 가로 메뉴를 숨기고 왼쪽 사이드바 트리를 기본 내비게이션으로 고정하여 체계적인 업무 탐색을 지원합니다.
+              </p>
+              <div class="layout-preview-mock mock-sidebar-only" aria-hidden="true">
+                <div class="mock-topbar mock-subtle">
+                  <div class="mock-dot" />
+                </div>
+                <div class="mock-body-area">
+                  <div class="mock-sidebar mock-accent" />
+                  <div class="mock-content" />
+                </div>
+              </div>
+            </label>
+          </div>
+
+          <!-- 사이드바 핀 고정 부가 옵션 -->
+          <div v-if="selectedLayoutMode !== 'top'" class="pin-setting-box">
+            <label class="pin-checkbox-label">
+              <input
+                v-model="selectedSidebarPinned"
+                type="checkbox"
+                class="pin-checkbox"
+              />
+              <div class="pin-text-box">
+                <span class="pin-title">사이드바 화면 왼쪽 고정 (Pin)</span>
+                <span class="pin-desc">
+                  체크 시 화면 접속 시 왼쪽 사이드바가 기본으로 고정되어 나타납니다. 사이드바 헤더의 핀 아이콘으로 언제든지 고정/해제할 수 있습니다.
+                </span>
+              </div>
+            </label>
+          </div>
+
+          <div v-if="layoutError" class="alert-box error">{{ layoutError }}</div>
+          <div v-if="layoutSuccess" class="alert-box success">{{ layoutSuccess }}</div>
+
+          <div class="form-actions">
+            <button type="submit" class="primary save-btn" :disabled="layoutSaving">
+              {{ layoutSaving ? '저장 중...' : '레이아웃 설정 저장' }}
+            </button>
+          </div>
+        </form>
       </section>
     </div>
   </div>
@@ -1001,5 +1184,203 @@ input:focus {
     white-space: nowrap;
     padding-bottom: 1px;
   }
+}
+
+/* ── 레이아웃 설정 탭 ────────────────────────────────────────────── */
+.layout-options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.layout-card {
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  background: var(--surface-alt);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg, 8px);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.layout-card:hover {
+  border-color: var(--primary-line, #b3d7f5);
+  background: var(--surface);
+}
+
+.layout-card.selected {
+  border-color: var(--primary, #0070c0);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--primary, #0070c0), 0 3px 12px rgba(0, 112, 192, 0.08);
+}
+
+.layout-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.layout-radio {
+  accent-color: var(--primary, #0070c0);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.layout-card-title-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.layout-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.layout-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.badge-both {
+  background: var(--primary-soft, #e8f4fc);
+  color: var(--primary, #0070c0);
+  border-color: var(--primary-line, #b3d7f5);
+}
+
+.layout-card-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0 0 14px 0;
+  min-height: 36px;
+}
+
+/* 레이아웃 프리뷰 미니 목업 */
+.layout-preview-mock {
+  display: flex;
+  flex-direction: column;
+  height: 90px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.mock-topbar {
+  height: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mock-topbar.mock-accent {
+  background: var(--primary-soft, #e8f4fc);
+}
+
+.mock-topbar.mock-subtle {
+  background: var(--surface-sunken);
+}
+
+.mock-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary, #0070c0);
+}
+
+.mock-lines {
+  height: 4px;
+  width: 40px;
+  background: var(--primary-line, #b3d7f5);
+  border-radius: 2px;
+}
+
+.mock-body-area {
+  flex: 1;
+  display: flex;
+}
+
+.mock-sidebar {
+  width: 32px;
+  border-right: 1px solid var(--border);
+}
+
+.mock-sidebar.mock-accent {
+  background: var(--primary, #0070c0);
+}
+
+.mock-sidebar.mock-soft {
+  background: var(--surface-sunken);
+}
+
+.mock-content {
+  flex: 1;
+  background: var(--surface);
+  margin: 6px;
+  border: 1px dashed var(--border);
+  border-radius: 3px;
+}
+
+.mock-content.full {
+  margin: 6px;
+}
+
+.pin-setting-box {
+  margin-top: 10px;
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.pin-checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.pin-checkbox {
+  accent-color: var(--primary, #0070c0);
+  width: 17px;
+  height: 17px;
+  margin-top: 2px;
+  cursor: pointer;
+}
+
+.pin-text-box {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pin-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pin-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
 }
 </style>

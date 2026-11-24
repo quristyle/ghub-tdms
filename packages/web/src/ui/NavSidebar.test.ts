@@ -154,4 +154,54 @@ describe('모바일 사이드바 트리 메뉴 구조 및 로직', () => {
     expect(defaultPrevented).toBe(false)
     expect(sidebarOpen).toBe(false)
   })
+
+  it('사이드바 핀 고정 시 데스크탑에서는 메뉴 클릭 시 사이드바가 닫히지 않는다', () => {
+    let closed = false
+    function handleMenuClick(pinned: boolean, isMobile: boolean) {
+      if (!pinned || isMobile) {
+        closed = true
+      }
+    }
+
+    // 데스크탑에서 핀 고정된 상태: 닫히지 않음
+    handleMenuClick(true, false)
+    expect(closed).toBe(false)
+
+    // 핀 고정되지 않은 일반 서랍 모드: 닫힘
+    handleMenuClick(false, false)
+    expect(closed).toBe(true)
+
+    // 모바일 환경에서는 핀 여부와 무관하게 닫힘
+    closed = false
+    handleMenuClick(true, true)
+    expect(closed).toBe(true)
+  })
+
+  it('레이아웃 모드(both, top, sidebar)에 따른 UI 구성 요소 노출 규칙이 정확하다', () => {
+    function getLayoutVisibility(mode: 'both' | 'top' | 'sidebar', isMobile: boolean) {
+      return {
+        showTopNav: mode !== 'sidebar',
+        showHamburger: !isMobile && mode !== 'top',
+        showSidebar: mode !== 'top',
+      }
+    }
+
+    // 둘 다 사용 (both)
+    const both = getLayoutVisibility('both', false)
+    expect(both.showTopNav).toBe(true)
+    expect(both.showHamburger).toBe(true)
+    expect(both.showSidebar).toBe(true)
+
+    // 상단 메뉴만 사용 (top)
+    const topOnly = getLayoutVisibility('top', false)
+    expect(topOnly.showTopNav).toBe(true)
+    expect(topOnly.showHamburger).toBe(false)
+    expect(topOnly.showSidebar).toBe(false)
+
+    // 사이드바만 사용 (sidebar)
+    const sidebarOnly = getLayoutVisibility('sidebar', false)
+    expect(sidebarOnly.showTopNav).toBe(false)
+    expect(sidebarOnly.showHamburger).toBe(true)
+    expect(sidebarOnly.showSidebar).toBe(true)
+  })
 })

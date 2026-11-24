@@ -35,6 +35,15 @@ const MOBILE_MAX = 900
 const isMobile = ref(typeof window !== 'undefined' && window.innerWidth <= MOBILE_MAX)
 const navSidebarOpen = ref(false)
 
+/** 내비게이션 레이아웃 모드 및 사이드바 고정 상태 */
+const layoutMode = computed<'both' | 'top' | 'sidebar'>(() => session.layoutMode)
+const isSidebarPinned = computed<boolean>(() => session.isSidebarPinned)
+
+/** 데스크탑 환경에서 실제 고정 적용 여부 */
+const effectiveSidebarPinned = computed(() =>
+  !isMobile.value && (isSidebarPinned.value || layoutMode.value === 'sidebar')
+)
+
 // 폭이 바뀌었다고 사이드바를 닫지 않는다 — 데스크탑에서도 쓰는 기능이 되었다.
 // (예전에는 데스크탑에 여는 자리가 없어 넘어갈 때 닫아 줘야 했다)
 function updateMobileState() {
@@ -52,12 +61,32 @@ onBeforeUnmount(() => {
 
 /**
  * 트리 사이드바 열고 닫기 — 데스크탑의 햄버거 단추와 모바일의 로고가 함께 쓴다.
- * 모바일 로고는 RouterLink 가 아니라 단추다 — 링크로 두면 라우터가 먼저 '/' 로 옮기고,
- * 화면이 바뀌면 사이드바를 닫는 감시가 방금 연 사이드바를 곧바로 닫아 버린다
- * (홈이 아닌 화면에서 로고를 눌러도 아무 일도 없는 것처럼 보이던 원인).
+ * 데스크탑에서 핀으로 고정되어 있을 때 햄버거 버튼을 누르면 고정 해제와 함께 닫힌다.
  */
 function toggleNavSidebar() {
-  navSidebarOpen.value = !navSidebarOpen.value
+  if (effectiveSidebarPinned.value) {
+    void session.updateLayoutPreferences({ sidebarPinned: false })
+    navSidebarOpen.value = false
+  } else {
+    navSidebarOpen.value = !navSidebarOpen.value
+  }
+}
+
+/** 핀 고정 토글 */
+function togglePin() {
+  const next = !session.isSidebarPinned
+  void session.updateLayoutPreferences({ sidebarPinned: next })
+  if (next) {
+    navSidebarOpen.value = true
+  }
+}
+
+/** 사이드바 닫기 */
+function handleSidebarClose() {
+  if (isSidebarPinned.value && !isMobile.value) {
+    void session.updateLayoutPreferences({ sidebarPinned: false })
+  }
+  navSidebarOpen.value = false
 }
 
 /** 지금 보는 화면 — 상세·도움말처럼 메뉴에 없는 화면은 들어온 메뉴를 켜 두지 않는다 */
@@ -134,10 +163,12 @@ function openFirst(g: { items: { path: string }[] }) {
   if (first) void router.push(first.path)
 }
 
-// 화면을 옮기면 닫는다 — 눌러서 들어간 뒤 목록이 남아 있으면 가린다
+// 화면을 옮기면 닫는다 — 단, 데스크탑에서 핀으로 고정된 상태일 때는 사이드바를 유지한다
 watch(() => route.fullPath, () => {
   openGroup.value = null
-  navSidebarOpen.value = false
+  if (!effectiveSidebarPinned.value) {
+    navSidebarOpen.value = false
+  }
 })
 
 // ── 사용자 보관 [보관 (N)] ─────────────────────────────────────────────
@@ -158,21 +189,28 @@ async function logout() {
 </script>
 
 <template>
-  <div class="app-shell">
+  <div
+    class="app-shell"
+    :class="{
+      'has-pinned-sidebar': effectiveSidebarPinned,
+      [`layout-${layoutMode}`]: true,
+    }"
+  >
     <header class="app-header">
       <div class="app-header-inner">
         <!-- 햄버거 + 로고는 한 묶음이다 — app-header-inner 의 큰 gap(36px)이 둘 사이까지
              벌리지 않도록 따로 감싼다 -->
         <div class="app-brand-box">
-        <!-- 데스크탑의 햄버거. 모바일에서는 로고 자체가 이 일을 하므로 내지 않는다 -->
+        <!-- 데스크탑의 햄버거. 상단만 사용(top) 모드가 아닐 때 표시 -->
         <button
-          v-if="!isMobile"
+          v-if="!isMobile && layoutMode !== 'top'"
           type="button"
           class="app-menu-btn"
-          title="메뉴 열기"
-          aria-label="메뉴 열기"
+          :class="{ active: effectiveSidebarPinned || navSidebarOpen }"
+          :title="effectiveSidebarPinned ? '사이드바 고정 해제 및 닫기' : '메뉴 열기'"
+          :aria-label="effectiveSidebarPinned ? '사이드바 고정 해제 및 닫기' : '메뉴 열기'"
           aria-haspopup="dialog"
-          :aria-expanded="navSidebarOpen"
+          :aria-expanded="effectiveSidebarPinned || navSidebarOpen"
           @click="toggleNavSidebar"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -207,7 +245,8 @@ async function logout() {
         </RouterLink>
         </div>
 
-        <nav class="app-nav" aria-label="주 메뉴">
+        <!-- 상단 가로 메뉴: 사이드바만 사용(sidebar) 모드가 아닐 때 표시 -->
+        <nav v-if="layoutMode !== 'sidebar'" class="app-nav" aria-label="주 메뉴">
           <!-- TDB · MDB · 시스템 — 올리면 하위 메뉴가 펼쳐지고, 누르면 첫 번째 하위 메뉴가 열린다 -->
           <div
             v-for="g in navGroups" :key="g.key" class="app-nav-group"
@@ -240,6 +279,9 @@ async function logout() {
             :class="{ active: isOn(m.path) }" :title="m.label"
           >{{ m.label }}</RouterLink>
         </nav>
+
+        <!-- 사이드바 전용 모드일 때 가운데 여백을 채워 우측 사용자 정보가 우측 끝으로 가도록 flex-spacer 추가 -->
+        <div v-else class="app-nav-spacer" />
 
         <div class="app-user">
           <NoticeButtons />
@@ -277,17 +319,24 @@ async function logout() {
       </div>
     </header>
 
-    <RouterView />
+    <!-- 페이지 본문 컨테이너 -->
+    <div class="app-body-container">
+      <RouterView />
+    </div>
 
     <FavoritesHost />
 
-    <!-- 모바일 트리 사이드바 메뉴 (왼쪽에서 슬라이드) -->
+    <!-- 트리 사이드바 메뉴 (상단만 사용 모드가 아닐 때 제공) -->
     <NavSidebar
-      :open="navSidebarOpen"
+      v-if="layoutMode !== 'top'"
+      :open="effectiveSidebarPinned || navSidebarOpen"
+      :pinned="effectiveSidebarPinned"
+      :is-mobile="isMobile"
       :nav-groups="navGroups"
       :loose-menu="looseMenu"
       :fav-count="favCount"
-      @close="navSidebarOpen = false"
+      @close="handleSidebarClose"
+      @toggle-pin="togglePin"
       @open-favorites="openFavorites"
       @open-mypage="router.push('/mypage')"
       @logout="logout"
@@ -303,6 +352,33 @@ async function logout() {
 .mypage-link { cursor: pointer; }
 .logout-icon-btn { width: 30px; height: 30px; padding: 0; color: var(--text-muted); }
 .logout-icon-btn:hover { color: var(--danger, #97453e); }
+
+/* ── 핀 고정 사이드바 적용 시 헤더 및 본문 컨테이너 마진 확보 ── */
+.app-shell.has-pinned-sidebar .app-header {
+  margin-left: 280px;
+  width: calc(100% - 280px);
+  transition: margin-left 0.25s cubic-bezier(0.16, 1, 0.3, 1), width 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.app-body-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+  transition: margin-left 0.25s cubic-bezier(0.16, 1, 0.3, 1), width 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.app-shell.has-pinned-sidebar .app-body-container {
+  margin-left: 280px;
+  width: calc(100% - 280px);
+}
+
+.app-nav-spacer {
+  flex: 1;
+}
 
 /* 햄버거 + 로고 묶음 */
 .app-brand-box { display: flex; align-items: center; gap: 12px; min-width: 0; }

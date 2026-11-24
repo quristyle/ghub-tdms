@@ -22,18 +22,25 @@ export interface NavGroup {
   items: NavItem[]
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   open: boolean
   navGroups: NavGroup[]
   looseMenu: NavItem[]
   favCount?: FavoriteCountResponse | null
-}>()
+  pinned?: boolean
+  isMobile?: boolean
+}>(), {
+  favCount: null,
+  pinned: false,
+  isMobile: false,
+})
 
 const emit = defineEmits<{
   close: []
   openFavorites: []
   openMypage: []
   logout: []
+  togglePin: []
 }>()
 
 const route = useRoute()
@@ -62,21 +69,23 @@ function initAllExpanded() {
 }
 
 // 사이드바가 열릴 때 초기 상태가 비어 있으면 모두 펼쳐둔다
-watch(() => props.open, (isOpen) => {
-  if (isOpen) {
-    if (expandedGroups.value.size === 0) {
+// (핀 고정 모드일 때는 배경 스크롤을 막지 않는다)
+watch(
+  [() => props.open, () => props.pinned, () => props.isMobile],
+  ([isOpen, isPinned, mobile]) => {
+    if (typeof document !== 'undefined') {
+      if (isOpen && (!isPinned || mobile)) {
+        document.body.style.overflow = 'hidden'
+      } else {
+        document.body.style.overflow = ''
+      }
+    }
+    if ((isOpen || isPinned) && expandedGroups.value.size === 0) {
       initAllExpanded()
     }
-    // 배경 스크롤 방지
-    if (typeof document !== 'undefined') {
-      document.body.style.overflow = 'hidden'
-    }
-  } else {
-    if (typeof document !== 'undefined') {
-      document.body.style.overflow = ''
-    }
-  }
-}, { immediate: true })
+  },
+  { immediate: true },
+)
 
 function toggleGroup(key: string) {
   const next = new Set(expandedGroups.value)
@@ -102,12 +111,15 @@ function toggleAll() {
 }
 
 function handleMenuClick() {
-  emit('close')
+  // 핀으로 고정되어 있지 않거나 모바일 환경일 때만 메뉴 클릭 시 닫기
+  if (!props.pinned || props.isMobile) {
+    emit('close')
+  }
 }
 
-// Esc 키를 누르면 닫기
+// Esc 키를 누르면 닫기 (핀 고정 시 제외)
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape' && props.open) {
+  if (e.key === 'Escape' && props.open && (!props.pinned || props.isMobile)) {
     emit('close')
   }
 }
@@ -126,41 +138,62 @@ onBeforeUnmount(() => {
 
 <template>
   <Teleport to="body">
-    <!-- 배경 딤 처리 (클릭 시 닫기) -->
+    <!-- 배경 딤 처리 (클릭 시 닫기 — 데스크탑 핀 고정 시에는 표시하지 않음) -->
     <div
+      v-if="!pinned || isMobile"
       class="nav-sidebar-backdrop"
       :class="{ 'is-open': open }"
       aria-hidden="true"
       @click="emit('close')"
     />
 
-    <!-- 왼쪽에서 슬라이드로 나타나는 사이드바 서랍 -->
+    <!-- 왼쪽에서 슬라이드로 나타나는 사이드바 서랍 (핀 고정 시 왼쪽 상시 고정) -->
     <aside
       class="nav-sidebar-drawer"
-      :class="{ 'is-open': open }"
+      :class="{
+        'is-open': open || (pinned && !isMobile),
+        'is-pinned': pinned && !isMobile,
+      }"
       role="dialog"
-      aria-modal="true"
-      aria-label="모바일 주 메뉴"
-      :aria-hidden="!open"
+      :aria-modal="!pinned || isMobile"
+      aria-label="주 메뉴 내비게이션"
+      :aria-hidden="!open && (!pinned || isMobile)"
     >
-      <!-- 상단 머리글: 로고 + 닫기 버튼 -->
+      <!-- 상단 머리글: 로고 + 핀 고정 버튼 + 닫기 버튼 -->
       <div class="drawer-header">
         <div class="drawer-brand">
           <img class="drawer-brand-logo" src="/assets/skgas-logo.png" alt="SK gas" />
           <span class="drawer-brand-text"><strong>TDMS</strong> 기술자료 관리</span>
         </div>
-        <button
-          type="button"
-          class="drawer-close-btn"
-          title="메뉴 닫기"
-          aria-label="메뉴 닫기"
-          @click="emit('close')"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="6" x2="6" y2="18" stroke-linecap="round" />
-            <line x1="6" y1="6" x2="18" y2="18" stroke-linecap="round" />
-          </svg>
-        </button>
+        <div class="drawer-header-actions">
+          <button
+            v-if="!isMobile"
+            type="button"
+            class="drawer-pin-btn"
+            :class="{ 'is-pinned': pinned }"
+            :title="pinned ? '사이드바 고정 해제' : '사이드바 고정'"
+            :aria-label="pinned ? '사이드바 고정 해제' : '사이드바 고정'"
+            :aria-pressed="pinned"
+            @click="emit('togglePin')"
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="12" y1="17" x2="12" y2="22" />
+              <path d="M5 17h14v-2l-2-2V5a2 2 0 0 0-2-2h-6a2 2 0 0 0-2 2v8l-2 2v2z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="drawer-close-btn"
+            :title="pinned && !isMobile ? '사이드바 닫기 (고정 해제)' : '메뉴 닫기'"
+            :aria-label="pinned && !isMobile ? '사이드바 닫기 (고정 해제)' : '메뉴 닫기'"
+            @click="emit('close')"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18" stroke-linecap="round" />
+              <line x1="6" y1="6" x2="18" y2="18" stroke-linecap="round" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <!-- 사용자 정보 카드 -->
@@ -409,6 +442,52 @@ onBeforeUnmount(() => {
   margin-right: 2px;
 }
 
+.drawer-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.drawer-pin-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.drawer-pin-btn:hover {
+  background: var(--surface-sunken);
+  color: var(--text);
+}
+
+.drawer-pin-btn.is-pinned {
+  background: var(--primary-soft, #e8f4fc);
+  color: var(--primary, #0070c0);
+  border-color: var(--primary-line, #b3d7f5);
+}
+
+.drawer-pin-btn svg {
+  display: block;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.drawer-pin-btn:not(.is-pinned) svg {
+  transform: rotate(45deg);
+}
+
+.drawer-pin-btn.is-pinned svg {
+  transform: rotate(0deg);
+}
+
 .drawer-close-btn {
   display: inline-flex;
   align-items: center;
@@ -426,6 +505,15 @@ onBeforeUnmount(() => {
 .drawer-close-btn:hover {
   background: var(--surface-sunken);
   color: var(--text);
+}
+
+/* ── 데스크탑 핀 고정 사이드바 ────────────────────────────────── */
+.nav-sidebar-drawer.is-pinned {
+  transform: translateX(0) !important;
+  visibility: visible !important;
+  box-shadow: 1px 0 0 var(--border), 2px 0 10px rgba(0, 0, 0, 0.04);
+  z-index: 95;
+  width: 280px;
 }
 
 /* ── 사용자 정보 카드 ─────────────────────────────────────────── */

@@ -29,6 +29,8 @@ export interface SessionUser {
   lastLoginAt?: Date | string | null
   previousLoginAt?: Date | string | null
   createdAt?: Date | string | null
+  layoutMode?: 'both' | 'top' | 'sidebar'
+  sidebarPinned?: boolean
 }
 
 export interface AuthContext {
@@ -83,6 +85,8 @@ export async function loadSession(sessionId: string): Promise<SessionUser | unde
             u.last_login_at        AS "lastLoginAt",
             u.previous_login_at    AS "previousLoginAt",
             u.created_at           AS "createdAt",
+            u.layout_mode          AS "layoutMode",
+            u.sidebar_pinned       AS "sidebarPinned",
             (s.last_seen_at < now() - ($2 || ' milliseconds')::interval) AS needs_touch
        FROM sessions s
        JOIN users u  ON u.id = s.user_id
@@ -121,6 +125,8 @@ export async function loadSession(sessionId: string): Promise<SessionUser | unde
     lastLoginAt: row.lastLoginAt as Date | string | null | undefined,
     previousLoginAt: row.previousLoginAt as Date | string | null | undefined,
     createdAt: row.createdAt as Date | string | null | undefined,
+    layoutMode: (row.layoutMode as 'both' | 'top' | 'sidebar') ?? 'both',
+    sidebarPinned: Boolean(row.sidebarPinned),
   }
 }
 

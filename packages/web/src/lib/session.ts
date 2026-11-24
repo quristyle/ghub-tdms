@@ -36,6 +36,7 @@ export const useSession = defineStore('session', () => {
     loading.value = true
     try {
       me.value = await api.get<MeResponse>('/auth/me')
+      syncSidebarPinnedFromServer()
       return true
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) me.value = null
@@ -89,8 +90,66 @@ export const useSession = defineStore('session', () => {
   /** 접근 가능한 첫 화면 — 상단 메뉴 차례 그대로 (기존 동작) */
   const firstAllowedPath = computed(() => menu.value[0]?.path ?? null)
 
+  /** 내비게이션 레이아웃 모드: both(둘 다), top(상단만), sidebar(사이드바만) */
+  const layoutMode = computed<'both' | 'top' | 'sidebar'>(() => {
+    if (me.value?.layoutMode) return me.value.layoutMode
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem('tdms_layout_mode')
+      if (saved === 'both' || saved === 'top' || saved === 'sidebar') return saved
+    }
+    return 'both'
+  })
+
+  /** 사이드바 핀 고정 여부 */
+  const isSidebarPinned = ref<boolean>(
+    typeof localStorage !== 'undefined' ? localStorage.getItem('tdms_sidebar_pinned') === 'true' : false
+  )
+
+  // me.value 가 로드되면 서버 값과 동기화
+  function syncSidebarPinnedFromServer() {
+    if (me.value?.sidebarPinned !== undefined) {
+      isSidebarPinned.value = Boolean(me.value.sidebarPinned)
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('tdms_sidebar_pinned', String(isSidebarPinned.value))
+      }
+    }
+    if (me.value?.layoutMode) {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('tdms_layout_mode', me.value.layoutMode)
+      }
+    }
+  }
+
+  async function updateLayoutPreferences(prefs: {
+    layoutMode?: 'both' | 'top' | 'sidebar'
+    sidebarPinned?: boolean
+  }): Promise<void> {
+    if (prefs.sidebarPinned !== undefined) {
+      isSidebarPinned.value = prefs.sidebarPinned
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('tdms_sidebar_pinned', String(prefs.sidebarPinned))
+      }
+    }
+    if (prefs.layoutMode !== undefined) {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('tdms_layout_mode', prefs.layoutMode)
+      }
+    }
+    if (me.value) {
+      if (prefs.layoutMode !== undefined) me.value.layoutMode = prefs.layoutMode
+      if (prefs.sidebarPinned !== undefined) me.value.sidebarPinned = prefs.sidebarPinned
+    }
+    try {
+      await api.put('/auth/layout', prefs)
+    } catch (err) {
+      // 오프라인이나 네트워크 지연 시에도 UI 상태는 유지됨
+      console.warn('레이아웃 설정 서버 동기화 실패 (로컬 유지):', err)
+    }
+  }
+
   return {
     me, loading, isLoggedIn, isAdmin, menu, can, load, login, quickLogin, verifyMfa, logout,
     firstAllowedPath, needsPasswordChange, deferPasswordChange, clear,
+    layoutMode, isSidebarPinned, updateLayoutPreferences, syncSidebarPinnedFromServer,
   }
 })

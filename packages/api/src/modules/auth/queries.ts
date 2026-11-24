@@ -157,16 +157,24 @@ export function enableTotp(userId: number, sealedSecret: string, step: number) {
   )
 }
 
-/** 마이페이지 — 본인의 연락처 정보(이메일, 전화번호, 내선번호) 수정 */
+/** 마이페이지 — 본인의 연락처 정보(이메일, 전화번호, 내선번호) 및 레이아웃 설정 수정 */
 export function updateMyProfile(
   userId: number,
-  data: { email?: string | null; phone?: string | null; extensionNumber?: string | null },
+  data: {
+    email?: string | null
+    phone?: string | null
+    extensionNumber?: string | null
+    layoutMode?: 'both' | 'top' | 'sidebar'
+    sidebarPinned?: boolean
+  },
 ) {
   return query(
     `UPDATE users
         SET email = COALESCE($2, email),
             phone = COALESCE($3, phone),
             extension_number = COALESCE($4, extension_number),
+            layout_mode = COALESCE($5, layout_mode),
+            sidebar_pinned = COALESCE($6, sidebar_pinned),
             updated_at = now()
       WHERE id = $1`,
     [
@@ -174,6 +182,8 @@ export function updateMyProfile(
       data.email !== undefined ? data.email : null,
       data.phone !== undefined ? data.phone : null,
       data.extensionNumber !== undefined ? data.extensionNumber : null,
+      data.layoutMode !== undefined ? data.layoutMode : null,
+      data.sidebarPinned !== undefined ? data.sidebarPinned : null,
     ],
   )
 }

@@ -4,6 +4,7 @@ import {
   LoginRequest, LoginResult, MeResponse, PasswordChangeRequest,
   MfaVerifyRequest, MfaVerifyResult, ErrorResponse, MENU, LEAF_KEYS,
   UpdateProfileRequest, QuickLoginUsersResponse, QuickLoginRequest,
+  UpdateLayoutRequest,
 } from '@tdms/contracts'
 import { AUTHENTICATED, PUBLIC, defineRoute } from '../../core/route.js'
 import {
@@ -156,11 +157,13 @@ export function registerAuthRoutes(app: FastifyInstance): void {
         lastLoginAt: user.lastLoginAt ? new Date(user.lastLoginAt).toISOString() : null,
         previousLoginAt: user.previousLoginAt ? new Date(user.previousLoginAt).toISOString() : null,
         createdAt: user.createdAt ? new Date(user.createdAt).toISOString() : null,
+        layoutMode: user.layoutMode ?? 'both',
+        sidebarPinned: user.sidebarPinned ?? false,
       }
     },
   })
 
-  // 마이페이지 — 본인의 연락처 정보(이메일, 휴대전화, 내선번호) 수정
+  // 마이페이지 — 본인의 연락처 정보(이메일, 휴대전화, 내선번호) 및 레이아웃 수정
   defineRoute(app, {
     method: 'PUT',
     url: '/auth/profile',
@@ -176,6 +179,29 @@ export function registerAuthRoutes(app: FastifyInstance): void {
         email: b.email,
         phone: b.phone,
         extensionNumber: b.extensionNumber,
+        layoutMode: b.layoutMode,
+        sidebarPinned: b.sidebarPinned,
+      })
+      req.setAuditTarget(req.auth.user.loginId)
+      return { ok: true as const }
+    },
+  })
+
+  // 화면 레이아웃 및 사이드바 핀 고정 설정
+  defineRoute(app, {
+    method: 'PUT',
+    url: '/auth/layout',
+    access: AUTHENTICATED,
+    audit: { screen: '마이페이지', action: '화면 레이아웃 설정' },
+    schema: {
+      body: UpdateLayoutRequest,
+      response: { 200: z.object({ ok: z.literal(true) }), 422: ErrorResponse },
+    },
+    handler: async (req) => {
+      const b = req.body as UpdateLayoutRequest
+      await updateMyProfile(req.auth.user.id, {
+        layoutMode: b.layoutMode,
+        sidebarPinned: b.sidebarPinned,
       })
       req.setAuditTarget(req.auth.user.loginId)
       return { ok: true as const }
