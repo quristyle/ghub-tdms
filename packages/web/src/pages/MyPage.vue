@@ -235,7 +235,10 @@ const companyName = computed(() => {
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
           <circle cx="12" cy="7" r="4" />
         </svg>
-        <span class="tab-label">기본 정보 및 연락처</span>
+        <span class="tab-label">
+          <span class="tab-text-full">기본 정보 및 연락처</span>
+          <span class="tab-text-short">기본 정보</span>
+        </span>
       </button>
       <button
         type="button"
@@ -249,7 +252,10 @@ const companyName = computed(() => {
           <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
           <path d="M7 11V7a5 5 0 0 1 10 0v4" />
         </svg>
-        <span class="tab-label">비밀번호 변경</span>
+        <span class="tab-label">
+          <span class="tab-text-full">비밀번호 변경</span>
+          <span class="tab-text-short">비밀번호</span>
+        </span>
       </button>
       <button
         type="button"
@@ -262,7 +268,10 @@ const companyName = computed(() => {
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tab-icon">
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
         </svg>
-        <span class="tab-label">보안 및 활동 현황</span>
+        <span class="tab-label">
+          <span class="tab-text-full">보안 및 활동 현황</span>
+          <span class="tab-text-short">보안 현황</span>
+        </span>
       </button>
       <button
         type="button"
@@ -276,7 +285,10 @@ const companyName = computed(() => {
           <rect x="3" y="3" width="18" height="18" rx="2" />
           <path d="M3 9h18M9 21V9" />
         </svg>
-        <span class="tab-label">화면 레이아웃 설정</span>
+        <span class="tab-label">
+          <span class="tab-text-full">화면 레이아웃 설정</span>
+          <span class="tab-text-short">화면 설정</span>
+        </span>
       </button>
     </div>
 
@@ -652,9 +664,14 @@ const companyName = computed(() => {
 }
 
 .mypage-page:not(.in-modal) {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
   max-width: 860px;
-  margin: 24px auto;
-  padding: 0 16px;
+  margin: 0 auto;
+  padding: 24px 16px;
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 
 /* ── 상단 프로필 헤더 카드 ────────────────────────────────────────── */
@@ -751,13 +768,16 @@ const companyName = computed(() => {
 /* ── 탭 내비게이션 ────────────────────────────────────────────────── */
 .mypage-tabs {
   display: flex;
+  flex-shrink: 0;
   gap: 6px;
   border-bottom: 2px solid var(--border);
-  padding-bottom: 0;
+  padding: 4px 2px 0;
   margin-bottom: 16px;
   overflow-x: auto;
   overflow-y: hidden;
   max-width: 100%;
+  min-height: 48px;
+  box-sizing: border-box;
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE, Edge */
   -webkit-overflow-scrolling: touch;
@@ -770,6 +790,8 @@ const companyName = computed(() => {
 .tab-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   gap: 6px;
   padding: 10px 18px 12px;
   background: transparent;
@@ -783,6 +805,8 @@ const companyName = computed(() => {
   transition: all 0.15s ease;
   border-radius: 6px 6px 0 0;
   white-space: nowrap;
+  box-sizing: border-box;
+  line-height: 1.35;
 }
 
 .tab-btn:hover {
@@ -810,6 +834,14 @@ const companyName = computed(() => {
 .tab-label {
   display: inline-block;
   line-height: 1.35;
+}
+
+.tab-text-full {
+  display: inline;
+}
+
+.tab-text-short {
+  display: none;
 }
 
 /* ── 탭 콘텐츠 공통 ──────────────────────────────────────────────── */
@@ -1142,11 +1174,15 @@ input:focus {
 
   /* 탭 컨테이너 가로스크롤 및 스크롤바 숨김 */
   .mypage-tabs {
+    flex-shrink: 0;
     gap: 4px;
+    padding: 4px 2px 0;
     margin-bottom: 14px;
     overflow-x: auto;
     overflow-y: hidden;
     max-width: 100%;
+    min-height: 56px;
+    box-sizing: border-box;
     scrollbar-width: none;
     -ms-overflow-style: none;
     -webkit-overflow-scrolling: touch;
@@ -1155,24 +1191,28 @@ input:focus {
     display: none;
   }
 
-  /* 각 탭: 아이콘 위, 텍스트 아래, 텍스트 크기 축소 */
+  /* 각 탭: 아이콘 위, 텍스트 아래, 최소 높이 확보 및 중앙 정렬 */
   .tab-btn {
-    flex: 1 0 auto;
+    flex: 1 1 auto;
+    flex-shrink: 0;
     min-width: max-content;
+    min-height: 52px;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 5px;
-    padding: 8px 8px 11px;
+    gap: 4px;
+    padding: 8px 8px 10px;
     font-size: 11.5px;
-    line-height: 1.3;
+    line-height: 1.25;
     text-align: center;
     border-radius: 6px 6px 0 0;
+    box-sizing: border-box;
   }
 
   .tab-icon {
     width: 16px;
     height: 16px;
+    flex-shrink: 0;
     margin: 0;
   }
 
@@ -1182,7 +1222,16 @@ input:focus {
     line-height: 1.25;
     text-align: center;
     white-space: nowrap;
-    padding-bottom: 1px;
+    overflow: visible;
+    padding-bottom: 0;
+  }
+
+  .tab-text-full {
+    display: none;
+  }
+
+  .tab-text-short {
+    display: inline;
   }
 }
 
