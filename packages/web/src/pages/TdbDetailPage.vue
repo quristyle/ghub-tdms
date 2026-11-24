@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type {
@@ -176,6 +176,65 @@ const previewSource = ref<'pdf' | 'drawing'>('pdf')
 const showDrawing = computed(() =>
   !!selDrawing.value && (previewSource.value === 'drawing' || !previewFile.value))
 
+// ── 모바일 도면 전체화면 보기 ──────────────────────────────────────────
+const isDrawingFull = ref(false)
+const viewerRef = ref<{ zoomIn?: () => void; zoomOut?: () => void; zoomReset?: () => void } | null>(null)
+
+function zoomIn() {
+  viewerRef.value?.zoomIn?.()
+}
+
+function zoomOut() {
+  viewerRef.value?.zoomOut?.()
+}
+
+function zoomReset() {
+  viewerRef.value?.zoomReset?.()
+}
+
+function onPopState() {
+  // 모바일 뒤로가기 제스처나 버튼으로 전체화면을 닫는다
+  if (isDrawingFull.value) {
+    isDrawingFull.value = false
+    window.removeEventListener('keydown', onKeyDown)
+  }
+}
+
+function onKeyDown(ev: KeyboardEvent) {
+  if (ev.key === 'Escape' && isDrawingFull.value) {
+    closeDrawingFull()
+  }
+}
+
+function openDrawingFull() {
+  if (isDrawingFull.value) return
+  isDrawingFull.value = true
+  try {
+    window.history.pushState({ ...window.history.state, __drawingFullscreen: true }, '')
+  } catch {
+    // ignore
+  }
+  window.addEventListener('popstate', onPopState)
+  window.addEventListener('keydown', onKeyDown)
+}
+
+function closeDrawingFull() {
+  if (!isDrawingFull.value) return
+  isDrawingFull.value = false
+  window.removeEventListener('keydown', onKeyDown)
+  if (window.history.state?.__drawingFullscreen) {
+    window.history.back()
+  }
+}
+
+onBeforeUnmount(() => {
+  window.removeEventListener('popstate', onPopState)
+  window.removeEventListener('keydown', onKeyDown)
+  if (isDrawingFull.value && window.history.state?.__drawingFullscreen) {
+    window.history.back()
+  }
+})
+
 // 처음·이전·다음·끝으로 옮겨 다닐 때 **탭은 그대로 둔다.**
 // 미리보기만 훑어보거나 반출 이력만 비교하며 넘기는 것이 이 버튼들의 쓰임인데,
 // 매번 '자료내용' 으로 돌아가면 자료마다 탭을 다시 골라야 한다.
@@ -183,6 +242,7 @@ const showDrawing = computed(() =>
 // 아래 값들은 반대로 **반드시** 비운다 — 앞 자료에 매인 것들이라 그대로 두면
 // 엉뚱한 자료의 Rev 를 고른 채로 보이거나, 올리려던 파일이 다른 자료에 붙는다.
 watch(id, () => {
+  if (isDrawingFull.value) closeDrawingFull()
   noteMsg.value = null
   previewRevKey.value = null
   previewSource.value = 'pdf'
@@ -481,16 +541,84 @@ const DIST_COLUMNS: Column<DistRow>[] = [
               <button class="btn btn-sm" :class="{ 'btn-primary': showDrawing }"
                       @click="previewSource = 'drawing'">{{ selDrawing.fileExt.toUpperCase() }} 원본</button>
             </template>
+            <!-- 모바일 환경에서 도면만 전체화면으로 볼 수 있는 아이콘 단추 -->
+            <button
+              v-if="canPreviewSet(selectedSet)"
+              type="button"
+              class="btn btn-sm mobile-fullscreen-bar-btn"
+              title="도면만 화면 전체에서 보기"
+              aria-label="도면 전체화면 보기"
+              @click="openDrawingFull"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" class="fs-bar-icon">
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+              </svg>
+              도면 전체보기
+            </button>
           </div>
           <div v-if="isOldRev && selectedSet" class="old-pdf-bar">
             <b>이전 Rev 도면입니다</b> — {{ selectedSet.label }} ({{ selectedSet.status }}).
             현재 Rev{{ doc.currentRev }} 과 다를 수 있습니다.
             <button class="btn btn-sm" @click="openRev(null)">최신본 보기</button>
           </div>
-          <DrawingPreview v-if="showDrawing && selDrawing" :key="selDrawing.id"
-                          :file-id="selDrawing.id" :document-id="doc.id"
-                          :label="`Rev${selDrawing.rev} ${selDrawing.fileExt.toUpperCase()}`" />
-          <PdfViewer v-else-if="previewFile" :key="previewFile.id" :file-id="previewFile.id" :document-id="doc.id" />
+
+          <div
+            v-if="(showDrawing && selDrawing) || previewFile"
+            class="preview-viewer-wrap"
+            :class="{ 'fullscreen-view': isDrawingFull }"
+          >
+            <!-- 전체화면 모드 상단 툴바 -->
+            <div v-if="isDrawingFull" class="fullscreen-header">
+              <div class="fullscreen-title">
+                <span class="fs-doc-no">{{ doc.drawingNo }}</span>
+                <span class="fs-rev-tag">{{ selectedSet?.label }}</span>
+                <span v-if="showDrawing && selDrawing" class="fs-type-tag">{{ selDrawing.fileExt.toUpperCase() }} 원본</span>
+                <span v-else class="fs-type-tag">PDF 사본</span>
+              </div>
+              <div class="fullscreen-actions">
+                <template v-if="selDrawing && previewFile">
+                  <button class="btn btn-sm" :class="{ 'btn-primary': !showDrawing }"
+                          @click="previewSource = 'pdf'">PDF</button>
+                  <button class="btn btn-sm" :class="{ 'btn-primary': showDrawing }"
+                          @click="previewSource = 'drawing'">{{ selDrawing.fileExt.toUpperCase() }}</button>
+                  <span class="fs-sep" />
+                </template>
+                <button type="button" class="btn btn-sm fs-tool-btn" title="도면 축소" @click="zoomOut">
+                  <span>−</span>
+                </button>
+                <button type="button" class="btn btn-sm fs-tool-btn" title="도면 확대" @click="zoomIn">
+                  <span>+</span>
+                </button>
+                <button type="button" class="btn btn-sm fs-tool-btn" title="화면 폭에 맞춤" @click="zoomReset">
+                  맞춤
+                </button>
+                <span class="fs-sep" />
+                <button type="button" class="btn btn-sm fs-close-btn" title="닫기 (뒤로가기로도 닫을 수 있습니다)" @click="closeDrawingFull">
+                  <span>✕</span> 닫기
+                </button>
+              </div>
+            </div>
+
+            <!-- 모바일 도면 영역 플로팅 아이콘 단추 -->
+            <button
+              v-if="!isDrawingFull"
+              type="button"
+              class="mobile-viewer-fab"
+              title="도면만 화면 전체에서 보기"
+              aria-label="도면 전체화면 보기"
+              @click="openDrawingFull"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none">
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+              </svg>
+              <span>도면 전체보기</span>
+            </button>
+
+            <DrawingPreview v-if="showDrawing && selDrawing" ref="viewerRef" :key="selDrawing.id"
+                            :file-id="selDrawing.id" :document-id="doc.id"
+                            :label="`Rev${selDrawing.rev} ${selDrawing.fileExt.toUpperCase()}`" />
+            <PdfViewer v-else ref="viewerRef" :key="previewFile!.id" :file-id="previewFile!.id" :document-id="doc.id" />
+          </div>
           <div v-else class="pad muted tc">
             <template v-if="isOldRev">{{ selectedSet?.label }} 에는 볼 수 있는 도면(PDF·DWG)이 없습니다.</template>
             <template v-else>현재 Rev{{ doc.currentRev }} 에는 PDF 가 없습니다 — 원본을 받아 CAD 에서 여세요.</template>
@@ -623,6 +751,165 @@ h2 { font-size: var(--fs-base); margin: 20px 0 8px; }
 .tag {
   font-size: 10px; padding: 1px 5px; border-radius: 8px; margin-left: 4px;
   background: var(--accent); color: var(--primary-fg);
+}
+
+.mobile-fullscreen-bar-btn {
+  display: none;
+}
+.fs-bar-icon {
+  vertical-align: middle;
+  margin-right: 4px;
+}
+.preview-viewer-wrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 520px;
+}
+.mobile-viewer-fab {
+  display: none;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 50;
+  align-items: center;
+  gap: 6px;
+  background: var(--primary, #1e293b);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  border-radius: 20px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.mobile-viewer-fab:active {
+  transform: scale(0.96);
+}
+
+/* 전체화면 오버레이 */
+.preview-viewer-wrap.fullscreen-view {
+  position: fixed !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  max-width: none !important;
+  max-height: none !important;
+  z-index: 99999 !important;
+  background: var(--bg) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.preview-viewer-wrap.fullscreen-view :deep(.pdf-frame) {
+  flex: 1 1 auto;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+.fullscreen-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--card-bg, #ffffff);
+  border-bottom: 1px solid var(--border);
+  gap: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+.fullscreen-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fs-doc-no {
+  font-weight: 600;
+  font-size: var(--fs-sm, 13px);
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fs-rev-tag {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  flex-shrink: 0;
+}
+.fs-type-tag {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg-subtle, #e2e8f0);
+  color: var(--fg);
+  flex-shrink: 0;
+}
+.fullscreen-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.fs-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  margin: 0 4px;
+}
+.fs-tool-btn {
+  padding: 2px 8px;
+  font-size: 14px;
+  font-weight: bold;
+  min-width: 30px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.fs-close-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  height: 28px;
+  background: var(--danger, #e74c3c);
+  color: #fff;
+  border: none;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.fs-close-btn:hover {
+  filter: brightness(0.9);
+}
+
+@media (max-width: 900px) {
+  .mobile-fullscreen-bar-btn {
+    display: inline-flex;
+    align-items: center;
+    margin-left: auto;
+  }
+  .mobile-viewer-fab {
+    display: inline-flex;
+  }
+  .source-bar {
+    flex-wrap: wrap;
+  }
 }
 
 @media (max-width: 640px) {

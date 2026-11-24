@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import PdfViewer from '@/ui/PdfViewer.vue'
 import { api } from '@/lib/api'
@@ -27,6 +27,14 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{ switchSource: [to: string] }>()
 
+const pdfViewerRef = ref<InstanceType<typeof PdfViewer> | null>(null)
+
+function zoomIn() { pdfViewerRef.value?.zoomIn() }
+function zoomOut() { pdfViewerRef.value?.zoomOut() }
+function zoomReset() { pdfViewerRef.value?.zoomReset() }
+
+defineExpose({ zoomIn, zoomOut, zoomReset })
+
 interface Rendition {
   state: 'unsupported' | 'pending' | 'done' | 'failed'
   error: string | null
@@ -46,7 +54,7 @@ const state = computed(() => (isError.value ? 'failed' : data.value?.state))
 </script>
 
 <template>
-  <PdfViewer v-if="state === 'done'" :file-id="fileId" :document-id="documentId"
+  <PdfViewer v-if="state === 'done'" ref="pdfViewerRef" :file-id="fileId" :document-id="documentId"
              :file-url="`/api${prefix}/${fileId}/preview`"
              :favorite-id="favoriteId"
              :view-mode="base === 'mdb' ? 'original' : undefined"

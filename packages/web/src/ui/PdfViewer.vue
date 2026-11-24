@@ -93,7 +93,47 @@ function hasChanges(): boolean {
   return win?.dmsMarkup?.hasChanges?.() ?? false
 }
 
-defineExpose({ collectMarkup, hasChanges })
+/** 도면 확대 (PDF.js zoomIn) */
+function zoomIn() {
+  try {
+    const win = frame.value?.contentWindow as unknown as {
+      PDFViewerApplication?: { zoomIn?: (steps?: number) => void }
+    } | null
+    win?.PDFViewerApplication?.zoomIn?.()
+  } catch {
+    // cross-origin or viewer not ready
+  }
+}
+
+/** 도면 축소 (PDF.js zoomOut) */
+function zoomOut() {
+  try {
+    const win = frame.value?.contentWindow as unknown as {
+      PDFViewerApplication?: { zoomOut?: (steps?: number) => void }
+    } | null
+    win?.PDFViewerApplication?.zoomOut?.()
+  } catch {
+    // cross-origin or viewer not ready
+  }
+}
+
+/** 도면 화면 맞춤 (폭 맞춤) */
+function zoomReset() {
+  try {
+    const win = frame.value?.contentWindow as unknown as {
+      PDFViewerApplication?: {
+        pdfViewer?: { currentScaleValue?: string }
+      }
+    } | null
+    if (win?.PDFViewerApplication?.pdfViewer) {
+      win.PDFViewerApplication.pdfViewer.currentScaleValue = 'page-width'
+    }
+  } catch {
+    // cross-origin or viewer not ready
+  }
+}
+
+defineExpose({ collectMarkup, hasChanges, zoomIn, zoomOut, zoomReset })
 
 // 뷰어 iframe 이 들어서기 전에 창구를 연다 — 뷰어는 붙는 순간 한 번만 확인한다
 installHostApi()
