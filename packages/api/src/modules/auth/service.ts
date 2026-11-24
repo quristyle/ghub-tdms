@@ -1,10 +1,10 @@
 import { createHash, randomBytes } from 'node:crypto'
 import QRCode from 'qrcode'
-import type { LoginResult, TotpEnrollment } from '@tdms/contracts'
+import type { LoginResult, QuickLoginUser, TotpEnrollment } from '@tdms/contracts'
 import { config } from '../../core/config.js'
 import { AppError, Errors } from '../../core/errors.js'
 import { burnTime, hashPassword, initialPassword, verifyPassword } from '../../core/password.js'
-import { createSession, destroyAllSessions } from '../../core/session.js'
+import { createSession, deferPasswordChange, destroyAllSessions } from '../../core/session.js'
 import {
   deriveKey, generateSecret, openSecret, otpauthUrl, sealSecret, verifyTotp,
 } from '../../core/totp.js'
@@ -256,4 +256,37 @@ export async function changePassword(
   await q.updatePassword(userId, await hashPassword(newPassword))
   // 비밀번호를 바꾸면 기존 세션을 전부 끊는다 (기존 정책)
   await destroyAllSessions(userId)
+}
+
+/** 그룹별 빠른 로그인용 사용자 목록 조회 */
+export async function listQuickLoginUsers(): Promise<QuickLoginUser[]> {
+  const rows: q.QuickLoginUserRow[] = await q.findQuickLoginUsers()
+  return rows.map((r: q.QuickLoginUserRow) => ({
+    groupId: r.groupId,
+    groupName: r.groupName,
+    userId: r.userId,
+    loginId: r.loginId,
+    name: r.name,
+    role: r.role,
+  }))
+}
+
+/** 빠른 자동 로그인 (비밀번호/TOTP 생략) */
+export async function quickLogin(
+  loginId: string,
+  ip: string | undefined,
+  userAgent: string | undefined,
+): Promise<{ sessionId: string; loginId: string }> {
+  const user = await q.findUserByLoginId(loginId)
+  if (!user || !user.is_active) {
+    throw Errors.unauthorized()
+  }
+
+  await q.clearFailures(loginId)
+  await q.touchLastLogin(user.id)
+  const sessionId = await createSession(user.id, ip, userAgent)
+  if (user.must_change_password) {
+    await deferPasswordChange(sessionId)
+  }
+  return { sessionId, loginId: user.login_id }
 }

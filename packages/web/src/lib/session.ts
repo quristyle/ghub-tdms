@@ -62,6 +62,12 @@ export const useSession = defineStore('session', () => {
     return r
   }
 
+  /** 그룹별 임의 사용자 빠른 자동 로그인 (개발용) */
+  async function quickLogin(loginId: string): Promise<void> {
+    await api.post('/auth/quick-login', { loginId })
+    await load()
+  }
+
   async function logout() {
     try {
       await api.post('/auth/logout')
@@ -84,7 +90,7 @@ export const useSession = defineStore('session', () => {
   const firstAllowedPath = computed(() => menu.value[0]?.path ?? null)
 
   return {
-    me, loading, isLoggedIn, isAdmin, menu, can, load, login, verifyMfa, logout,
+    me, loading, isLoggedIn, isAdmin, menu, can, load, login, quickLogin, verifyMfa, logout,
     firstAllowedPath, needsPasswordChange, deferPasswordChange, clear,
   }
 })

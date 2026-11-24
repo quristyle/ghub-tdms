@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import type { TotpEnrollment } from '@tdms/contracts'
+import type { QuickLoginUser, QuickLoginUsersResponse, TotpEnrollment } from '@tdms/contracts'
 import { useSession } from '@/lib/session'
-import { ApiError } from '@/lib/api'
+import { api, ApiError } from '@/lib/api'
 
 /**
  * 로그인 — 기존 login.html / login.css 와 같은 모양.
@@ -153,6 +153,32 @@ function onCodeInput(ev: Event) {
   code.value = (ev.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 6)
   if (codeOk.value) void submitCode()
 }
+
+/** 사용자 그룹별 임의의 사용자 목록 (개발 진행 중 빠른 로그인용) */
+const quickUsers = ref<QuickLoginUser[]>([])
+
+onMounted(async () => {
+  try {
+    const res = await api.get<QuickLoginUsersResponse>('/auth/quick-login-users')
+    quickUsers.value = res.items
+  } catch {
+    // 자동 로그인 목록을 불러오지 못하더라도 일반 로그인은 가능하므로 무시
+  }
+})
+
+async function handleQuickLogin(targetLoginId: string) {
+  if (busy.value) return
+  error.value = ''
+  busy.value = true
+  try {
+    await session.quickLogin(targetLoginId)
+    goIn(false)
+  } catch (e) {
+    error.value = e instanceof ApiError ? e.message : '자동 로그인에 실패했습니다.'
+  } finally {
+    busy.value = false
+  }
+}
 </script>
 
 <template>
@@ -182,6 +208,27 @@ function onCodeInput(ev: Event) {
 
       <p v-if="error" class="login-error">{{ error }}</p>
       <p class="login-rule">5회 연속 실패하면 15분간 잠깁니다.<br />로그인에는 Microsoft Authenticator 앱이 필요합니다.</p>
+
+      <!-- 사용자 그룹별 자동 로그인 버튼 (개발용) -->
+      <div v-if="quickUsers.length > 0" class="quick-login-section">
+        <div class="quick-login-divider">
+          <span>그룹별 자동 로그인 (개발용)</span>
+        </div>
+        <div class="quick-login-buttons">
+          <button
+            v-for="u in quickUsers"
+            :key="u.userId"
+            type="button"
+            class="quick-login-btn"
+            :disabled="busy"
+            :title="`[${u.groupName}] ${u.name} (${u.loginId}) 계정으로 자동 로그인`"
+            @click="handleQuickLogin(u.loginId)"
+          >
+            <span class="quick-btn-group">{{ u.groupName }}</span>
+            <span class="quick-btn-user">{{ u.name }} <span class="quick-btn-id">({{ u.loginId }})</span></span>
+          </button>
+        </div>
+      </div>
     </form>
 
     <form v-else class="login-box" :class="{ 'login-box--wide': step === 'enroll' }" @submit.prevent="submitCode">
@@ -354,4 +401,81 @@ function onCodeInput(ev: Event) {
 @media (hover: none) and (pointer: coarse) { .mfa-applink { display: inline-block; } }
 .login-box input.mfa-code { font-size: 20px; letter-spacing: 0.4em; text-align: center; font-variant-numeric: tabular-nums; }
 .mfa-back { color: inherit; }
+
+/* ── 그룹별 자동 로그인 (개발용) ────────────────────────── */
+.quick-login-section {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+}
+
+.quick-login-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+
+.quick-login-divider span {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: -0.01em;
+}
+
+.quick-login-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.quick-login-btn {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  height: 36px !important;
+  margin: 0 !important;
+  padding: 0 10px !important;
+  background: var(--surface-2, var(--hover-bg, #f4f5f7)) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  font-size: 12.5px !important;
+  color: var(--text) !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.quick-login-btn:hover:not(:disabled) {
+  background: var(--brand-soft, #eef4ff) !important;
+  border-color: var(--brand-line, #3b82f6) !important;
+  color: var(--brand, #1d4ed8) !important;
+}
+
+.quick-btn-group {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.quick-login-btn:hover:not(:disabled) .quick-btn-group {
+  border-color: var(--brand-line, #3b82f6);
+  color: var(--brand, #1d4ed8);
+}
+
+.quick-btn-user {
+  font-weight: 600;
+}
+
+.quick-btn-id {
+  font-weight: 400;
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
 </style>

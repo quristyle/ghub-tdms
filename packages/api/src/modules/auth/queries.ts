@@ -1,4 +1,4 @@
-import { one, query } from '../../core/db.js'
+import { many, one, query } from '../../core/db.js'
 
 export interface UserAuthRow {
   id: number
@@ -175,5 +175,33 @@ export function updateMyProfile(
       data.phone !== undefined ? data.phone : null,
       data.extensionNumber !== undefined ? data.extensionNumber : null,
     ],
+  )
+}
+
+export interface QuickLoginUserRow {
+  groupId: number
+  groupName: string
+  userId: number
+  loginId: string
+  name: string
+  role: 'ADMIN' | 'VIEWER'
+}
+
+/** 사용자 그룹별 임의의 활성 사용자 1명씩 조회 (그룹 id 순 정렬) */
+export function findQuickLoginUsers() {
+  return many<QuickLoginUserRow>(
+    `SELECT DISTINCT ON (g.id)
+       g.id        AS "groupId",
+       g.name      AS "groupName",
+       u.id        AS "userId",
+       u.login_id  AS "loginId",
+       u.name      AS "name",
+       u.role      AS "role"
+      FROM groups g
+      JOIN users u ON u.group_id = g.id
+     WHERE u.is_active = true
+     ORDER BY g.id, u.id`,
+    [],
+    'quick_login_users',
   )
 }

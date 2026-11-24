@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BoolParam, DocumentListQuery, MenuSaveRequest } from '../index.js'
+import { BoolParam, DocumentListQuery, MenuSaveRequest, QuickLoginRequest, QuickLoginUsersResponse } from '../index.js'
 import { LEAF_KEYS, LEAF_KEY_SET, PAGE_PERMISSIONS, MENU, leavesUnder } from '../permissions.js'
 
 describe('BoolParam — 쿼리스트링 불리언', () => {
@@ -129,5 +129,22 @@ describe('MenuSaveRequest', () => {
       ],
     })
     expect(res.success).toBe(false)
+  })
+})
+
+describe('QuickLogin 스키마', () => {
+  it('QuickLoginUsersResponse 올바른 형태 파싱', () => {
+    const res = QuickLoginUsersResponse.safeParse({
+      items: [
+        { groupId: 1, groupName: '설비기술팀', userId: 1, loginId: 'admin', name: '관리자', role: 'ADMIN' },
+        { groupId: 2, groupName: '조회전용', userId: 3, loginId: 'viewer', name: '조회 사용자', role: 'VIEWER' },
+      ],
+    })
+    expect(res.success).toBe(true)
+  })
+
+  it('QuickLoginRequest 올바른 loginId 검증', () => {
+    expect(QuickLoginRequest.safeParse({ loginId: 'admin' }).success).toBe(true)
+    expect(QuickLoginRequest.safeParse({ loginId: '' }).success).toBe(false)
   })
 })

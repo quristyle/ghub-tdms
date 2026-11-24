@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify'
 import {
   LoginRequest, LoginResult, MeResponse, PasswordChangeRequest,
   MfaVerifyRequest, MfaVerifyResult, ErrorResponse, MENU, LEAF_KEYS,
-  UpdateProfileRequest,
+  UpdateProfileRequest, QuickLoginUsersResponse, QuickLoginRequest,
 } from '@tdms/contracts'
 import { AUTHENTICATED, PUBLIC, defineRoute } from '../../core/route.js'
 import {
@@ -32,6 +32,42 @@ async function visibleMenu(): Promise<{ id?: number; code?: string; path: string
 }
 
 export function registerAuthRoutes(app: FastifyInstance): void {
+  // ── 그룹별 빠른 로그인용 사용자 목록 (로그인 화면 버튼용) ─────────
+  defineRoute(app, {
+    method: 'GET',
+    url: '/auth/quick-login-users',
+    access: PUBLIC,
+    schema: {
+      response: { 200: QuickLoginUsersResponse },
+    },
+    handler: async () => {
+      const items = await svc.listQuickLoginUsers()
+      return { items }
+    },
+  })
+
+  // ── 그룹별 사용자 빠른 자동 로그인 ────────────────────────────────
+  defineRoute(app, {
+    method: 'POST',
+    url: '/auth/quick-login',
+    access: PUBLIC,
+    audit: { screen: '로그인', action: '자동 로그인' },
+    schema: {
+      body: QuickLoginRequest,
+      response: {
+        200: z.object({ ok: z.literal(true), mustChangePassword: z.boolean() }),
+        401: ErrorResponse,
+      },
+    },
+    handler: async (req, reply) => {
+      const { loginId } = QuickLoginRequest.parse(req.body)
+      const out = await svc.quickLogin(loginId, req.ip, req.headers['user-agent'])
+      setSessionCookie(reply, out.sessionId)
+      req.setAuditTarget(out.loginId, { step: '자동 로그인' })
+      return { ok: true as const, mustChangePassword: false }
+    },
+  })
+
   defineRoute(app, {
     method: 'POST',
     url: '/auth/login',

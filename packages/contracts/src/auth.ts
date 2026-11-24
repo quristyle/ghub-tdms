@@ -129,6 +129,27 @@ export const UpdateProfileRequest = z.object({
 })
 export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequest>
 
+/** 그룹별 자동 로그인용 사용자 정보 */
+export const QuickLoginUser = z.object({
+  groupId: z.number().int(),
+  groupName: z.string(),
+  userId: z.number().int(),
+  loginId: z.string(),
+  name: z.string(),
+  role: z.enum(['ADMIN', 'VIEWER']),
+})
+export type QuickLoginUser = z.infer<typeof QuickLoginUser>
+
+export const QuickLoginUsersResponse = z.object({
+  items: z.array(QuickLoginUser),
+})
+export type QuickLoginUsersResponse = z.infer<typeof QuickLoginUsersResponse>
+
+export const QuickLoginRequest = z.object({
+  loginId: z.string().min(1).max(64),
+})
+export type QuickLoginRequest = z.infer<typeof QuickLoginRequest>
+
 // 스키마에 대응하는 타입 — 화면에서 응답 타입을 그대로 쓴다
 export type LoginRequest = z.infer<typeof LoginRequest>
 export type LoginResult = z.infer<typeof LoginResult>
