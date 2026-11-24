@@ -100,6 +100,13 @@ export const MENU_ROUTE_DEFINITIONS: Record<string, MenuRouteDef> = {
     permission: 'screen.users.access',
     defaultTitle: '접속권한 관리',
   },
+  group_permissions: {
+    code: 'group_permissions',
+    defaultPath: '/group-permissions',
+    component: () => import('@/pages/GroupMenuPermissionsPage.vue'),
+    permission: 'screen.users.access',
+    defaultTitle: '그룹 메뉴권한 관리',
+  },
   projects: {
     code: 'projects',
     defaultPath: '/projects',

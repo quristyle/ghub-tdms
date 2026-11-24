@@ -70,6 +70,12 @@ defineProps<{ path: string; code?: string }>()
       <path d="M7.9 8.7 13 13.8M10.6 11.4l-1.3 1.3M12 12.8l-1.2 1.2" />
     </template>
 
+    <!-- 그룹 메뉴권한 관리 — 방패와 체크 (CRUD 권한) -->
+    <template v-else-if="code === 'group_permissions' || path === '/group-permissions'">
+      <path d="M8 1.5 2.5 3.8v4.2c0 3.8 2.3 6.3 5.5 7 3.2-.7 5.5-3.2 5.5-7V3.8L8 1.5Z" />
+      <path d="M5.8 8l1.8 1.8 3-3" />
+    </template>
+
     <!-- 메뉴 관리 — 목록과 위아래 화살표 -->
     <template v-else-if="code === 'menus' || path === '/menus'">
       <path d="M2.2 4.2h6.4M2.2 8h6.4M2.2 11.8h6.4" />

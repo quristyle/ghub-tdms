@@ -349,3 +349,43 @@ export const OwnPermissionCount = z.object({
 })
 export const OwnPermissionCounts = z.object({ items: z.array(OwnPermissionCount) })
 export type OwnPermissionCounts = z.infer<typeof OwnPermissionCounts>
+
+// ── 그룹 메뉴 CRUD 권한 관리 ───────────────────────────────────────────
+
+export const GroupMenuPermissionItem = z.object({
+  menuId: z.number().int(),
+  code: z.string(),
+  label: z.string(),
+  category: z.string(),
+  sortOrder: z.number().int(),
+  path: z.string(),
+  canView: z.boolean(),
+  canCreate: z.boolean(),
+  canRead: z.boolean(),
+  canUpdate: z.boolean(),
+  canDelete: z.boolean(),
+})
+export type GroupMenuPermissionItem = z.infer<typeof GroupMenuPermissionItem>
+
+export const GroupMenuPermissionsResponse = z.object({
+  groupId: z.number().int(),
+  groupName: z.string(),
+  items: z.array(GroupMenuPermissionItem),
+})
+export type GroupMenuPermissionsResponse = z.infer<typeof GroupMenuPermissionsResponse>
+
+export const GroupMenuPermissionSaveItem = z.object({
+  menuId: z.number().int(),
+  canView: z.boolean(),
+  canCreate: z.boolean(),
+  canRead: z.boolean(),
+  canUpdate: z.boolean(),
+  canDelete: z.boolean(),
+})
+export type GroupMenuPermissionSaveItem = z.infer<typeof GroupMenuPermissionSaveItem>
+
+export const GroupMenuPermissionsSaveRequest = z.object({
+  permissions: z.array(GroupMenuPermissionSaveItem),
+})
+export type GroupMenuPermissionsSaveRequest = z.infer<typeof GroupMenuPermissionsSaveRequest>
+

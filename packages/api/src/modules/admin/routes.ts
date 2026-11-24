@@ -5,6 +5,7 @@ import {
   AuditListResponse, AuditMeta, AuditQuery, BackupListResponse, BackupRunRequest,
   BackupRunResult, BackupStatus, ErrorResponse, GroupListResponse, GroupMembersResponse,
   GroupPermissionsRequest, GroupPermissionsResponse, GroupSaveRequest,
+  GroupMenuPermissionsResponse, GroupMenuPermissionsSaveRequest,
   MenuListResponse, MenuSaveRequest, NoteRequest, NoteResult, OwnPermissionCounts,
   UserPermissionsRequest, UserPermissionsResponse,
   PERMISSION_TREE, PartnerCompanyListResponse, PartnerCompanySaveRequest, PasswordResetResult,
@@ -310,6 +311,34 @@ export function registerAdminRoutes(app: FastifyInstance): void {
       const b = GroupPermissionsRequest.parse(req.body)
       const out = await svc.setPermissions(id, b.granted, { ...actorOf(req), groupId: req.auth.user.groupId })
       req.setAuditTarget(`그룹 ${id}`, { count: b.granted.length })
+      return out
+    },
+  })
+
+  // ── 그룹 메뉴 CRUD 권한 관리 (0028) ──────────────────────────────────
+  defineRoute(app, {
+    method: 'GET',
+    url: '/groups/:id/menu-permissions',
+    access: permission('screen.users.access'),
+    schema: { params: IdParam, response: { 200: GroupMenuPermissionsResponse, 403: ErrorResponse } },
+    handler: async (req) => svc.groupMenuPermissions(IdParam.parse(req.params).id),
+  })
+
+  defineRoute(app, {
+    method: 'PUT',
+    url: '/groups/:id/menu-permissions',
+    access: permission('screen.users.access'),
+    audit: { screen: '그룹 메뉴권한 관리', action: '메뉴권한 저장' },
+    schema: {
+      params: IdParam,
+      body: GroupMenuPermissionsSaveRequest,
+      response: { 200: GroupMenuPermissionsResponse, 403: ErrorResponse },
+    },
+    handler: async (req) => {
+      const { id } = IdParam.parse(req.params)
+      const b = GroupMenuPermissionsSaveRequest.parse(req.body)
+      const out = await svc.setGroupMenuPermissions(id, b.permissions, { ...actorOf(req), groupId: req.auth.user.groupId })
+      req.setAuditTarget(`그룹 ${id} 메뉴권한`, { count: b.permissions.length })
       return out
     },
   })

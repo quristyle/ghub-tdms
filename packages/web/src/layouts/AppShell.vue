@@ -127,8 +127,8 @@ const NAV_GROUPS: NavGroupDef[] = [
   {
     key: 'system',
     label: '시스템',
-    codes: ['audit', 'users', 'backup', 'menus', 'permissions', 'stamps', 'projects', 'vendors'],
-    paths: ['/audit', '/users', '/backup', '/menus', '/permissions', '/stamps', '/projects', '/vendors'],
+    codes: ['audit', 'users', 'backup', 'menus', 'permissions', 'group_permissions', 'stamps', 'projects', 'vendors'],
+    paths: ['/audit', '/users', '/backup', '/menus', '/permissions', '/group-permissions', '/stamps', '/projects', '/vendors'],
   },
 ]
 

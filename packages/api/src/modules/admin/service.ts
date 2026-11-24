@@ -1,6 +1,6 @@
 import { rm, stat } from 'node:fs/promises'
 import { basename, resolve, sep } from 'node:path'
-import type { AuditQuery, GroupSaveRequest, PartnerCompanySaveRequest, UserCreateRequest, UserUpdateRequest } from '@tdms/contracts'
+import type { AuditQuery, GroupSaveRequest, PartnerCompanySaveRequest, UserCreateRequest, UserUpdateRequest, GroupMenuPermissionSaveItem } from '@tdms/contracts'
 import { LEAF_KEY_SET } from '@tdms/contracts'
 import { config } from '../../core/config.js'
 import { tx } from '../../core/db.js'
@@ -288,6 +288,30 @@ export async function setPermissions(groupId: number, granted: string[], actor?:
   // 권한 캐시를 즉시 비운다 — 다음 요청부터 바로 적용된다
   await invalidate('cache_perm')
   return { groupId, granted }
+}
+
+export async function groupMenuPermissions(groupId: number) {
+  const g = await q.findGroupById(groupId)
+  if (!g) throw Errors.notFound('존재하지 않는 그룹입니다.')
+  const items = await q.getGroupMenuPermissions(groupId)
+  return {
+    groupId,
+    groupName: g.name,
+    items,
+  }
+}
+
+export async function setGroupMenuPermissions(
+  groupId: number,
+  permissions: GroupMenuPermissionSaveItem[],
+  actor?: Actor & { groupId: number | null },
+) {
+  const g = await q.findGroupById(groupId)
+  if (!g) throw Errors.notFound('존재하지 않는 그룹입니다.')
+  await tx((c) => q.replaceGroupMenuPermissions(c, groupId, permissions))
+  await invalidate('cache_perm')
+  await invalidate('cache_menu')
+  return groupMenuPermissions(groupId)
 }
 
 // ── 백업 관리 ───────────────────────────────────────────────────────────

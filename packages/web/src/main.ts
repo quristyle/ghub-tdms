@@ -5,12 +5,16 @@ import App from './App.vue'
 import { router } from './router'
 import { installPreloadErrorHandler } from './lib/chunkReload'
 import { initTheme } from './lib/theme'
+import { setupPermissionDirectives } from './lib/permissionDirective'
 import './styles/base.css'
 
 installPreloadErrorHandler()
 initTheme()
 
-createApp(App)
+const app = createApp(App)
+setupPermissionDirectives(app)
+
+app
   .use(createPinia())
   .use(router)
   .use(VueQueryPlugin, {

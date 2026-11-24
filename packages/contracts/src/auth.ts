@@ -92,6 +92,15 @@ export type MenuItem = z.infer<typeof MenuItem>
 export const LayoutMode = z.enum(['both', 'top', 'sidebar'])
 export type LayoutMode = z.infer<typeof LayoutMode>
 
+export const CrudPermissions = z.object({
+  canView: z.boolean().default(true),
+  canCreate: z.boolean().default(false),
+  canRead: z.boolean().default(true),
+  canUpdate: z.boolean().default(false),
+  canDelete: z.boolean().default(false),
+})
+export type CrudPermissions = z.infer<typeof CrudPermissions>
+
 /** GET /auth/me — 화면이 메뉴를 그리고 버튼을 켜고 끄는 데 쓰는 전부 */
 export const MeResponse = z.object({
   id: z.number().int(),
@@ -109,6 +118,8 @@ export const MeResponse = z.object({
   permissions: z.array(z.string()),
   /** 접근 가능한 메뉴만 추려서 내려준다(순서 유지) */
   menu: z.array(MenuItem),
+  /** 메뉴별 CRUD 버튼 권한 (메뉴 code 기준) */
+  menuPermissions: z.record(z.string(), CrudPermissions).optional().default({}),
   /** 사용자 프로필 확장 정보 (마이페이지 화면 등) */
   employeeNumber: z.string().nullable().optional(),
   email: z.string().nullable().optional(),

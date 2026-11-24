@@ -246,4 +246,5 @@ export const MENU: readonly {
   { id: 10, code: 'menus',             path: '/menus',         label: '메뉴 관리',     category: '운영',           permission: 'screen.users.access' },
   { id: 11, code: 'permissions',       path: '/permissions',   label: '접속권한 관리', category: '운영',           permission: 'screen.users.access' },
   { id: 12, code: 'stamps',            path: '/stamps',        label: '스탬프 관리',   category: '운영',           permission: 'screen.users.access' },
+  { id: 16, code: 'group_permissions', path: '/group-permissions', label: '그룹 메뉴권한 관리', category: '운영', permission: 'screen.users.access' },
 ] as const

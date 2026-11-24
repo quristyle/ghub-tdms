@@ -12,7 +12,7 @@ import {
   readSessionCookie, setSessionCookie,
 } from '../../core/session.js'
 import { cached } from '../../core/cache.js'
-import { listEnabledMenus } from '../admin/queries.js'
+import { listEnabledMenus, getUserMenuPermissions } from '../admin/queries.js'
 import { updateMyProfile } from './queries.js'
 import * as svc from './service.js'
 
@@ -133,6 +133,44 @@ export function registerAuthRoutes(app: FastifyInstance): void {
     handler: async (req) => {
       const { user, permissions } = req.auth
       const perms = user.role === 'ADMIN' ? [...LEAF_KEYS] : [...permissions]
+      const allMenus = await visibleMenu()
+
+      const menuPermissions: Record<string, {
+        canView: boolean
+        canCreate: boolean
+        canRead: boolean
+        canUpdate: boolean
+        canDelete: boolean
+      }> = {}
+
+      if (user.role === 'ADMIN') {
+        for (const m of allMenus) {
+          if (m.code) {
+            menuPermissions[m.code] = { canView: true, canCreate: true, canRead: true, canUpdate: true, canDelete: true }
+          }
+        }
+      } else if (user.groupId) {
+        const rows = await cached('cache_perm', `menu_g:${user.groupId}`, () => getUserMenuPermissions(user.groupId!))
+        for (const r of rows) {
+          menuPermissions[r.code] = {
+            canView: r.canView,
+            canCreate: r.canCreate,
+            canRead: r.canRead,
+            canUpdate: r.canUpdate,
+            canDelete: r.canDelete,
+          }
+        }
+      }
+
+      const allowedMenus = allMenus.filter((m) => {
+        if (user.role === 'ADMIN') return true
+        const p = m.code ? menuPermissions[m.code] : undefined
+        if (p && p.canView === false) {
+          return false
+        }
+        return !m.permission || m.permission === 'common' || permissions.has(m.permission)
+      })
+
       return {
         id: user.id,
         loginId: user.loginId,
@@ -144,7 +182,8 @@ export function registerAuthRoutes(app: FastifyInstance): void {
         passwordDeferred: user.passwordDeferred,
         totpEnabled: user.totpEnabled,
         permissions: perms,
-        menu: (await visibleMenu()).filter((m) => user.role === 'ADMIN' || !m.permission || m.permission === 'common' || permissions.has(m.permission)),
+        menu: allowedMenus,
+        menuPermissions,
         employeeNumber: user.employeeNumber ?? null,
         email: user.email ?? null,
         phone: user.phone ?? null,

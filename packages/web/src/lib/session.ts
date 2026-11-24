@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { LoginResult, MeResponse, MfaVerifyResult } from '@tdms/contracts'
 import { api, ApiError } from './api.js'
+import { router } from '../router.js'
 
 /**
  * 세션·권한 스토어.
@@ -30,6 +31,33 @@ export const useSession = defineStore('session', () => {
     if (!me.value) return false
     if (me.value.role === 'ADMIN') return true
     return me.value.permissions.includes(key)
+  }
+
+  /**
+   * 메뉴에 대한 C, R, U, D 동작 권한 여부 확인.
+   * ADMIN 은 항상 true.
+   * @param action 'c' | 'r' | 'u' | 'd' | 'view'
+   * @param menuCode 생략 시 현재 라우트의 meta.menuCode 기준
+   */
+  function canAction(action: string, menuCode?: string): boolean {
+    if (!me.value) return false
+    if (me.value.role === 'ADMIN') return true
+    let code = menuCode
+    if (!code) {
+      try {
+        code = router.currentRoute.value?.meta?.menuCode as string
+      } catch {}
+    }
+    if (!code) return true
+    const perms = me.value.menuPermissions?.[code]
+    if (!perms) return true
+    const a = action.toLowerCase().trim()
+    if (a === 'c' || a === 'create') return perms.canCreate
+    if (a === 'r' || a === 'read') return perms.canRead
+    if (a === 'u' || a === 'update') return perms.canUpdate
+    if (a === 'd' || a === 'delete') return perms.canDelete
+    if (a === 'view' || a === 'v') return perms.canView
+    return true
   }
 
   async function load(): Promise<boolean> {
@@ -148,7 +176,7 @@ export const useSession = defineStore('session', () => {
   }
 
   return {
-    me, loading, isLoggedIn, isAdmin, menu, can, load, login, quickLogin, verifyMfa, logout,
+    me, loading, isLoggedIn, isAdmin, menu, can, canAction, load, login, quickLogin, verifyMfa, logout,
     firstAllowedPath, needsPasswordChange, deferPasswordChange, clear,
     layoutMode, isSidebarPinned, updateLayoutPreferences, syncSidebarPinnedFromServer,
   }

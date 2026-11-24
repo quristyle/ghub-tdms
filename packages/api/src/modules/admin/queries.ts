@@ -680,3 +680,97 @@ export function usersWithOwnPermissions() {
     [], 'users_with_perms',
   )
 }
+
+// ── 그룹 메뉴 CRUD 권한 ────────────────────────────────────────────────
+
+export interface GroupMenuPermRow {
+  menuId: number
+  code: string
+  label: string
+  category: string
+  sortOrder: number
+  path: string
+  canView: boolean
+  canCreate: boolean
+  canRead: boolean
+  canUpdate: boolean
+  canDelete: boolean
+}
+
+/** 그룹별 메뉴 CRUD 권한 목록 — 모든 활성 메뉴에 대해 해당 그룹의 설정값(없으면 기본값) */
+export function getGroupMenuPermissions(groupId: number) {
+  return many<GroupMenuPermRow>(
+    `SELECT m.id AS "menuId",
+            m.code,
+            m.label,
+            m.category,
+            m.sort_order AS "sortOrder",
+            m.path,
+            coalesce(gmp.can_view, true) AS "canView",
+            coalesce(gmp.can_create, false) AS "canCreate",
+            coalesce(gmp.can_read, true) AS "canRead",
+            coalesce(gmp.can_update, false) AS "canUpdate",
+            coalesce(gmp.can_delete, false) AS "canDelete"
+       FROM menus m
+  LEFT JOIN group_menu_permissions gmp ON gmp.menu_id = m.id AND gmp.group_id = $1
+      WHERE m.is_enabled
+      ORDER BY m.sort_order`,
+    [groupId],
+    'group_menu_perms',
+  )
+}
+
+/** 사용자 소속 그룹의 메뉴 CRUD 권한 조회 */
+export function getUserMenuPermissions(groupId: number) {
+  return many<{
+    code: string
+    canView: boolean
+    canCreate: boolean
+    canRead: boolean
+    canUpdate: boolean
+    canDelete: boolean
+  }>(
+    `SELECT m.code,
+            coalesce(gmp.can_view, true) AS "canView",
+            coalesce(gmp.can_create, false) AS "canCreate",
+            coalesce(gmp.can_read, true) AS "canRead",
+            coalesce(gmp.can_update, false) AS "canUpdate",
+            coalesce(gmp.can_delete, false) AS "canDelete"
+       FROM menus m
+  LEFT JOIN group_menu_permissions gmp ON gmp.menu_id = m.id AND gmp.group_id = $1
+      WHERE m.is_enabled`,
+    [groupId],
+    'user_menu_perms',
+  )
+}
+
+/** 그룹 메뉴 CRUD 권한 저장 */
+export async function replaceGroupMenuPermissions(
+  c: pg.PoolClient,
+  groupId: number,
+  permissions: {
+    menuId: number
+    canView: boolean
+    canCreate: boolean
+    canRead: boolean
+    canUpdate: boolean
+    canDelete: boolean
+  }[],
+) {
+  await c.query('DELETE FROM group_menu_permissions WHERE group_id = $1', [groupId])
+  for (const p of permissions) {
+    await c.query(
+      `INSERT INTO group_menu_permissions
+              (group_id, menu_id, can_view, can_create, can_read, can_update, can_delete, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, now())
+       ON CONFLICT (group_id, menu_id) DO UPDATE
+          SET can_view = EXCLUDED.can_view,
+              can_create = EXCLUDED.can_create,
+              can_read = EXCLUDED.can_read,
+              can_update = EXCLUDED.can_update,
+              can_delete = EXCLUDED.can_delete,
+              updated_at = now()`,
+      [groupId, p.menuId, p.canView, p.canCreate, p.canRead, p.canUpdate, p.canDelete],
+    )
+  }
+}
