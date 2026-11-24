@@ -321,7 +321,11 @@ async function logout() {
 
     <!-- 페이지 본문 컨테이너 -->
     <div class="app-body-container">
-      <RouterView />
+      <RouterView v-slot="{ Component, route }">
+        <KeepAlive>
+          <component :is="Component" :key="route.path" />
+        </KeepAlive>
+      </RouterView>
     </div>
 
     <FavoritesHost />
