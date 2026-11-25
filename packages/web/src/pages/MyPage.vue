@@ -27,6 +27,14 @@ const emit = defineEmits<{
 const session = useSession()
 const router = useRouter()
 
+async function handleLogout() {
+  if (props.isModal) {
+    emit('close')
+  }
+  await session.logout()
+  void router.push('/login')
+}
+
 // ── 탭 관리 ────────────────────────────────────────────────────────────
 type TabKey = 'profile' | 'password' | 'security' | 'layout'
 const currentTab = ref<TabKey>('profile')
@@ -231,6 +239,30 @@ const companyName = computed(() => {
             <strong>직위:</strong> {{ session.me.position }}
           </span>
         </div>
+      </div>
+      <div class="hero-actions">
+        <button
+          type="button"
+          class="mypage-logout-btn"
+          title="로그아웃"
+          @click="handleLogout"
+        >
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M10 17l5-5-5-5M15 12H3" />
+            <path d="M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6" />
+          </svg>
+          <span>로그아웃</span>
+        </button>
       </div>
     </div>
 
@@ -721,6 +753,34 @@ const companyName = computed(() => {
   flex: 1;
 }
 
+.hero-actions {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.mypage-logout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 6px);
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.mypage-logout-btn:hover {
+  color: var(--danger, #97453e);
+  border-color: var(--danger, #97453e);
+  background: var(--danger-soft, #fdf2f2);
+}
+
 .hero-name-row {
   display: flex;
   align-items: center;
@@ -1173,6 +1233,12 @@ input:focus {
   .hero-sub-row {
     justify-content: center;
     gap: 8px;
+  }
+  .hero-actions {
+    margin-left: 0;
+    margin-top: 4px;
+    justify-content: center;
+    width: 100%;
   }
   .form-row.two-cols {
     flex-direction: column;
