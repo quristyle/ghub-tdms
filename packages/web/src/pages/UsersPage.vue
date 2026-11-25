@@ -690,10 +690,10 @@ async function confirmDeletePartner() {
               <option v-for="d in departments" :key="d" :value="d">{{ d }}</option>
             </select>
           </FloatField>
-          <FloatField label="상태" group>
+          <FloatField label="상태" chip>
             <button
               v-for="st in STATUS" :key="st.key" type="button"
-              class="small" :class="{ primary: shown.has(st.key) }"
+              class="chip-item" :class="{ primary: shown.has(st.key) }"
               :aria-pressed="shown.has(st.key)"
               @click="toggleStatus(st.key)"
             >{{ st.label }}</button>

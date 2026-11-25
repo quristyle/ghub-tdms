@@ -4,7 +4,7 @@
  *
  *   <FloatField label="분류"><select v-model="x">…</select></FloatField>
  *   <FloatField label="자료명 검색" class="filter-search"><input v-model="q" type="text" /></FloatField>
- *   <FloatField label="상태" group><button …/><button …/></FloatField>
+ *   <FloatField label="상태" chip><button …/><button …/></FloatField>
  *
  * 라벨은 칸 위쪽 테두리에 살짝 걸쳐 그린다(Material 'outlined' 꼴).
  *  · 글 입력 칸이 비어 있고 포커스가 없으면 라벨이 칸 안에 자리표시자처럼 앉아 있다.
@@ -16,19 +16,25 @@
  * 지워도(조건 초기화) 이벤트 없이 라벨이 제자리로 돌아온다. 글 입력 칸에 자리표시자가 없으면
  * 공백 하나를 넣어 :placeholder-shown 이 동작하게 한다.
  *
- * 컨트롤에 id 가 없으면 만들어 붙여 <label for> 로 잇는다. group 은 버튼 묶음이라
+ * 컨트롤에 id 가 없으면 만들어 붙여 <label for> 로 잇는다. group/chip 은 버튼/칩 묶음이라
  * for 대신 role="group" + aria-labelledby 로 잇는다(라벨을 누르면 첫 버튼이 눌리는 일이 없게).
  */
-import { onMounted, ref, useId } from 'vue'
+import { computed, onMounted, ref, useId } from 'vue'
 
-const props = defineProps<{ label: string; group?: boolean }>()
+const props = defineProps<{
+  label: string
+  group?: boolean
+  chip?: boolean
+}>()
+
+const isGroup = computed(() => Boolean(props.group || props.chip))
 
 const root = ref<HTMLElement>()
 const uid = `ff-${useId()}`
 const forId = ref<string>()
 
 onMounted(() => {
-  if (props.group) return
+  if (isGroup.value) return
   const el = root.value?.querySelector<HTMLElement>('input, select, textarea, button')
   if (!el) return
   if (!el.id) el.id = `${uid}-c`
@@ -50,12 +56,12 @@ onMounted(() => {
 
 <template>
   <div
-    ref="root" class="ff" :class="{ 'ff-is-group': group }"
-    :role="group ? 'group' : undefined" :aria-labelledby="group ? `${uid}-l` : undefined"
+    ref="root" class="ff" :class="{ 'ff-is-group': isGroup, 'ff-is-chip': chip }"
+    :role="isGroup ? 'group' : undefined" :aria-labelledby="isGroup ? `${uid}-l` : undefined"
   >
-    <div v-if="group" class="ff-group"><slot /></div>
+    <div v-if="isGroup" class="ff-group" :class="{ 'ff-chips': chip }"><slot /></div>
     <slot v-else />
-    <label :id="`${uid}-l`" class="ff-label" :for="group ? undefined : forId">{{ label }}</label>
+    <label :id="`${uid}-l`" class="ff-label" :for="isGroup ? undefined : forId">{{ label }}</label>
   </div>
 </template>
 
@@ -141,10 +147,94 @@ onMounted(() => {
   gap: 4px;
   height: 32px;
   /* 위쪽은 걸친 라벨 몫을 비워 둔다 */
-  padding: 5px 3px 0;
+  padding: 2px 6px 0;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   background: var(--surface);
+  box-sizing: border-box;
 }
 .ff-group > button { height: 22px; }
+
+/* 칩 스타일 (chip 형태) — 감싸는 컨테이너와 높이가 닿지 않는 작고 둥근 알약형 칩 */
+.ff-chips {
+  gap: 5px;
+  padding: 2px 6px 0;
+}
+
+.ff-chips > button,
+.ff-group > button.chip,
+.ff-group > button.chip-btn,
+.ff-group > button.chip-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px !important;
+  min-height: 20px;
+  max-height: 20px;
+  padding: 0 8px !important;
+  font-size: 11px !important;
+  font-weight: 500;
+  line-height: 1;
+  border-radius: var(--r-pill, 999px) !important;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: none;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  box-sizing: border-box;
+}
+
+.ff-chips > button:hover:not(:disabled),
+.ff-group > button.chip:hover:not(:disabled),
+.ff-group > button.chip-btn:hover:not(:disabled),
+.ff-group > button.chip-item:hover:not(:disabled) {
+  border-color: var(--text-faint);
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
+.ff-chips > button.selected,
+.ff-chips > button.active,
+.ff-chips > button.primary,
+.ff-chips > button[aria-pressed="true"],
+.ff-group > button.chip.selected,
+.ff-group > button.chip.active,
+.ff-group > button.chip.primary,
+.ff-group > button.chip[aria-pressed="true"],
+.ff-group > button.chip-btn.selected,
+.ff-group > button.chip-btn.active,
+.ff-group > button.chip-btn.primary,
+.ff-group > button.chip-btn[aria-pressed="true"],
+.ff-group > button.chip-item.selected,
+.ff-group > button.chip-item.active,
+.ff-group > button.chip-item.primary,
+.ff-group > button.chip-item[aria-pressed="true"] {
+  background: var(--text-dark-gray);
+  border-color: var(--text-dark-gray);
+  color: var(--primary-fg, #ffffff);
+  font-weight: 600;
+}
+
+.ff-chips > button.selected:hover:not(:disabled),
+.ff-chips > button.active:hover:not(:disabled),
+.ff-chips > button.primary:hover:not(:disabled),
+.ff-chips > button[aria-pressed="true"]:hover:not(:disabled),
+.ff-group > button.chip.selected:hover:not(:disabled),
+.ff-group > button.chip.active:hover:not(:disabled),
+.ff-group > button.chip.primary:hover:not(:disabled),
+.ff-group > button.chip[aria-pressed="true"]:hover:not(:disabled),
+.ff-group > button.chip-btn.selected:hover:not(:disabled),
+.ff-group > button.chip-btn.active:hover:not(:disabled),
+.ff-group > button.chip-btn.primary:hover:not(:disabled),
+.ff-group > button.chip-btn[aria-pressed="true"]:hover:not(:disabled),
+.ff-group > button.chip-item.selected:hover:not(:disabled),
+.ff-group > button.chip-item.active:hover:not(:disabled),
+.ff-group > button.chip-item.primary:hover:not(:disabled),
+.ff-group > button.chip-item[aria-pressed="true"]:hover:not(:disabled) {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--primary-fg, #ffffff);
+}
 </style>

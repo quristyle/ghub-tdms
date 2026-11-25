@@ -815,8 +815,9 @@ button.link:hover:not(:disabled) { background: none; color: var(--text); }
     text-overflow: ellipsis;
   }
 
-  /* 상태 버튼 묶음 (UsersPage)은 100% 폭 */
-  .filter-fields > .ff.ff-is-group {
+  /* 상태 버튼/칩 묶음 (UsersPage)은 100% 폭 */
+  .filter-fields > .ff.ff-is-group,
+  .filter-fields > .ff.ff-is-chip {
     flex: 1 1 100%;
     width: 100%;
     max-width: 100%;
