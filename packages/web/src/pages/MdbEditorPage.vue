@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type {
   ArchiveBatch, ArchiveListResponse, FolderNode, JobCreated, MdbListItem, MdbListResponse, MdbMeta,
-  MdbRegisterResult, MdbReplaceResult,
+  MdbRegisterResult, MdbReplaceResult, MdbSort,
 } from '@tdms/contracts'
 import LazyTree from '@/ui/LazyTree.vue'
 import FloatField from '@/ui/FloatField.vue'
@@ -46,9 +46,17 @@ function refreshAll() {
 // ── 트리 · 목록 ───────────────────────────────────────────────────────
 const folder = ref<FolderNode | null>(null)
 const keyword = ref('')
-const sort = ref<'updatedAt' | 'title' | 'equipmentType' | 'docType' | 'year'>('updatedAt')
+const sort = ref<MdbSort>('updatedAt')
 const dir = ref<SortDir>('desc')
-function onSort(key: string, d: SortDir) { sort.value = key as typeof sort.value; dir.value = d }
+function onSort(key: string, d: SortDir | null) {
+  if (!d) {
+    sort.value = 'updatedAt'
+    dir.value = 'desc'
+  } else {
+    sort.value = key as MdbSort
+    dir.value = d
+  }
+}
 
 /** 조회 조건 — 기존 화면(mdb-editor.html)의 필터 바와 같은 항목 */
 const category = ref('')
@@ -123,22 +131,22 @@ const columns = computed<Column<MdbListItem>[]>(() => [
     render: (r) => String(r.year ?? '\u00b7') },
   { key: 'projectName', label: '공사', width: '150px', sortable: true,
     render: (r) => r.projectName ?? '\u00b7' },
-  { key: 'folderName', label: '경로', sortable: false },   // 남는 자리를 받는 칸
+  { key: 'folderName', label: '경로', sortable: true },   // 남는 자리를 받는 칸
   { key: 'equipmentType', label: '설비유형', width: '110px', sortable: true,
     render: (r) => r.equipmentType ?? '\u00b7' },
   { key: 'docType', label: '자료유형', width: '110px', sortable: true,
     render: (r) => r.docType ?? '\u00b7' },
-  { key: 'isShared', label: '분류', width: '84px', align: 'center', sortable: false,
+  { key: 'isShared', label: '분류', width: '84px', align: 'center', sortable: true,
     render: (r) => (r.needsCheck ? '확인필요' : r.isShared ? '공용' : '전용') },
-  { key: 'hasDwg', label: 'DWG', width: '58px', align: 'center', sortable: false, filterable: false,
+  { key: 'hasDwg', label: 'DWG', width: '58px', align: 'center', sortable: true, filterable: false,
     render: (r) => yn(r.hasDwg) },
-  { key: 'hasXlsx', label: 'XLSX', width: '58px', align: 'center', sortable: false, filterable: false,
+  { key: 'hasXlsx', label: 'XLSX', width: '58px', align: 'center', sortable: true, filterable: false,
     render: (r) => yn(r.hasXlsx) },
-  { key: 'hasEtc', label: 'ETC', width: '58px', align: 'center', sortable: false, filterable: false,
+  { key: 'hasEtc', label: 'ETC', width: '58px', align: 'center', sortable: true, filterable: false,
     render: (r) => yn(r.hasEtc) },
-  { key: 'hasPdf', label: 'PDF', width: '58px', align: 'center', sortable: false, filterable: false,
+  { key: 'hasPdf', label: 'PDF', width: '58px', align: 'center', sortable: true, filterable: false,
     render: (r) => yn(r.hasPdf) },
-  { key: 'tagCount', label: 'Tag', width: '56px', align: 'center', sortable: false, filterable: false,
+  { key: 'tagCount', label: 'Tag', width: '56px', align: 'center', sortable: true, filterable: false,
     render: (r) => String(r.tagCount) },
   { key: 'updatedAt', label: '최종수정', width: '134px', align: 'center', sortable: true,
     render: (r) => r.updatedAt.slice(0, 10) },

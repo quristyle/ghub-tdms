@@ -14,7 +14,21 @@ import { HoldFilter } from './documents.js'
 export const MdbSearchTarget = z.enum(['title', 'folder', 'tag'])
 
 /** 정렬할 수 있는 칸. 서버가 정렬한다 (documents.ts 의 설명과 같은 이유). */
-export const MdbSort = z.enum(['updatedAt', 'title', 'equipmentType', 'docType', 'year'])
+export const MdbSort = z.enum([
+  'updatedAt',
+  'title',
+  'equipmentType',
+  'docType',
+  'year',
+  'projectName',
+  'folderName',
+  'isShared',
+  'hasDwg',
+  'hasXlsx',
+  'hasEtc',
+  'hasPdf',
+  'tagCount',
+])
 export type MdbSort = z.infer<typeof MdbSort>
 
 export const MdbListQuery = PageQuery.extend({

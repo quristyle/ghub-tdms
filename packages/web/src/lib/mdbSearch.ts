@@ -1,4 +1,4 @@
-import type { MdbCartItem } from '@tdms/contracts'
+import type { MdbCartItem, MdbSort } from '@tdms/contracts'
 
 /**
  * MDB 조회의 검색 조건과 다운대기함 — 탭(sessionStorage) 안에서 기억한다.
@@ -24,7 +24,7 @@ export interface MdbSearchState {
   recursive: boolean
   /** 원본/사본 보유 — 자료 단위로 본다 (원본 = PDF 아닌 파일, 사본 = PDF) */
   hold: 'all' | 'both' | 'dwg_only' | 'pdf_only'
-  sort: 'updatedAt' | 'title' | 'equipmentType' | 'docType' | 'year'
+  sort: MdbSort
   dir: 'asc' | 'desc'
   limit: number
 }

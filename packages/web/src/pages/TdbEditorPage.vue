@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type {
-  ArchiveBatch, ArchiveListResponse, DocumentListItem, DocumentListResponse,
+  ArchiveBatch, ArchiveListResponse, DocumentListItem, DocumentListResponse, DocumentSort,
   ExistingRevLookup, FolderNode, JobCreated, JobDetail, PairFolderCandidateResponse,
   PartialItem, RegisterResult, ReplaceBulkResult, ReplaceResult, ZipRegisterCheck,
 } from '@tdms/contracts'
@@ -45,9 +45,17 @@ const folder = ref<FolderNode | null>(null)
 const keyword = ref('')
 const includeIsometric = ref(false)
 
-const sort = ref<'updatedAt' | 'drawingNo' | 'title' | 'currentRev'>('updatedAt')
+const sort = ref<DocumentSort>('updatedAt')
 const dir = ref<SortDir>('desc')
-function onSort(key: string, d: SortDir) { sort.value = key as typeof sort.value; dir.value = d }
+function onSort(key: string, d: SortDir | null) {
+  if (!d) {
+    sort.value = 'updatedAt'
+    dir.value = 'desc'
+  } else {
+    sort.value = key as DocumentSort
+    dir.value = d
+  }
+}
 
 /** 조회 조건 — 기존 화면(editor.html)의 필터 바와 같은 항목 */
 const searchTarget = ref<'title' | 'folder'>('title')
@@ -106,15 +114,15 @@ const yn = (on: boolean) => (on ? 'Y' : '\u00b7')
 const columns = computed<Column<DocumentListItem>[]>(() => [
   { key: 'drawingNo', label: '자료명', width: '220px', sortable: true },
   { key: 'docType', label: '분류', width: '100px', sortable: true, render: (r) => r.docType ?? '\u00b7' },
-  { key: 'folderName', label: '경로', sortable: false },
+  { key: 'folderName', label: '경로', sortable: true },
   { key: 'currentRev', label: 'Rev', width: '50px', align: 'center', sortable: true,
     render: (r) => String(r.currentRev) },
-  { key: 'status', label: '상태', width: '92px', align: 'center', sortable: false,
+  { key: 'status', label: '상태', width: '92px', align: 'center', sortable: true,
     render: (r) => (r.lentTo ? `${r.lentTo} 대여중` : DOC_STATUS_LABEL[r.status] ?? r.status) },
-  { key: 'hasDwg', label: 'DWG', width: '58px', align: 'center', sortable: false, render: (r) => yn(r.hasDwg) },
-  { key: 'hasXlsx', label: 'XLSX', width: '58px', align: 'center', sortable: false, render: (r) => yn(r.hasXlsx) },
-  { key: 'hasEtc', label: 'ETC', width: '58px', align: 'center', sortable: false, render: (r) => yn(r.hasEtc) },
-  { key: 'hasPdf', label: 'PDF', width: '58px', align: 'center', sortable: false, render: (r) => yn(r.hasPdf) },
+  { key: 'hasDwg', label: 'DWG', width: '58px', align: 'center', sortable: true, render: (r) => yn(r.hasDwg) },
+  { key: 'hasXlsx', label: 'XLSX', width: '58px', align: 'center', sortable: true, render: (r) => yn(r.hasXlsx) },
+  { key: 'hasEtc', label: 'ETC', width: '58px', align: 'center', sortable: true, render: (r) => yn(r.hasEtc) },
+  { key: 'hasPdf', label: 'PDF', width: '58px', align: 'center', sortable: true, render: (r) => yn(r.hasPdf) },
   { key: 'updatedAt', label: '최종수정', width: '134px', align: 'center', sortable: true,
     render: (r) => r.updatedAt.slice(0, 10) },
 ])

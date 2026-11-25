@@ -160,7 +160,7 @@ describe('gridSort - 공통 그리드 정렬 유틸리티', () => {
     })
   })
 
-  describe('getNextSortDir (정렬 방향 전환)', () => {
+  describe('getNextSortDir (정렬 방향 전환 및 3회 클릭 초기화)', () => {
     it('다른 컬럼을 클릭했을 때는 기본 오름차순(asc)을 반환한다', () => {
       expect(getNextSortDir('name', 'asc', 'sortOrder')).toBe('asc')
       expect(getNextSortDir('name', 'desc', 'sortOrder')).toBe('asc')
@@ -168,16 +168,45 @@ describe('gridSort - 공통 그리드 정렬 유틸리티', () => {
       expect(getNextSortDir(undefined, undefined, 'sortOrder')).toBe('asc')
     })
 
-    it('현재 정렬된 컬럼을 다시 클릭하면 asc <-> desc 방향을 토글한다', () => {
-      expect(getNextSortDir('name', 'asc', 'name')).toBe('desc')
-      expect(getNextSortDir('name', 'desc', 'name')).toBe('asc')
+    it('컬럼을 총 3번 클릭하는 3-State 주기(오름차순 -> 내림차순 -> 초기화)가 정상 동작한다', () => {
+      // 1번째 클릭: 오름차순(asc)
+      const firstClick = getNextSortDir(null, null, 'name')
+      expect(firstClick).toBe('asc')
+
+      // 2번째 클릭: 내림차순(desc)
+      const secondClick = getNextSortDir('name', 'asc', 'name', true)
+      expect(secondClick).toBe('desc')
+
+      // 3번째 클릭: 정렬 초기화(null)
+      const thirdClick = getNextSortDir('name', 'desc', 'name', true)
+      expect(thirdClick).toBeNull()
+
+      // 4번째 클릭(초기화 후 다시 클릭): 오름차순(asc)으로 새 주기 시작
+      const fourthClick = getNextSortDir(null, null, 'name')
+      expect(fourthClick).toBe('asc')
+    })
+
+    it('초기 기본 정렬이 desc인 컬럼(예: 최종수정)을 첫 클릭하면 asc로 전환되어 주기가 이어진다', () => {
+      // 초기 로딩 상태에서의 첫 클릭 (wasToggled=false)
+      const firstClick = getNextSortDir('updatedAt', 'desc', 'updatedAt', false)
+      expect(firstClick).toBe('asc')
+
+      // 2번째 클릭: desc
+      const secondClick = getNextSortDir('updatedAt', 'asc', 'updatedAt', true)
+      expect(secondClick).toBe('desc')
+
+      // 3번째 클릭: 초기화 (null)
+      const thirdClick = getNextSortDir('updatedAt', 'desc', 'updatedAt', true)
+      expect(thirdClick).toBeNull()
     })
   })
 
   describe('getSortLabel (정렬 방향 레이블)', () => {
-    it('asc 는 "오름차순", desc 는 "내림차순"을 반환한다', () => {
+    it('asc 는 "오름차순", desc 는 "내림차순", null/undefined 는 "미정렬"을 반환한다', () => {
       expect(getSortLabel('asc')).toBe('오름차순')
       expect(getSortLabel('desc')).toBe('내림차순')
+      expect(getSortLabel(null)).toBe('미정렬')
+      expect(getSortLabel(undefined)).toBe('미정렬')
     })
   })
 })

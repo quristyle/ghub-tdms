@@ -22,7 +22,19 @@ export const SearchTarget = z.enum(['title', 'folder'])
  * 38,000건 중 앞 200건만 보고 고른 것이기 때문이다.
  * keyset 커서도 이 칸을 기준으로 움직인다.
  */
-export const DocumentSort = z.enum(['updatedAt', 'drawingNo', 'title', 'currentRev', 'docType'])
+export const DocumentSort = z.enum([
+  'updatedAt',
+  'drawingNo',
+  'title',
+  'currentRev',
+  'docType',
+  'folderName',
+  'status',
+  'hasDwg',
+  'hasPdf',
+  'hasXlsx',
+  'hasEtc',
+])
 export type DocumentSort = z.infer<typeof DocumentSort>
 
 /** 수정일 구간 — 목록 '최종수정' 색 단계와 정확히 같은 구간을 쓴다 */

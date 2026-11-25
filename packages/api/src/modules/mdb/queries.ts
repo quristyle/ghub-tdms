@@ -130,13 +130,26 @@ const SELECT_MDB = `SELECT ${MDB_COLUMNS} ${MDB_FROM}`
 const SORT_SQL: Record<string, string> = {
   updatedAt:     'm.updated_at',
   title:         'm.title',
-  equipmentType: 'm.equipment_type',
-  docType:       'm.doc_type',
-  year:          'm.year',
+  equipmentType: "COALESCE(m.equipment_type, '')",
+  docType:       "COALESCE(m.doc_type, '')",
+  year:          'COALESCE(m.year, 0)',
+  projectName:   "COALESCE(p.name, '')",
+  folderName:    "COALESCE(f.name, '')",
+  isShared:      'm.is_shared',
+  hasDwg:        HAS_DWG,
+  hasXlsx:       HAS_XLSX,
+  hasEtc:        HAS_ETC,
+  hasPdf:        HAS_PDF,
+  tagCount:      SIBLING_TAGS,
 }
 
 function sortCastOf(sort: string): string {
-  return sort === 'updatedAt' ? 'timestamptz' : sort === 'year' ? 'int' : 'text'
+  if (sort === 'updatedAt') return 'timestamptz'
+  if (sort === 'year' || sort === 'tagCount') return 'int'
+  if (sort === 'isShared' || sort === 'hasDwg' || sort === 'hasXlsx' || sort === 'hasEtc' || sort === 'hasPdf') {
+    return 'boolean'
+  }
+  return 'text'
 }
 
 /** 커서에 담을 값 — 정렬 칸의 값이어야 다음 쪽이 이어진다 */
@@ -146,6 +159,14 @@ export function sortValueOf(row: MdbRow, sort: string): string {
     case 'equipmentType': return row.equipmentType ?? ''
     case 'docType':       return row.docType ?? ''
     case 'year':          return String(row.year ?? 0)
+    case 'projectName':   return row.projectName ?? ''
+    case 'folderName':    return row.folderName ?? ''
+    case 'isShared':      return String(row.isShared)
+    case 'hasDwg':        return String(row.hasDwg)
+    case 'hasXlsx':       return String(row.hasXlsx)
+    case 'hasEtc':        return String(row.hasEtc)
+    case 'hasPdf':        return String(row.hasPdf)
+    case 'tagCount':      return String(row.tagCount)
     default:              return row.updatedAt.toISOString()
   }
 }

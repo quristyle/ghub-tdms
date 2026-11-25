@@ -106,9 +106,12 @@ export async function sourcesOf(id: number) {
 const SORT_SQL: Record<string, string> = {
   updatedAt:     'm.updated_at',
   title:         'm.title',
-  equipmentType: 'm.equipment_type',
-  docType:       'm.doc_type',
-  year:          'm.year',
+  equipmentType: "COALESCE(m.equipment_type, '')",
+  docType:       "COALESCE(m.doc_type, '')",
+  year:          'COALESCE(m.year, 0)',
+  projectName:   "COALESCE(p.name, '')",
+  folderName:    "COALESCE(f.name, '')",
+  isShared:      'm.is_shared',
 }
 
 function navFilters(qp: MdbNavQuery, folderIds: number[], params: unknown[]): string[] {

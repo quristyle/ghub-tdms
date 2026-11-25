@@ -17,15 +17,27 @@ export function isSortable<T>(col: SortableColumn<T>): boolean {
 
 /**
  * 현재 정렬 상태를 바탕으로 컬럼 헤더 클릭 시 적용될 다음 정렬 방향을 계산한다.
- * 같은 컬럼을 다시 클릭하면 asc <-> desc 토글되며, 다른 컬럼을 클릭하면 기본값인 asc 가 된다.
+ * 같은 컬럼을 총 3번 누를 수 있으며:
+ *   1번째 클릭: 오름차순(asc)
+ *   2번째 클릭: 내림차순(desc)
+ *   3번째 클릭: 정렬 초기화(null)
+ * 다른 컬럼을 클릭하면 기본값인 오름차순(asc)이 된다.
+ * (초기 기본 정렬이 desc인 컬럼을 처음 클릭했을 때에는 asc로 전환되어 주기가 이어진다)
  */
 export function getNextSortDir(
   currentKey: string | null | undefined,
-  currentDir: SortDir | undefined,
+  currentDir: SortDir | null | undefined,
   targetKey: string,
-): SortDir {
-  if (currentKey === targetKey) {
-    return currentDir === 'asc' ? 'desc' : 'asc'
+  wasToggled?: boolean,
+): SortDir | null {
+  if (currentKey !== targetKey) {
+    return 'asc'
+  }
+  if (currentDir === 'asc') {
+    return 'desc'
+  }
+  if (currentDir === 'desc') {
+    return wasToggled === false ? 'asc' : null
   }
   return 'asc'
 }
@@ -33,8 +45,10 @@ export function getNextSortDir(
 /**
  * 정렬 방향(asc/desc)에 대한 사용자 친화적인 한국어 명칭을 반환한다.
  */
-export function getSortLabel(dir: SortDir): string {
-  return dir === 'asc' ? '오름차순' : '내림차순'
+export function getSortLabel(dir: SortDir | null | undefined): string {
+  if (dir === 'asc') return '오름차순'
+  if (dir === 'desc') return '내림차순'
+  return '미정렬'
 }
 
 /**

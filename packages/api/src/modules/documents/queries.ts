@@ -54,7 +54,13 @@ const SORT_SQL: Record<string, string> = {
   drawingNo:  'd.drawing_no',
   title:      'd.title',
   currentRev: 'd.current_rev',
-  docType:    'd.doc_type',
+  docType:    "COALESCE(d.doc_type, '')",
+  folderName: "COALESCE(f.name, '')",
+  status:     'd.status',
+  hasDwg:     'd.has_dwg',
+  hasPdf:     'd.has_pdf',
+  hasXlsx:    'd.has_xlsx',
+  hasEtc:     'd.has_etc',
 }
 
 /**
@@ -230,7 +236,10 @@ export async function listDocuments(
 
 /** 커서에 담긴 값(문자열)을 정렬 칸의 타입으로 되돌린다 */
 function sortCastOf(sort: string): string {
-  return sort === 'updatedAt' ? 'timestamptz' : sort === 'currentRev' ? 'int' : 'text'
+  if (sort === 'updatedAt') return 'timestamptz'
+  if (sort === 'currentRev') return 'int'
+  if (sort === 'hasDwg' || sort === 'hasPdf' || sort === 'hasXlsx' || sort === 'hasEtc') return 'boolean'
+  return 'text'
 }
 
 /** 커서에 담을 값 — 정렬 칸의 값이어야 다음 쪽이 이어진다 */
@@ -240,6 +249,12 @@ export function sortValueOf(row: DocumentListRow, sort: string): string {
     case 'title':      return row.title
     case 'currentRev': return String(row.currentRev)
     case 'docType':    return row.docType ?? ''
+    case 'folderName': return row.folderName ?? ''
+    case 'status':     return row.lentTo ? `${row.lentTo} 대여중` : row.status
+    case 'hasDwg':     return String(row.hasDwg)
+    case 'hasPdf':     return String(row.hasPdf)
+    case 'hasXlsx':    return String(row.hasXlsx)
+    case 'hasEtc':     return String(row.hasEtc)
     default:           return row.updatedAt.toISOString()
   }
 }

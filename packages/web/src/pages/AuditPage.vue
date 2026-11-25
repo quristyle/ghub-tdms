@@ -56,9 +56,14 @@ const pickLabel = (kind: 'screen' | 'action') => {
 // 정렬은 서버가 한다 — 300건만 정렬하면 "가장 오래된 기록"이 실제로는 아닐 수 있다.
 const sort = ref<AuditSort>('occurredAt')
 const dir = ref<SortDir>('desc')
-function onSort(key: string, d: SortDir) {
-  sort.value = key as AuditSort
-  dir.value = d
+function onSort(key: string, d: SortDir | null) {
+  if (!d) {
+    sort.value = 'occurredAt'
+    dir.value = 'desc'
+  } else {
+    sort.value = key as AuditSort
+    dir.value = d
+  }
 }
 
 const params = computed(() => ({

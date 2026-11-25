@@ -153,7 +153,7 @@ const emit = defineEmits<{
   rowDragend: [event: DragEvent, row: T]
   toggle: [id: number]
   toggleAll: [checked: boolean]
-  sort: [key: string, dir: SortDir]
+  sort: [key: string, dir: SortDir | null]
   loadMore: []
   exportServer: []
   /** 창 방식 — 지금 보이는 자리. 쓰는 쪽이 이 범위를 받아 채운다. */
@@ -173,11 +173,11 @@ const showFilter = computed(() => props.filterRow && !props.windowed)
 const filters = ref<Record<string, string>>({})
 
 const innerSortKey = ref<string | null>(props.defaultSortKey ?? null)
-const innerSortDir = ref<SortDir>(props.defaultSortDir ?? 'asc')
+const innerSortDir = ref<SortDir | null>(props.defaultSortDir ?? null)
 
 const currentSortKey = computed(() => props.sortKey ?? innerSortKey.value)
-const currentSortDir = computed(() =>
-  props.sortKey !== undefined ? (props.sortDir ?? 'asc') : innerSortDir.value,
+const currentSortDir = computed<SortDir | null>(() =>
+  props.sortKey !== undefined ? (props.sortDir ?? null) : innerSortDir.value,
 )
 
 const visible = computed(() => {
@@ -195,7 +195,7 @@ const visible = computed(() => {
 
   // 상위 제어(서버 정렬 등 props.sortKey 가 직접 넘어오는 경우)가 아니고,
   // 클라이언트 정렬 대상 키가 설정되어 있으면 내부에서 정렬을 수행한다.
-  if (props.sortKey === undefined && innerSortKey.value) {
+  if (props.sortKey === undefined && innerSortKey.value && innerSortDir.value) {
     const sortCol = props.columns.find((c) => c.key === innerSortKey.value)
     if (sortCol) {
       const dir = innerSortDir.value
@@ -305,13 +305,28 @@ onBeforeUnmount(() => {
 })
 
 // ── 정렬 ────────────────────────────────────────────────────────────────
+let userToggled = false
+
 function onHeaderClick(col: Column<T>) {
   if (!isSortable(col)) return
-  const dir = getNextSortDir(currentSortKey.value, currentSortDir.value, col.key)
+  const isSameCol = currentSortKey.value === col.key
+  const dir = getNextSortDir(
+    currentSortKey.value,
+    currentSortDir.value,
+    col.key,
+    isSameCol && userToggled,
+  )
+
+  userToggled = dir !== null
 
   if (props.sortKey === undefined) {
-    innerSortKey.value = col.key
-    innerSortDir.value = dir
+    if (dir === null) {
+      innerSortKey.value = null
+      innerSortDir.value = null
+    } else {
+      innerSortKey.value = col.key
+      innerSortDir.value = dir
+    }
   }
   emit('sort', col.key, dir)
 }
@@ -646,17 +661,17 @@ async function exportExcel() {
           v-for="col in columns" :key="col.key"
           class="dt-cell dt-th" :class="{
             sortable: isSortable(col),
-            sorted: currentSortKey === col.key,
+            sorted: currentSortKey === col.key && !!currentSortDir,
             'sort-asc': currentSortKey === col.key && currentSortDir === 'asc',
             'sort-desc': currentSortKey === col.key && currentSortDir === 'desc',
           }"
           :style="cellStyle(col)"
           :title="isSortable(col)
-            ? (currentSortKey === col.key
-                ? `${col.label} — ${getSortLabel(currentSortDir)} 정렬됨 (클릭 시 ${getSortLabel(currentSortDir === 'asc' ? 'desc' : 'asc')} 정렬)`
-                : `${col.label} — 클릭 시 정렬`)
+            ? (currentSortKey === col.key && currentSortDir
+                ? `${col.label} — ${getSortLabel(currentSortDir)} 정렬됨 (클릭 시 ${currentSortDir === 'asc' ? '내림차순 정렬' : '정렬 초기화'})`
+                : `${col.label} — 클릭 시 오름차순 정렬`)
             : col.label"
-          :aria-sort="currentSortKey === col.key ? (currentSortDir === 'asc' ? 'ascending' : 'descending') : undefined"
+          :aria-sort="currentSortKey === col.key && currentSortDir ? (currentSortDir === 'asc' ? 'ascending' : 'descending') : undefined"
           @click="onHeaderClick(col)"
         >
           <span class="dt-th-label">{{ col.label }}</span>
@@ -664,7 +679,7 @@ async function exportExcel() {
             v-if="isSortable(col)"
             class="dt-sort-icon"
             :class="{
-              active: currentSortKey === col.key,
+              active: currentSortKey === col.key && !!currentSortDir,
               asc: currentSortKey === col.key && currentSortDir === 'asc',
               desc: currentSortKey === col.key && currentSortDir === 'desc',
             }"
@@ -672,7 +687,7 @@ async function exportExcel() {
           >
             <!-- 정렬 활성 시 오름차순(▲) / 내림차순(▼) 아이콘 표시 -->
             <svg
-              v-if="currentSortKey === col.key"
+              v-if="currentSortKey === col.key && currentSortDir"
               class="dt-sort-arrow"
               viewBox="0 0 10 10"
               width="9"

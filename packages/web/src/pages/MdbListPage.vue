@@ -60,9 +60,14 @@ const { data: meta } = useQuery({
   staleTime: staleTime.types,
 })
 
-function onSort(key: string, d: SortDir) {
-  s.value.sort = key as MdbSearchState['sort']
-  s.value.dir = d
+function onSort(key: string, d: SortDir | null) {
+  if (!d) {
+    s.value.sort = 'updatedAt'
+    s.value.dir = 'desc'
+  } else {
+    s.value.sort = key as MdbSearchState['sort']
+    s.value.dir = d
+  }
 }
 
 const filters = computed(() => toServerFilters(s.value))
@@ -245,22 +250,22 @@ const columns = computed<Column<MdbListItem>[]>(() => [
     render: (r) => String(r.year ?? '\u00b7') },
   { key: 'projectName', label: '공사', width: '150px', sortable: true,
     render: (r) => r.projectName ?? '\u00b7' },
-  { key: 'folderName', label: '경로', sortable: false },   // 남는 자리를 받는 칸
+  { key: 'folderName', label: '경로', sortable: true },   // 남는 자리를 받는 칸
   { key: 'equipmentType', label: '설비유형', width: '110px', sortable: true,
     render: (r) => r.equipmentType ?? '\u00b7' },
   { key: 'docType', label: '자료유형', width: '110px', sortable: true,
     render: (r) => r.docType ?? '\u00b7' },
-  { key: 'isShared', label: '분류', width: '84px', align: 'center', sortable: false,
+  { key: 'isShared', label: '분류', width: '84px', align: 'center', sortable: true,
     render: (r) => (r.needsCheck ? '확인필요' : r.isShared ? '공용' : '전용') },
-  { key: 'hasDwg', label: 'DWG', width: '58px', align: 'center', sortable: false, filterable: false,
+  { key: 'hasDwg', label: 'DWG', width: '58px', align: 'center', sortable: true, filterable: false,
     render: (r) => yn(r.hasDwg) },
-  { key: 'hasXlsx', label: 'XLSX', width: '58px', align: 'center', sortable: false, filterable: false,
+  { key: 'hasXlsx', label: 'XLSX', width: '58px', align: 'center', sortable: true, filterable: false,
     render: (r) => yn(r.hasXlsx) },
-  { key: 'hasEtc', label: 'ETC', width: '58px', align: 'center', sortable: false, filterable: false,
+  { key: 'hasEtc', label: 'ETC', width: '58px', align: 'center', sortable: true, filterable: false,
     render: (r) => yn(r.hasEtc) },
-  { key: 'hasPdf', label: 'PDF', width: '58px', align: 'center', sortable: false, filterable: false,
+  { key: 'hasPdf', label: 'PDF', width: '58px', align: 'center', sortable: true, filterable: false,
     render: (r) => yn(r.hasPdf) },
-  { key: 'tagCount', label: 'Tag', width: '56px', align: 'center', sortable: false, filterable: false,
+  { key: 'tagCount', label: 'Tag', width: '56px', align: 'center', sortable: true, filterable: false,
     render: (r) => String(r.tagCount) },
   { key: 'updatedAt', label: '최종수정', width: '134px', align: 'center', sortable: true,
     render: (r) => r.updatedAt.slice(0, 10) },
