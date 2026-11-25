@@ -18,9 +18,10 @@ export const qk = {
     list: (kind: 'projects' | 'vendors', includeHidden: boolean) => ['catalog', kind, includeHidden] as const,
   },
   cart: {
-    all: ['cart'] as const,
-    folders: ['cart', 'folders'] as const,
-    items: (folderId?: number | 'root' | 'all') => ['cart', 'items', folderId ?? 'all'] as const,
+    all: (userId?: number | null) => ['cart', userId ?? 'anonymous'] as const,
+    folders: (userId?: number | null) => ['cart', userId ?? 'anonymous', 'folders'] as const,
+    items: (userId?: number | null, folderId?: number | 'root' | 'all') =>
+      ['cart', userId ?? 'anonymous', 'items', folderId ?? 'all'] as const,
   },
 } as const
 

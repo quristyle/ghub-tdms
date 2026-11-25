@@ -70,6 +70,10 @@ export async function createCartFolder(
   name: string,
   parentId?: number | null,
 ): Promise<CartFolderRow> {
+  if (parentId) {
+    const parent = await findCartFolder(userId, parentId)
+    if (!parent) throw new Error('상위 대기함 폴더를 찾을 수 없습니다.')
+  }
   const row = await one<CartFolderRow>(
     `INSERT INTO user_cart_folders (user_id, parent_id, name, sort_order)
      VALUES ($1, $2, $3, (
@@ -110,6 +114,11 @@ export async function updateCartFolder(
   folderId: number,
   data: { name?: string; parentId?: number | null; sortOrder?: number },
 ): Promise<CartFolderRow | null> {
+  if (data.parentId) {
+    if (data.parentId === folderId) throw new Error('자기 자신을 상위 폴더로 지정할 수 없습니다.')
+    const parent = await findCartFolder(userId, data.parentId)
+    if (!parent) throw new Error('상위 대기함 폴더를 찾을 수 없습니다.')
+  }
   const sets: string[] = ['updated_at = now()']
   const params: unknown[] = [folderId, userId]
 
@@ -194,7 +203,7 @@ export async function listCartItems(
        FROM user_cart_items i
        JOIN documents d ON d.id = i.document_id
        JOIN folders f ON f.id = d.folder_id
-  LEFT JOIN user_cart_folders cf ON cf.id = i.folder_id
+  LEFT JOIN user_cart_folders cf ON cf.id = i.folder_id AND cf.user_id = i.user_id
   LEFT JOIN LATERAL (
        SELECT vendor_name, distributed_at
          FROM distributions
@@ -219,6 +228,11 @@ export async function addCartItems(
   }
 
   const targetFolderId = folderId ?? null
+  if (targetFolderId !== null) {
+    const folder = await findCartFolder(userId, targetFolderId)
+    if (!folder) throw new Error('대기함 폴더를 찾을 수 없습니다.')
+  }
+
   const res = await query(
     `INSERT INTO user_cart_items (user_id, document_id, folder_id)
      SELECT $1, doc_id, $3
@@ -238,6 +252,10 @@ export async function moveCartItems(
   targetFolderId: number | null,
 ): Promise<number> {
   if (!documentIds.length) return 0
+  if (targetFolderId !== null) {
+    const folder = await findCartFolder(userId, targetFolderId)
+    if (!folder) throw new Error('대상 대기함 폴더를 찾을 수 없습니다.')
+  }
   const res = await query(
     `UPDATE user_cart_items
         SET folder_id = $3

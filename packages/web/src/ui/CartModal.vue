@@ -12,6 +12,7 @@ import DataTable, { type Column } from '@/ui/DataTable.vue'
 import { api, ApiError } from '@/lib/api'
 import { toast } from '@/lib/toast'
 import { qk, staleTime } from '@/lib/queryKeys'
+import { useSession } from '@/lib/session'
 
 const props = defineProps<{
   open: boolean
@@ -23,14 +24,16 @@ const emit = defineEmits<{
   (e: 'countChange', total: number): void
 }>()
 
+const session = useSession()
+const currentUserId = computed(() => session.me?.id ?? null)
 const qc = useQueryClient()
 
 // ── 폴더 목록 조회 ──────────────────────────────────────────────────────
 const { data: folderData, refetch: refetchFolders } = useQuery({
-  queryKey: qk.cart.folders,
+  queryKey: computed(() => qk.cart.folders(currentUserId.value)),
   queryFn: () => api.get<CartFolderListResponse>('/cart/folders'),
   staleTime: staleTime.worklist,
-  enabled: computed(() => props.open),
+  enabled: computed(() => props.open && session.isLoggedIn),
 })
 
 const folders = computed(() => folderData.value?.items ?? [])
@@ -66,7 +69,7 @@ watch(searchInput, (val) => {
 
 const { data: itemData, refetch: refetchItems, isFetching: itemsFetching } = useQuery({
   queryKey: computed(() => [
-    ...qk.cart.items(selectedFolderId.value),
+    ...qk.cart.items(currentUserId.value, selectedFolderId.value),
     searchKeyword.value,
   ]),
   queryFn: () => {
@@ -81,7 +84,7 @@ const { data: itemData, refetch: refetchItems, isFetching: itemsFetching } = use
     return api.get<CartItemListResponse>(`/cart/items${qStr}`)
   },
   staleTime: staleTime.worklist,
-  enabled: computed(() => props.open),
+  enabled: computed(() => props.open && session.isLoggedIn),
 })
 
 const items = computed(() => itemData.value?.items ?? [])
@@ -179,6 +182,7 @@ async function submitFolderModal() {
       toast.ok(`"${name}" 폴더를 생성했습니다.`)
       folderModalMode.value = null
       await refetchFolders()
+      await qc.invalidateQueries({ queryKey: qk.cart.all(currentUserId.value) })
       selectedFolderId.value = res.folder.id
     } else if (folderModalMode.value === 'rename' && folderTargetId.value) {
       await api.patch(`/cart/folders/${folderTargetId.value}`, { name })
@@ -186,6 +190,7 @@ async function submitFolderModal() {
       folderModalMode.value = null
       await refetchFolders()
       await refetchItems()
+      await qc.invalidateQueries({ queryKey: qk.cart.all(currentUserId.value) })
     }
   } catch (e) {
     toast.err(e instanceof ApiError ? e.message : '폴더 처리에 실패했습니다.')
@@ -205,6 +210,7 @@ async function deleteFolder(f: CartFolder, e: Event) {
     }
     await refetchFolders()
     await refetchItems()
+    await qc.invalidateQueries({ queryKey: qk.cart.all(currentUserId.value) })
   } catch (e) {
     toast.err(e instanceof ApiError ? e.message : '폴더 삭제에 실패했습니다.')
   }
@@ -238,6 +244,7 @@ async function submitMove() {
     clearPicked()
     await refetchFolders()
     await refetchItems()
+    await qc.invalidateQueries({ queryKey: qk.cart.all(currentUserId.value) })
   } catch (e) {
     toast.err(e instanceof ApiError ? e.message : '자료 이동에 실패했습니다.')
   }
@@ -257,6 +264,7 @@ async function removePicked() {
     clearPicked()
     await refetchFolders()
     await refetchItems()
+    await qc.invalidateQueries({ queryKey: qk.cart.all(currentUserId.value) })
   } catch (e) {
     toast.err(e instanceof ApiError ? e.message : '자료 제외에 실패했습니다.')
   }
@@ -278,6 +286,7 @@ async function clearCurrent() {
     clearPicked()
     await refetchFolders()
     await refetchItems()
+    await qc.invalidateQueries({ queryKey: qk.cart.all(currentUserId.value) })
   } catch (e) {
     toast.err(e instanceof ApiError ? e.message : '비우기에 실패했습니다.')
   }
@@ -312,7 +321,7 @@ function handleDistribute() {
       <!-- 좌측: 개인 폴더 관리 사이드바 -->
       <aside class="cart-sidebar">
         <div class="sidebar-header">
-          <span class="sidebar-title">📁 개인 관리폴더</span>
+          <span class="sidebar-title">📁 {{ session.me?.name ? `${session.me.name}님의 대기함` : '개인 관리폴더' }}</span>
           <button class="small primary" type="button" title="새 폴더 만들기" @click="openCreateFolder">
             ＋ 새 폴더
           </button>

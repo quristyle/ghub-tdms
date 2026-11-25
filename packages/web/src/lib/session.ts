@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import type { LoginResult, MeResponse, MfaVerifyResult } from '@tdms/contracts'
 import { api, ApiError } from './api.js'
 import { router } from '../router.js'
+import { queryClient } from './queryClient.js'
 
 /**
  * 세션·권한 스토어.
@@ -79,6 +80,7 @@ export const useSession = defineStore('session', () => {
    * mfa 가 verify/enroll 이면 인증 앱 코드를 verifyMfa 로 넘겨야 로그인이 끝난다.
    */
   async function login(loginId: string, password: string, skipMfa = false): Promise<LoginResult> {
+    queryClient.clear()
     const r = await api.post<LoginResult>('/auth/login', { loginId, password, skipMfa })
     if (r.mfa === 'none') await load()
     return r
@@ -86,6 +88,7 @@ export const useSession = defineStore('session', () => {
 
   /** 2단계 — 인증 앱(Microsoft Authenticator 등)의 6자리 코드. 맞으면 세션이 생긴다. */
   async function verifyMfa(challenge: string, code: string): Promise<MfaVerifyResult> {
+    queryClient.clear()
     const r = await api.post<MfaVerifyResult>('/auth/mfa', { challenge, code })
     await load()
     return r
@@ -93,6 +96,7 @@ export const useSession = defineStore('session', () => {
 
   /** 그룹별 임의 사용자 빠른 자동 로그인 (개발용) */
   async function quickLogin(loginId: string): Promise<void> {
+    queryClient.clear()
     await api.post('/auth/quick-login', { loginId })
     await load()
   }
@@ -101,11 +105,13 @@ export const useSession = defineStore('session', () => {
     try {
       await api.post('/auth/logout')
     } finally {
+      queryClient.clear()
       me.value = null
     }
   }
 
   function clear() {
+    queryClient.clear()
     me.value = null
   }
 

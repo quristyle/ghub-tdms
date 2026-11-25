@@ -180,20 +180,25 @@ const serverRows = computed(() =>
 
 const isFetching = computed(() => firstLoad.value && loadingPages.value.size > 0)
 
-// ── 반출대기함 (개인 폴더 관리) ─────────────────────────────────────────
+// ── 반출대기함 (사용자별 개인 폴더 및 자료 관리) ─────────────────────────
+const currentUserId = computed(() => session.me?.id ?? null)
+
 const { data: cartFoldersData } = useQuery({
-  queryKey: qk.cart.folders,
+  queryKey: computed(() => qk.cart.folders(currentUserId.value)),
   queryFn: () => api.get<CartFolderListResponse>('/cart/folders'),
   staleTime: staleTime.worklist,
+  enabled: computed(() => session.isLoggedIn),
 })
 
 const { data: serverCartData } = useQuery({
-  queryKey: qk.cart.items('all'),
+  queryKey: computed(() => qk.cart.items(currentUserId.value, 'all')),
   queryFn: () => api.get<CartItemListResponse>('/cart/items?folderId=all'),
   staleTime: staleTime.worklist,
+  enabled: computed(() => session.isLoggedIn),
 })
 
 const cartCount = computed(() => cartFoldersData.value?.totalCount ?? serverCartData.value?.total ?? 0)
+const cartDocIds = computed(() => new Set((serverCartData.value?.items ?? []).map((x) => x.id)))
 
 // '반출대기' 상태로 고르면 대기함을 목록 자리에 보여준다. 검색어는 화면에서 거른다.
 const cartViewRows = computed(() => {
@@ -244,7 +249,7 @@ async function addCheckedToCart() {
       documentIds: [...checked.value],
     })
     clearChecked()
-    await qc.invalidateQueries({ queryKey: qk.cart.all })
+    await qc.invalidateQueries({ queryKey: qk.cart.all(currentUserId.value) })
     toast.ok(`${res.added}건을 반출대기함에 담았습니다. (대기함 ${res.total}건)`)
   } catch (e) {
     toast.err(e instanceof ApiError ? e.message : '대기함 담기에 실패했습니다.')
@@ -287,7 +292,7 @@ async function confirmFolderAdd() {
     const res = await api.post<CartAddResponse>('/cart/items', {
       documentIds: ids,
     })
-    await qc.invalidateQueries({ queryKey: qk.cart.all })
+    await qc.invalidateQueries({ queryKey: qk.cart.all(currentUserId.value) })
     toast.ok(`${res.added}건을 반출대기함에 담았습니다. (대기함 ${res.total}건)`)
     folderAdd.value = null
   } catch (e) {
@@ -420,7 +425,7 @@ function onDistributeFromCart(docIds: number[]) {
 }
 
 function onCartCountChange() {
-  void qc.invalidateQueries({ queryKey: qk.cart.folders })
+  void qc.invalidateQueries({ queryKey: qk.cart.all(currentUserId.value) })
 }
 const distJobId = ref<number | null>(null)
 const warnings = ref<CreateDistributionResult['duplicateWarnings']>([])
@@ -576,7 +581,7 @@ async function submitDistribution() {
     }
     try {
       await api.post('/cart/items/remove', { documentIds: distDocIds.value })
-      await qc.invalidateQueries({ queryKey: qk.cart.all })
+      await qc.invalidateQueries({ queryKey: qk.cart.all(currentUserId.value) })
     } catch {
       // ignore
     }
@@ -599,7 +604,7 @@ const columns = computed<Column<DocumentListItem>[]>(() => [
   { key: 'currentRev', label: 'Rev', width: '50px', align: 'center', sortable: true,
     render: (r) => String(r.currentRev) },
   { key: 'status', label: '상태', width: '92px', align: 'center', sortable: true,
-    render: (r) => (r.lentTo ? `${r.lentTo} 대여중` : STATUS_LABEL[r.status] ?? r.status) },
+    render: (r) => (cartDocIds.value.has(r.id) ? '반출대기' : r.lentTo ? `${r.lentTo} 대여중` : STATUS_LABEL[r.status] ?? r.status) },
   { key: 'hasDwg', label: 'DWG', width: '58px', align: 'center', sortable: true, render: (r) => yn(r.hasDwg) },
   { key: 'hasXlsx', label: 'XLSX', width: '58px', align: 'center', sortable: true, render: (r) => yn(r.hasXlsx) },
   { key: 'hasEtc', label: 'ETC', width: '58px', align: 'center', sortable: true, render: (r) => yn(r.hasEtc) },
@@ -775,7 +780,8 @@ function recentClass(r: DocumentListItem): string {
             <!-- 상태·보유·최종수정은 기존 화면처럼 배지·기호·색으로 그린다.
                  글자값(render)은 그대로라 거르기와 엑셀은 화면과 어긋나지 않는다. -->
             <template #cell:status="{ row }">
-              <span v-if="row.lentTo" class="badge badge-warning">{{ row.lentTo }} 대여중</span>
+              <span v-if="cartDocIds.has(row.id)" class="badge badge-info">반출대기</span>
+              <span v-else-if="row.lentTo" class="badge badge-warning">{{ row.lentTo }} 대여중</span>
               <span v-else class="badge" :class="STATUS_BADGE[row.status] ?? 'badge-neutral'">
                 {{ STATUS_LABEL[row.status] ?? row.status }}
               </span>
