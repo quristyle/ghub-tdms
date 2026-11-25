@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { useQueryClient } from '@tanstack/vue-query'
 import { useRouter } from 'vue-router'
 import { ApiError, setReauthenticationHandler } from '@/lib/api'
@@ -21,7 +21,19 @@ const error = ref('')
 const busy = ref(false)
 let complete: ((authenticated: boolean) => void) | null = null
 
+function shouldSuppressReauth(): boolean {
+  return (
+    session.isLoggingOut ||
+    !session.isLoggedIn ||
+    router.currentRoute.value.path === '/login' ||
+    router.currentRoute.value.meta?.bare === true
+  )
+}
+
 function requestAuthentication(): Promise<boolean> {
+  if (shouldSuppressReauth()) {
+    return Promise.resolve(false)
+  }
   loginId.value = session.me?.loginId ?? ''
   password.value = ''
   challenge.value = ''
@@ -37,6 +49,16 @@ function finish(authenticated: boolean) {
   complete?.(authenticated)
   complete = null
 }
+
+// 로그아웃 중이거나 로그인 화면으로 이동하면 열려 있던 팝업을 즉시 닫는다
+watch(
+  () => [session.isLoggingOut, router.currentRoute.value.path],
+  ([loggingOut, path]) => {
+    if ((loggingOut || path === '/login') && open.value) {
+      finish(false)
+    }
+  },
+)
 
 async function submit() {
   if (busy.value) return
@@ -114,7 +136,13 @@ function cancel() {
 }
 
 setReauthenticationHandler(requestAuthentication)
-onBeforeUnmount(() => setReauthenticationHandler(null))
+onBeforeUnmount(() => {
+  setReauthenticationHandler(null)
+  if (complete) {
+    complete(false)
+    complete = null
+  }
+})
 </script>
 
 <template>

@@ -82,6 +82,18 @@ describe('API 재인증', () => {
       .rejects.toMatchObject({ status: 401, code: 'MFA_EXPIRED' })
     expect(authenticate).not.toHaveBeenCalled()
   })
+
+  it('로그아웃 요청이 401이어도 재인증 팝업을 띄우지 않는다', async () => {
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(
+      response({ code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' }, 401),
+    ))
+    const authenticate = vi.fn()
+    setReauthenticationHandler(authenticate)
+
+    await expect(api.post('/auth/logout'))
+      .rejects.toMatchObject({ status: 401 })
+    expect(authenticate).not.toHaveBeenCalled()
+  })
 })
 
 describe('qs', () => {

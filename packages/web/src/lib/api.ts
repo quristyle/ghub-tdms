@@ -50,6 +50,7 @@ async function request<T>(
     path !== '/auth/login' &&
     path !== '/auth/mfa' &&
     path !== '/auth/me' &&
+    path !== '/auth/logout' &&
     reauthenticationHandler
   ) {
     reauthenticationPrompt ??= reauthenticationHandler().finally(() => {

@@ -111,14 +111,17 @@ export function registerAuthRoutes(app: FastifyInstance): void {
   defineRoute(app, {
     method: 'POST',
     url: '/auth/logout',
-    access: AUTHENTICATED,
+    access: PUBLIC,
     audit: { screen: '로그인', action: '로그아웃' },
     schema: { response: { 200: z.object({ ok: z.literal(true) }) } },
     handler: async (req, reply) => {
       const sid = readSessionCookie(req)
       if (sid) await destroySession(sid)
       clearSessionCookie(reply)
-      req.setAuditTarget(req.auth.user.loginId)
+      const authUser = (req as any).auth?.user
+      if (authUser?.loginId) {
+        (req as any).setAuditTarget?.(authUser.loginId)
+      }
       return { ok: true as const }
     },
   })

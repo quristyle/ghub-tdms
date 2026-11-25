@@ -101,18 +101,26 @@ export const useSession = defineStore('session', () => {
     await load()
   }
 
+  const isLoggingOut = ref(false)
+
   async function logout() {
+    isLoggingOut.value = true
     try {
       await api.post('/auth/logout')
+    } catch {
+      // 이미 세션이 만료되었거나 네트워크 이상이어도 클라이언트 로그아웃은 완료한다
     } finally {
-      queryClient.clear()
       me.value = null
+      queryClient.cancelQueries()
+      queryClient.clear()
+      isLoggingOut.value = false
     }
   }
 
   function clear() {
-    queryClient.clear()
     me.value = null
+    queryClient.cancelQueries()
+    queryClient.clear()
   }
 
   /** 미루기 — 서버 세션에 기록한다. 이 세션 동안만 건너뛴다. */
@@ -183,6 +191,7 @@ export const useSession = defineStore('session', () => {
 
   return {
     me, loading, isLoggedIn, isAdmin, menu, can, canAction, load, login, quickLogin, verifyMfa, logout,
+    isLoggingOut,
     firstAllowedPath, needsPasswordChange, deferPasswordChange, clear,
     layoutMode, isSidebarPinned, updateLayoutPreferences, syncSidebarPinnedFromServer,
   }

@@ -11,7 +11,7 @@ const bare = computed(() => route.meta.bare === true)
 </script>
 
 <template>
-  <ReauthenticationModal />
+  <ReauthenticationModal v-if="!bare" />
   <RouterView v-if="bare" />
   <AppShell v-else />
   <ToastHost />
