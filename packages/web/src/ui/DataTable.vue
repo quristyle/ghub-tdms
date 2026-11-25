@@ -2,7 +2,14 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import { downloadXlsx } from '@/lib/xlsx'
-import { compareRows, getCellValue, isSortable, type SortDir } from './gridSort'
+import {
+  compareRows,
+  getCellValue,
+  getNextSortDir,
+  getSortLabel,
+  isSortable,
+  type SortDir,
+} from './gridSort'
 
 /**
  * 가상 스크롤 표.
@@ -300,8 +307,7 @@ onBeforeUnmount(() => {
 // ── 정렬 ────────────────────────────────────────────────────────────────
 function onHeaderClick(col: Column<T>) {
   if (!isSortable(col)) return
-  const dir: SortDir =
-    currentSortKey.value === col.key && currentSortDir.value === 'asc' ? 'desc' : 'asc'
+  const dir = getNextSortDir(currentSortKey.value, currentSortDir.value, col.key)
 
   if (props.sortKey === undefined) {
     innerSortKey.value = col.key
@@ -638,15 +644,57 @@ async function exportExcel() {
 
         <div
           v-for="col in columns" :key="col.key"
-          class="dt-cell dt-th" :class="{ sortable: isSortable(col), sorted: currentSortKey === col.key }"
+          class="dt-cell dt-th" :class="{
+            sortable: isSortable(col),
+            sorted: currentSortKey === col.key,
+            'sort-asc': currentSortKey === col.key && currentSortDir === 'asc',
+            'sort-desc': currentSortKey === col.key && currentSortDir === 'desc',
+          }"
           :style="cellStyle(col)"
-          :title="isSortable(col) ? `${col.label} — 눌러서 정렬` : col.label"
+          :title="isSortable(col)
+            ? (currentSortKey === col.key
+                ? `${col.label} — ${getSortLabel(currentSortDir)} 정렬됨 (클릭 시 ${getSortLabel(currentSortDir === 'asc' ? 'desc' : 'asc')} 정렬)`
+                : `${col.label} — 클릭 시 정렬`)
+            : col.label"
           :aria-sort="currentSortKey === col.key ? (currentSortDir === 'asc' ? 'ascending' : 'descending') : undefined"
           @click="onHeaderClick(col)"
         >
-          <!-- 정렬 표시는 세모 아이콘 없이 글씨만 — 지금 정렬 중인 열은 진하게·강조색
-               (기존 화면 .sortable-th 규칙). -->
           <span class="dt-th-label">{{ col.label }}</span>
+          <span
+            v-if="isSortable(col)"
+            class="dt-sort-icon"
+            :class="{
+              active: currentSortKey === col.key,
+              asc: currentSortKey === col.key && currentSortDir === 'asc',
+              desc: currentSortKey === col.key && currentSortDir === 'desc',
+            }"
+            aria-hidden="true"
+          >
+            <!-- 정렬 활성 시 오름차순(▲) / 내림차순(▼) 아이콘 표시 -->
+            <svg
+              v-if="currentSortKey === col.key"
+              class="dt-sort-arrow"
+              viewBox="0 0 10 10"
+              width="9"
+              height="9"
+              aria-hidden="true"
+            >
+              <path v-if="currentSortDir === 'asc'" d="M5 2L1.8 7.5h6.4L5 2z" fill="currentColor" />
+              <path v-else d="M5 8L1.8 2.5h6.4L5 8z" fill="currentColor" />
+            </svg>
+            <!-- 미정렬 상태에서 호버 시 정렬 가능함을 알리는 중립 아이콘 -->
+            <svg
+              v-else
+              class="dt-sort-neutral"
+              viewBox="0 0 10 12"
+              width="8"
+              height="10"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path d="M5 1L2.2 4.5h5.6L5 1z M5 11L2.2 7.5h5.6L5 11z" />
+            </svg>
+          </span>
           <span
             class="dt-grip" title="끌어서 너비 조절 · 두 번 눌러 되돌리기"
             @pointerdown="startResize($event, col)"
@@ -958,9 +1006,35 @@ async function exportExcel() {
 .dt-th { position: relative; user-select: none; justify-content: center; }
 .dt-th.sortable { cursor: pointer; }
 .dt-th.sortable:hover { color: var(--text); }
-/* 정렬 중인 열은 세모 아이콘 없이 글씨만 진하게 (2026 기존 화면 규칙) */
+/* 정렬 중인 열은 진하게·강조색 */
 .dt-th.sorted { color: var(--accent); font-weight: 700; }
-.dt-th-label { overflow: hidden; text-overflow: ellipsis; }
+.dt-th-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 정렬 표시 아이콘 */
+.dt-sort-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.dt-sort-arrow {
+  display: block;
+  color: var(--accent);
+}
+
+.dt-sort-neutral {
+  display: block;
+  opacity: 0;
+  color: var(--text-muted);
+  transition: opacity 0.15s ease;
+}
+
+.dt-th.sortable:hover .dt-sort-neutral {
+  opacity: 0.45;
+}
 
 
 /* 컬럼 사이 구분선 — 머리글에서만, 머리글 높이의 80% 정도로 */

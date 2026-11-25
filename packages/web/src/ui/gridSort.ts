@@ -16,6 +16,28 @@ export function isSortable<T>(col: SortableColumn<T>): boolean {
 }
 
 /**
+ * 현재 정렬 상태를 바탕으로 컬럼 헤더 클릭 시 적용될 다음 정렬 방향을 계산한다.
+ * 같은 컬럼을 다시 클릭하면 asc <-> desc 토글되며, 다른 컬럼을 클릭하면 기본값인 asc 가 된다.
+ */
+export function getNextSortDir(
+  currentKey: string | null | undefined,
+  currentDir: SortDir | undefined,
+  targetKey: string,
+): SortDir {
+  if (currentKey === targetKey) {
+    return currentDir === 'asc' ? 'desc' : 'asc'
+  }
+  return 'asc'
+}
+
+/**
+ * 정렬 방향(asc/desc)에 대한 사용자 친화적인 한국어 명칭을 반환한다.
+ */
+export function getSortLabel(dir: SortDir): string {
+  return dir === 'asc' ? '오름차순' : '내림차순'
+}
+
+/**
  * 행과 컬럼으로부터 표시할 글자값을 추출한다.
  */
 export function getCellValue<T>(row: T, col: SortableColumn<T>): string {

@@ -990,10 +990,24 @@ td.muted, .muted { color: var(--text-faint); }
 .mono { font-family: var(--font-mono); font-size: 11.5px; }
 .bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
-/* 표 헤더 클릭 정렬 — 세모 아이콘 없이 글씨만. 정렬 중인 열은 진하게 */
+/* 표 헤더 클릭 정렬 — 세모 아이콘으로 오름차순/내림차순 표시. 정렬 중인 열은 진하게 */
 .sortable-th { cursor: pointer; }
 .sortable-th:hover { color: var(--text); }
 .sortable-th.sort-asc, .sortable-th.sort-desc { color: var(--accent); font-weight: 700; }
+.sortable-th.sort-asc::after {
+  content: " ▲";
+  font-size: 9px;
+  display: inline-block;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.sortable-th.sort-desc::after {
+  content: " ▼";
+  font-size: 9px;
+  display: inline-block;
+  margin-left: 4px;
+  vertical-align: middle;
+}
 
 /* 결과 표 "경로" 칸 — 누르면 좌측 폴더트리에서 그 경로를 선택한다 */
 td.path-jump { cursor: pointer; }

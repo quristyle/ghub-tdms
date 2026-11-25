@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { compareRows, getCellValue, isSortable, type SortableColumn } from './gridSort'
+import {
+  compareRows,
+  getCellValue,
+  getNextSortDir,
+  getSortLabel,
+  isSortable,
+  type SortableColumn,
+} from './gridSort'
 
 interface TestItem {
   id: number
@@ -150,6 +157,27 @@ describe('gridSort - 공통 그리드 정렬 유틸리티', () => {
 
       const desc = [...items].sort((a, b) => compareRows(a, b, col, 'desc'))
       expect(desc[0]!.id).toBe(5)
+    })
+  })
+
+  describe('getNextSortDir (정렬 방향 전환)', () => {
+    it('다른 컬럼을 클릭했을 때는 기본 오름차순(asc)을 반환한다', () => {
+      expect(getNextSortDir('name', 'asc', 'sortOrder')).toBe('asc')
+      expect(getNextSortDir('name', 'desc', 'sortOrder')).toBe('asc')
+      expect(getNextSortDir(null, undefined, 'sortOrder')).toBe('asc')
+      expect(getNextSortDir(undefined, undefined, 'sortOrder')).toBe('asc')
+    })
+
+    it('현재 정렬된 컬럼을 다시 클릭하면 asc <-> desc 방향을 토글한다', () => {
+      expect(getNextSortDir('name', 'asc', 'name')).toBe('desc')
+      expect(getNextSortDir('name', 'desc', 'name')).toBe('asc')
+    })
+  })
+
+  describe('getSortLabel (정렬 방향 레이블)', () => {
+    it('asc 는 "오름차순", desc 는 "내림차순"을 반환한다', () => {
+      expect(getSortLabel('asc')).toBe('오름차순')
+      expect(getSortLabel('desc')).toBe('내림차순')
     })
   })
 })
