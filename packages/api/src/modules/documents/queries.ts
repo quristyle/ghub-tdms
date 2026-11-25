@@ -493,10 +493,7 @@ export function navigate(
   )
 }
 
-/** 반출 한 번에 담을 수 있는 자료 수 — CreateDistributionRequest.documentIds 의 상한과 같다 */
-export const FOLDER_CART_MAX = 5000
-
-/** 폴더 반출 — 그 폴더(하위 포함 여부는 recursive)의 자료 전부. 상한에서 하나 더 읽어 넘침을 안다. */
+/** 폴더 반출 — 그 폴더(하위 포함 여부는 recursive)의 자료 전부. 건수 제한 없이 조회한다. */
 export function listFolderDocuments(folderIds: number[], includeIsometric: boolean) {
   const params: unknown[] = [folderIds]
   const where = buildListWhere(
@@ -506,8 +503,7 @@ export function listFolderDocuments(folderIds: number[], includeIsometric: boole
   return many<DocumentListRow>(
     `${LIST_SELECT}
       WHERE ${where.join(' AND ')}
-      ORDER BY f.name, d.drawing_no, d.id
-      LIMIT ${FOLDER_CART_MAX + 1}`,
+      ORDER BY f.name, d.drawing_no, d.id`,
     params,
   )
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BoolParam, DocumentListQuery, MenuSaveRequest, QuickLoginRequest, QuickLoginUsersResponse } from '../index.js'
+import { BoolParam, CreateDistributionRequest, DocumentListQuery, MenuSaveRequest, QuickLoginRequest, QuickLoginUsersResponse } from '../index.js'
 import { LEAF_KEYS, LEAF_KEY_SET, PAGE_PERMISSIONS, MENU, leavesUnder } from '../permissions.js'
 
 describe('BoolParam — 쿼리스트링 불리언', () => {
@@ -146,5 +146,29 @@ describe('QuickLogin 스키마', () => {
   it('QuickLoginRequest 올바른 loginId 검증', () => {
     expect(QuickLoginRequest.safeParse({ loginId: 'admin' }).success).toBe(true)
     expect(QuickLoginRequest.safeParse({ loginId: '' }).success).toBe(false)
+  })
+})
+
+describe('CreateDistributionRequest 스키마', () => {
+  it('5000건을 초과하는 자료도 반출 요청 스키마를 통과한다 (건수 제한 없음)', () => {
+    const largeDocIds = Array.from({ length: 6000 }, (_, i) => i + 1)
+    const res = CreateDistributionRequest.safeParse({
+      documentIds: largeDocIds,
+      vendorName: '테스트업체',
+      purpose: 'REFERENCE',
+    })
+    expect(res.success).toBe(true)
+    if (res.success) {
+      expect(res.data.documentIds).toHaveLength(6000)
+    }
+  })
+
+  it('자료 ID 목록이 비어 있으면 거부한다 (min 1)', () => {
+    const res = CreateDistributionRequest.safeParse({
+      documentIds: [],
+      vendorName: '테스트업체',
+      purpose: 'REFERENCE',
+    })
+    expect(res.success).toBe(false)
   })
 })

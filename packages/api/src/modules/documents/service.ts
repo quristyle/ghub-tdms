@@ -182,11 +182,6 @@ export async function nav(qp: DocumentNavQuery) {
 export async function folderDocuments(qp: FolderDocumentsQuery) {
   const folderIds = await folders.scopeIds('TDB', qp.folderId, qp.recursive)
   const rows = await q.listFolderDocuments(folderIds, qp.includeIsometric)
-  // 반출 한 번에 5000건까지다 — 그보다 많으면 담아 봐야 반출에서 막힌다. 하위 폴더로 나눠 담게 한다.
-  if (rows.length > q.FOLDER_CART_MAX) {
-    throw Errors.invalid('TOO_MANY_DOCUMENTS',
-      `이 폴더의 자료가 ${q.FOLDER_CART_MAX}건을 넘습니다. 한 번에 ${q.FOLDER_CART_MAX}건까지 반출할 수 있으니 하위 폴더로 나눠 담으세요.`)
-  }
   return { items: rows.map(toListItem) }
 }
 

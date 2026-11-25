@@ -177,7 +177,7 @@ export type ZipReturnResult = z.infer<typeof ZipReturnResult>
 // ── 반출 실행 ───────────────────────────────────────────────────────────
 
 export const CreateDistributionRequest = z.object({
-  documentIds: z.array(z.number().int()).min(1).max(5000),
+  documentIds: z.array(z.number().int()).min(1),
   vendorId: z.number().int().nullable().default(null),
   vendorName: z.string().min(1).max(200),
   projectId: z.number().int().nullable().default(null),
