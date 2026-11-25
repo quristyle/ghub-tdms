@@ -387,7 +387,7 @@ const COLUMNS: Column<UserRow>[] = [
   { key: 'role', label: '권한', width: '74px', align: 'center',
     render: (u) => (u.role === 'ADMIN' ? '관리자' : '일반') },
   { key: 'groupName', label: '그룹', width: '110px', align: 'center', render: (u) => u.groupName ?? '' },
-  { key: 'employmentStatus', label: '상태', width: '132px', align: 'center',
+  { key: 'employmentStatus', label: '상태', width: '184px',
     // 엑셀에도 꼬리표가 함께 나가야 화면과 같은 뜻이 된다
     render: (u) => [statusLabel(u.employmentStatus), isLocked(u) ? '잠김' : '',
       u.mustChangePassword ? '초기비번' : '', u.totpEnabledAt ? '' : 'OTP미등록']
@@ -1711,10 +1711,10 @@ async function confirmDeletePartner() {
 .seg .btn.on { background: var(--primary-soft); border-color: var(--primary-line); color: var(--primary); font-weight: 600; }
 
 .tag {
-  display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 8px;
-  background: var(--accent); color: var(--primary-fg);
+  display: inline-flex; align-items: center; font-size: 10px; padding: 1px 6px; border-radius: 8px;
+  background: var(--accent); color: var(--primary-fg); flex-shrink: 0; white-space: nowrap;
 }
-.tag.warn-tag { background: var(--warn); margin-left: 4px; }
+.tag.warn-tag { background: var(--warn); }
 .tag.tag-info { background: var(--primary-soft); color: var(--primary); border: 1px solid var(--primary-line); }
 
 /* 폼 모달 — 팝업 너비를 다 쓴다 */

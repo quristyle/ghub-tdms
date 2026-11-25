@@ -25,4 +25,12 @@ describe('DataTable Checkbox cell interaction', () => {
     expect(content).toContain('cursor: pointer;')
     expect(content).toContain('user-select: none;')
   })
+
+  it('슬롯 셀(.dt-cell.dt-slot)이 display: block에 덮어씌워지지 않도록 :not(.dt-slot)이 적용되어 있어야 한다', () => {
+    const filePath = resolve(__dirname, 'DataTable.vue')
+    const content = readFileSync(filePath, 'utf-8')
+
+    expect(content).toContain('.dt-cell:not(.dt-th):not(.dt-no):not(.dt-check):not(.dt-slot) { display: block; }')
+    expect(content).toContain('.dt-cell.dt-slot { display: flex; align-items: center; gap: 4px; overflow: hidden; }')
+  })
 })

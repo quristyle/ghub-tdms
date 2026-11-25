@@ -1155,7 +1155,7 @@ async function exportExcel() {
 }
 .dt-head .dt-cell { line-height: 37px; height: 38px; font-size: 11.5px; }
 .dt-row .dt-cell { height: 100%; }
-.dt-cell:not(.dt-th):not(.dt-no):not(.dt-check) { display: block; }
+.dt-cell:not(.dt-th):not(.dt-no):not(.dt-check):not(.dt-slot) { display: block; }
 
 /* 슬롯 칸 — 안에 단추·배지가 들어가므로 가운데 맞춤을 되살린다.
    한 줄 높이를 넘기지 않게 넘치는 것은 잘라 둔다(줄 높이가 흔들리면 가상 스크롤이 어긋난다). */
