@@ -3,7 +3,8 @@ import { computed, ref, watch } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { useRouter } from 'vue-router'
 import type {
-  ArchiveBatch, ArchiveListResponse, CatalogItem, CatalogListResponse,
+  ArchiveBatch, ArchiveListResponse, CartAddResponse, CartFolderListResponse, CartItemListResponse,
+  CatalogItem, CatalogListResponse,
   CreateDistributionResult, DocumentListItem, DocumentListResponse, DocumentSort,
   FolderDocumentsResponse, FolderNode, JobCreated,
 } from '@tdms/contracts'
@@ -11,6 +12,7 @@ import FolderTreePanel from '@/ui/FolderTreePanel.vue'
 import FloatField from '@/ui/FloatField.vue'
 import DataTable, { type Column, type SortDir } from '@/ui/DataTable.vue'
 import Modal from '@/ui/Modal.vue'
+import CartModal from '@/ui/CartModal.vue'
 import ProjectManager from '@/ui/ProjectManager.vue'
 import JobProgress from '@/ui/JobProgress.vue'
 import { api, ApiError, qs } from '@/lib/api'
@@ -178,56 +180,25 @@ const serverRows = computed(() =>
 
 const isFetching = computed(() => firstLoad.value && loadingPages.value.size > 0)
 
-// ── 반출대기함 ─────────────────────────────────────────────────────────
-// 기존 화면처럼 **줄 체크와 대기함은 따로다** — 체크한 줄을 [선택 반출] 로 담고,
-// [폴더 반출] 은 체크와 무관하게 폴더 전부를 담는다. 대기함은 sessionStorage 에 남아
-// 상세 화면을 다녀오거나 새로고침해도 그대로다(탭을 닫으면 비워진다).
-const CART_KEY = 'tdb-cart'
-
-function loadCart(): Map<number, DocumentListItem> {
-  try {
-    const raw = sessionStorage.getItem(CART_KEY)
-    const list = raw ? (JSON.parse(raw) as DocumentListItem[]) : []
-    return new Map(list.map((r) => [r.id, r]))
-  } catch {
-    return new Map()
-  }
-}
-
-const cart = ref(loadCart())
-watch(cart, (m) => {
-  try {
-    sessionStorage.setItem(CART_KEY, JSON.stringify([...m.values()]))
-  } catch {
-    toast.err('반출대기함이 너무 커서 저장하지 못했습니다. 새로고침하면 비워집니다.')
-  }
+// ── 반출대기함 (개인 폴더 관리) ─────────────────────────────────────────
+const { data: cartFoldersData } = useQuery({
+  queryKey: qk.cart.folders,
+  queryFn: () => api.get<CartFolderListResponse>('/cart/folders'),
+  staleTime: staleTime.worklist,
 })
 
-function addToCart(list: DocumentListItem[]): number {
-  const next = new Map(cart.value)
-  let added = 0
-  for (const r of list) {
-    if (!next.has(r.id)) added++
-    next.set(r.id, r)
-  }
-  cart.value = next
-  return added
-}
+const { data: serverCartData } = useQuery({
+  queryKey: qk.cart.items('all'),
+  queryFn: () => api.get<CartItemListResponse>('/cart/items?folderId=all'),
+  staleTime: staleTime.worklist,
+})
 
-function removeFromCart(ids: Iterable<number>) {
-  const next = new Map(cart.value)
-  for (const id of ids) next.delete(id)
-  cart.value = next
-}
-
-function clearCart() {
-  cart.value = new Map()
-}
+const cartCount = computed(() => cartFoldersData.value?.totalCount ?? serverCartData.value?.total ?? 0)
 
 // '반출대기' 상태로 고르면 대기함을 목록 자리에 보여준다. 검색어는 화면에서 거른다.
 const cartViewRows = computed(() => {
   const kw = debounced.value.trim().toLowerCase()
-  const all = [...cart.value.values()]
+  const all = (serverCartData.value?.items ?? []) as DocumentListItem[]
   if (!kw) return all
   return all.filter((r) =>
     searchTarget.value === 'folder'
@@ -262,16 +233,22 @@ function clearChecked() {
   checked.value = new Set()
 }
 
-/** [선택 반출] — 체크한 줄을 대기함에 담고 체크는 푼다 */
-function addCheckedToCart() {
+/** [선택 반출] — 체크한 줄을 개인 반출대기함에 담고 체크는 푼다 */
+async function addCheckedToCart() {
   if (!checked.value.size) {
     toast.err('반출대기함에 담을 자료를 먼저 체크하세요.')
     return
   }
-  const picked = rows.value.filter((r) => checked.value.has(r.id))
-  const added = addToCart(picked)
-  clearChecked()
-  toast.ok(`${added}건을 반출대기함에 담았습니다. (대기함 ${cart.value.size}건)`)
+  try {
+    const res = await api.post<CartAddResponse>('/cart/items', {
+      documentIds: [...checked.value],
+    })
+    clearChecked()
+    await qc.invalidateQueries({ queryKey: qk.cart.all })
+    toast.ok(`${res.added}건을 반출대기함에 담았습니다. (대기함 ${res.total}건)`)
+  } catch (e) {
+    toast.err(e instanceof ApiError ? e.message : '대기함 담기에 실패했습니다.')
+  }
 }
 
 // [폴더 반출] — 체크와 무관하게 지금 고른 폴더(하위 폴더 포함)의 자료 전부를 담는다.
@@ -303,36 +280,24 @@ async function startFolderAdd() {
   }
 }
 
-function confirmFolderAdd() {
+async function confirmFolderAdd() {
   if (!folderAdd.value) return
-  const added = addToCart(folderAdd.value.items)
-  toast.ok(`${added}건을 반출대기함에 담았습니다. (대기함 ${cart.value.size}건)`)
-  folderAdd.value = null
+  try {
+    const ids = folderAdd.value.items.map((r) => r.id)
+    const res = await api.post<CartAddResponse>('/cart/items', {
+      documentIds: ids,
+    })
+    await qc.invalidateQueries({ queryKey: qk.cart.all })
+    toast.ok(`${res.added}건을 반출대기함에 담았습니다. (대기함 ${res.total}건)`)
+    folderAdd.value = null
+  } catch (e) {
+    toast.err(e instanceof ApiError ? e.message : '대기함 담기에 실패했습니다.')
+  }
 }
 
-// 반출대기함 창 — 담긴 목록을 보고, 골라 빼고, 엑셀로 받고, 반출한다.
+// 반출대기함 창 — 개인 관리폴더와 자료 목록을 관리한다.
 const cartOpen = ref(false)
-const cartPicked = ref(new Set<number>())
-const cartList = computed(() => [...cart.value.values()])
 
-function toggleCartPick(id: number) {
-  const next = new Set(cartPicked.value)
-  if (next.has(id)) next.delete(id)
-  else next.add(id)
-  cartPicked.value = next
-}
-
-function removePicked() {
-  removeFromCart(cartPicked.value)
-  cartPicked.value = new Set()
-}
-
-const CART_COLUMNS: Column<DocumentListItem>[] = [
-  { key: 'drawingNo', label: '자료명', width: '200px' },
-  { key: 'title', label: '내용' },
-  { key: 'docType', label: '분류', width: '130px', render: (r) => r.docType ?? '' },
-  { key: 'folderName', label: '경로', width: '180px' },
-]
 
 /** [검색] — 입력 중 기다리지 않고 바로 조회한다 (기존 화면의 검색 버튼) */
 function doSearch() {
@@ -424,11 +389,17 @@ function prefetch(row: DocumentListItem) {
 // ── 반출 실행 ──────────────────────────────────────────────────────────
 // 반출대기함에 담은 것을 업체에 내보낸다. Zip 만들기는 워커가 한다.
 const distOpen = ref(false)
+const distDocIds = ref<number[]>([])
 /** 수정용 반출만 권한을 본다 — 참조용·기타는 누구나 (기존 정책) */
 const canModify = computed(() => session.can('screen.tdb_list.distribute.modify'))
 
-function openDistribute() {
-  if (!cart.value.size) return
+function openDistribute(docIds?: number[]) {
+  const ids = docIds && docIds.length ? docIds : (serverCartData.value?.items.map((r) => r.id) ?? [])
+  if (!ids.length) {
+    toast.err('반출할 자료가 없습니다.')
+    return
+  }
+  distDocIds.value = ids
   // 열 때마다 처음 상태로 — 지난번에 고른 공사·업체가 남아 있으면 엉뚱한 곳으로 나간다
   dist.value = {
     vendorId: '', vendorName: '', projectId: '',
@@ -442,6 +413,14 @@ function openDistribute() {
   warnings.value = []
   cartOpen.value = false
   distOpen.value = true
+}
+
+function onDistributeFromCart(docIds: number[]) {
+  openDistribute(docIds)
+}
+
+function onCartCountChange() {
+  void qc.invalidateQueries({ queryKey: qk.cart.folders })
 }
 const distJobId = ref<number | null>(null)
 const warnings = ref<CreateDistributionResult['duplicateWarnings']>([])
@@ -571,7 +550,7 @@ async function submitDistribution() {
   if (isModify.value && !dist.value.vendorName) { distError.value = '업체를 선택해주세요.'; return }
   try {
     const r = await api.post<CreateDistributionResult>('/distributions', {
-      documentIds: [...cart.value.keys()],
+      documentIds: distDocIds.value,
       vendorId: dist.value.vendorId ? Number(dist.value.vendorId) : null,
       vendorName: dist.value.vendorName,
       projectId: dist.value.projectId ? Number(dist.value.projectId) : null,
@@ -595,7 +574,13 @@ async function submitDistribution() {
     } else {
       toast.ok(`${r.created}건을 반출했습니다. (${r.zipName})`)
     }
-    clearCart()
+    try {
+      await api.post('/cart/items/remove', { documentIds: distDocIds.value })
+      await qc.invalidateQueries({ queryKey: qk.cart.all })
+    } catch {
+      // ignore
+    }
+    distDocIds.value = []
     void qc.invalidateQueries({ queryKey: qk.documents.all })
   } catch (e) {
     distError.value = e instanceof ApiError ? e.message : '반출하지 못했습니다.'
@@ -764,7 +749,7 @@ function recentClass(r: DocumentListItem): string {
             <button class="cart-btn" type="button" title="체크한 자료를 반출대기함에 담습니다"
                     @click="addCheckedToCart">선택 반출</button>
             <button class="cart-btn" type="button" @click="cartOpen = true">
-              반출대기함 ({{ cart.size }})
+              반출대기함 ({{ cartCount }})
             </button>
             <button class="cart-btn" type="button" :disabled="exportingServer" @click="startServerExport">
               엑셀 내보내기
@@ -833,27 +818,13 @@ function recentClass(r: DocumentListItem): string {
       </template>
     </Modal>
 
-    <!-- 반출대기함 -->
-    <Modal v-if="cartOpen" wide title="반출대기함" @close="cartOpen = false">
-      <div class="cart-grid">
-        <DataTable
-          :columns="CART_COLUMNS" :rows="cartList" :total="cartList.length"
-          selectable :selected="cartPicked"
-          storage-key="tdb-cart" excel-name="TDB 조회_반출대기함"
-          empty-text="반출대기함이 비어 있습니다. 목록에서 체크한 뒤 [선택 반출] 또는 [폴더 반출] 로 담으세요."
-          @toggle="toggleCartPick"
-          @toggle-all="(on) => { cartPicked = on ? new Set(cartList.map((r) => r.id)) : new Set() }"
-        />
-      </div>
-      <template #footer>
-        <button @click="cartOpen = false">닫기</button>
-        <button :disabled="!cartPicked.size" @click="removePicked">
-          삭제{{ cartPicked.size ? ` (${cartPicked.size})` : '' }}
-        </button>
-        <button :disabled="!cart.size" @click="clearCart(); cartPicked = new Set()">전체 비우기</button>
-        <button class="primary" :disabled="!cart.size" @click="openDistribute">이 목록으로 반출하기</button>
-      </template>
-    </Modal>
+    <!-- 반출대기함 (개인 폴더 관리) -->
+    <CartModal
+      :open="cartOpen"
+      @close="cartOpen = false"
+      @distribute="onDistributeFromCart"
+      @count-change="onCartCountChange"
+    />
 
     <!-- 폐기 보관함 (보기 전용) -->
     <Modal v-if="retiredOpen" wide title="폐기 보관함" @close="retiredOpen = false">
@@ -872,7 +843,7 @@ function recentClass(r: DocumentListItem): string {
     <!-- 반출하기 -->
     <Modal v-if="distOpen" title="반출하기" @close="distOpen = false">
       <div class="dist-head">
-        <p class="page-desc">반출대기함의 {{ cart.size }}건을 업체에 내보냅니다. Zip 은 뒤에서 만듭니다.</p>
+        <p class="page-desc">반출 대상 {{ distDocIds.length }}건을 업체에 내보냅니다. Zip 은 뒤에서 만듭니다.</p>
         <!-- 끄면 폴더 경로 없이 자료와 엑셀 목록이 Zip 바로 밑에 평평하게 담긴다.
              수정용은 업체가 받은 폴더 구조 그대로 돌려줘야 하므로 켠 채로 잠근다. -->
         <label class="dist-keep-paths" :class="{ 'is-locked': isModify }"

@@ -17,6 +17,11 @@ export const qk = {
     all: ['catalog'] as const,
     list: (kind: 'projects' | 'vendors', includeHidden: boolean) => ['catalog', kind, includeHidden] as const,
   },
+  cart: {
+    all: ['cart'] as const,
+    folders: ['cart', 'folders'] as const,
+    items: (folderId?: number | 'root' | 'all') => ['cart', 'items', folderId ?? 'all'] as const,
+  },
 } as const
 
 /** 자원별 캐시 수명 — 04 설계문서의 기준표 그대로 */
