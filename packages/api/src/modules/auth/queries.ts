@@ -189,7 +189,7 @@ export function updateMyProfile(
 }
 
 export interface QuickLoginUserRow {
-  groupId: number
+  groupId: number | null
   groupName: string
   userId: number
   loginId: string
@@ -197,20 +197,38 @@ export interface QuickLoginUserRow {
   role: 'ADMIN' | 'VIEWER'
 }
 
-/** 사용자 그룹별 임의의 활성 사용자 1명씩 조회 (그룹 id 순 정렬) */
+/** 사용자 그룹별 임의의 활성 사용자 1명씩 조회 (그룹 id 순 정렬) 및 미소속 활성 사용자 1명 */
 export function findQuickLoginUsers() {
   return many<QuickLoginUserRow>(
-    `SELECT DISTINCT ON (g.id)
-       g.id        AS "groupId",
-       g.name      AS "groupName",
-       u.id        AS "userId",
-       u.login_id  AS "loginId",
-       u.name      AS "name",
-       u.role      AS "role"
-      FROM groups g
-      JOIN users u ON u.group_id = g.id
-     WHERE u.is_active = true
-     ORDER BY g.id, u.id`,
+    `SELECT * FROM (
+       SELECT DISTINCT ON (g.id)
+         g.id        AS "groupId",
+         g.name      AS "groupName",
+         u.id        AS "userId",
+         u.login_id  AS "loginId",
+         u.name      AS "name",
+         u.role      AS "role"
+        FROM groups g
+        JOIN users u ON u.group_id = g.id
+       WHERE u.is_active = true
+       ORDER BY g.id, u.id
+     ) grouped
+     UNION ALL
+     SELECT * FROM (
+       SELECT
+         NULL::bigint AS "groupId",
+         '미소속'     AS "groupName",
+         u.id         AS "userId",
+         u.login_id   AS "loginId",
+         u.name       AS "name",
+         u.role       AS "role"
+        FROM users u
+       WHERE u.group_id IS NULL
+         AND u.is_active = true
+       ORDER BY u.id
+       LIMIT 1
+     ) unassigned
+     ORDER BY "groupId" ASC NULLS LAST, "userId" ASC`,
     [],
     'quick_login_users',
   )

@@ -56,6 +56,10 @@ SELECT 'viewer', '조회 사용자', '!', 'VIEWER', g.id, true
   FROM groups g WHERE g.name = '조회전용'
 ON CONFLICT (login_id) DO NOTHING;
 
+INSERT INTO users (login_id, name, password_hash, role, group_id, must_change_password)
+VALUES ('unassigned', '미소속 사용자', '!', 'VIEWER', NULL, true)
+ON CONFLICT (login_id) DO NOTHING;
+
 -- ── 분류 목록 ───────────────────────────────────────────────────────────
 INSERT INTO projects (name) VALUES ('G.Hub 신설'), ('정기보수 2026'), ('공통')
 ON CONFLICT DO NOTHING;

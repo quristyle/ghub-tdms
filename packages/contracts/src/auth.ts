@@ -159,7 +159,7 @@ export type UpdateLayoutRequest = z.infer<typeof UpdateLayoutRequest>
 
 /** 그룹별 자동 로그인용 사용자 정보 */
 export const QuickLoginUser = z.object({
-  groupId: z.number().int(),
+  groupId: z.number().int().nullable(),
   groupName: z.string(),
   userId: z.number().int(),
   loginId: z.string(),

@@ -138,6 +138,7 @@ describe('QuickLogin 스키마', () => {
       items: [
         { groupId: 1, groupName: '설비기술팀', userId: 1, loginId: 'admin', name: '관리자', role: 'ADMIN' },
         { groupId: 2, groupName: '조회전용', userId: 3, loginId: 'viewer', name: '조회 사용자', role: 'VIEWER' },
+        { groupId: null, groupName: '미소속', userId: 67, loginId: '0048', name: '권순호', role: 'VIEWER' },
       ],
     })
     expect(res.success).toBe(true)
