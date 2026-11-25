@@ -353,7 +353,7 @@ async function toggleEnabled(s: StampItem) {
         </h1>
       </div>
       <div class="page-actions">
-        <button class="primary" type="button" @click="openCreate">＋ 새 스탬프 등록</button>
+        <button class="primary" type="button" permission="c" @click="openCreate">＋ 새 스탬프 등록</button>
       </div>
     </div>
 
@@ -402,6 +402,7 @@ async function toggleEnabled(s: StampItem) {
             <button
               type="button"
               class="grid-icon-btn edit-btn"
+              permission="u"
               title="수정"
               aria-label="수정"
               @click.stop="openEdit(row)"
@@ -414,6 +415,7 @@ async function toggleEnabled(s: StampItem) {
             <button
               type="button"
               class="grid-icon-btn delete-btn"
+              permission="d"
               title="삭제"
               aria-label="삭제"
               @click.stop="deleteTarget = row"
@@ -579,7 +581,7 @@ async function toggleEnabled(s: StampItem) {
 
       <template #footer>
         <button type="button" class="btn" @click="editTarget = null">취소</button>
-        <button type="button" class="btn btn-primary" :disabled="isSubmitting" @click="saveStamp">
+        <button type="button" class="btn btn-primary" permission="u" :disabled="isSubmitting" @click="saveStamp">
           {{ isSubmitting ? '저장 중…' : '저장' }}
         </button>
       </template>
@@ -591,7 +593,7 @@ async function toggleEnabled(s: StampItem) {
       <p class="muted fs-sm">이미 도면에 날인된 주석에는 영향을 주지 않으며, 새로 선택할 수 없게 됩니다.</p>
       <template #footer>
         <button class="btn" @click="deleteTarget = null">취소</button>
-        <button class="btn btn-danger" :disabled="isDeleting" @click="confirmDelete">
+        <button class="btn btn-danger" permission="d" :disabled="isDeleting" @click="confirmDelete">
           {{ isDeleting ? '삭제 중…' : '삭제' }}
         </button>
       </template>

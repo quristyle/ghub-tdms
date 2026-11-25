@@ -668,7 +668,7 @@ async function confirmDeletePartner() {
         </h1>
       </div>
       <div class="page-actions">
-        <button type="button" @click="router.push('/permissions')">권한 관리</button>
+        <button type="button" permission="u" @click="router.push('/permissions')">권한 관리</button>
         <button type="button" permission="c" @click="openCreate">사용자 추가</button>
       </div>
     </div>
@@ -703,7 +703,7 @@ async function confirmDeletePartner() {
           </FloatField>
         </div>
         <div class="filter-actions">
-          <button type="button" @click="resetFilter">조건 초기화</button>
+          <button type="button" permission="r" @click="resetFilter">조건 초기화</button>
         </div>
       </div>
     </div>
@@ -1039,11 +1039,11 @@ async function confirmDeletePartner() {
 
               <template #cell:act="{ row }">
                 <button class="btn btn-sm" permission="u" @click.stop="openEdit(row)">수정</button>
-                <button class="btn btn-sm" @click.stop="resetTarget = row">비번 초기화</button>
-                <button class="btn btn-sm" :disabled="!row.totpEnabledAt"
+                <button class="btn btn-sm" permission="u" @click.stop="resetTarget = row">비번 초기화</button>
+                <button class="btn btn-sm" permission="u" :disabled="!row.totpEnabledAt"
                         :title="row.totpEnabledAt ? `OTP 등록 ${row.totpEnabledAt.slice(0, 10)}` : 'OTP 미등록'"
                         @click.stop="totpResetTarget = row">OTP 초기화</button>
-                <button class="btn btn-sm" :disabled="!isLocked(row)"
+                <button class="btn btn-sm" permission="u" :disabled="!isLocked(row)"
                         :title="isLocked(row) ? `로그인 잠금 (${lockLeft(row)})` : '잠겨 있지 않습니다'"
                         @click.stop="unlockTarget = row">잠금 해제</button>
               </template>
@@ -1144,7 +1144,7 @@ async function confirmDeletePartner() {
       </table>
       <template #footer>
         <button class="btn" @click="userDialog = null">취소</button>
-        <button class="btn btn-primary" :disabled="!form.loginId || !form.name" @click="submitUser">확인</button>
+        <button class="btn btn-primary" permission="u" :disabled="!form.loginId || !form.name" @click="submitUser">확인</button>
       </template>
     </Modal>
 
@@ -1156,7 +1156,7 @@ async function confirmDeletePartner() {
       <p class="muted">그 사람의 모든 로그인이 끊기고, 다음 로그인 때 변경 화면이 열립니다.</p>
       <template #footer>
         <button class="btn" @click="resetTarget = null">취소</button>
-        <button class="btn btn-primary" @click="confirmReset">초기화</button>
+        <button class="btn btn-primary" permission="u" @click="confirmReset">초기화</button>
       </template>
     </Modal>
 
@@ -1170,7 +1170,7 @@ async function confirmDeletePartner() {
       </p>
       <template #footer>
         <button class="btn" @click="totpResetTarget = null">취소</button>
-        <button class="btn btn-primary" @click="confirmTotpReset">초기화</button>
+        <button class="btn btn-primary" permission="u" @click="confirmTotpReset">초기화</button>
       </template>
     </Modal>
 
@@ -1186,7 +1186,7 @@ async function confirmDeletePartner() {
       </p>
       <template #footer>
         <button class="btn" @click="unlockTarget = null">취소</button>
-        <button class="btn btn-primary" @click="confirmUnlock">잠금 해제</button>
+        <button class="btn btn-primary" permission="u" @click="confirmUnlock">잠금 해제</button>
       </template>
     </Modal>
 
@@ -1230,6 +1230,7 @@ async function confirmDeletePartner() {
         <button class="btn" @click="groupDialog = null">취소</button>
         <button
           class="btn btn-primary"
+          permission="u"
           :disabled="!groupForm.name.trim() || isGroupSubmitting"
           @click="submitGroup"
         >
@@ -1260,6 +1261,7 @@ async function confirmDeletePartner() {
         <button class="btn" @click="deleteGroupTarget = null">취소</button>
         <button
           class="btn btn-danger"
+          permission="d"
           :disabled="isDeletingGroup"
           @click="confirmDeleteGroup"
         >
@@ -1332,6 +1334,7 @@ async function confirmDeletePartner() {
         <button class="btn" @click="partnerDialog = null">취소</button>
         <button
           class="btn btn-primary"
+          permission="u"
           :disabled="!partnerForm.name.trim() || isPartnerSubmitting"
           @click="submitPartner"
         >
@@ -1362,6 +1365,7 @@ async function confirmDeletePartner() {
         <button class="btn" @click="deletePartnerTarget = null">취소</button>
         <button
           class="btn btn-danger"
+          permission="d"
           :disabled="isDeletingPartner"
           @click="confirmDeletePartner"
         >

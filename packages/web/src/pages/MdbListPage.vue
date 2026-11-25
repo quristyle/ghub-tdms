@@ -281,7 +281,7 @@ const columns = computed<Column<MdbListItem>[]>(() => [
         </h1>
       </div>
       <div class="page-actions">
-        <button v-if="canSeeRetired" type="button" title="폐기 보관함 (읽기 전용)" @click="retiredOpen = true">
+        <button v-if="canSeeRetired" type="button" permission="r" title="폐기 보관함 (읽기 전용)" @click="retiredOpen = true">
           폐기 보관함 <span class="tree-count">({{ retired?.count ?? 0 }})</span>
         </button>
       </div>
@@ -371,11 +371,11 @@ const columns = computed<Column<MdbListItem>[]>(() => [
               <li v-for="t in tagHints" :key="t" @click="pickHint(t)">{{ t }}</li>
             </ul>
           </span>
-          <button id="search-btn" class="primary" type="button" @click="doSearch">검색</button>
+          <button id="search-btn" class="primary" type="button" permission="r" @click="doSearch">검색</button>
         </div>
 
         <div class="filter-actions">
-          <button type="button" @click="reset">조건 초기화</button>
+          <button type="button" permission="r" @click="reset">조건 초기화</button>
         </div>
       </div>
     </div>
@@ -395,20 +395,20 @@ const columns = computed<Column<MdbListItem>[]>(() => [
             </span>
             <span class="total-count">전체 {{ (total ?? 0).toLocaleString() }}건</span>
             <button
-              v-if="selected.size" class="clear-selection-btn" type="button"
+              v-if="selected.size" class="clear-selection-btn" type="button" permission="r"
               title="체크해둔 자료를 모두 해제합니다" @click="selected = new Set()"
             >선택 초기화 ({{ selected.size }})</button>
             <span v-if="isFetching && !isFetchingNextPage" class="muted">&nbsp;· 조회 중…</span>
           </span>
           <span class="cart-status">
             <button
-              class="cart-btn" type="button" :disabled="!s.folder || folderLoading"
+              class="cart-btn" type="button" permission="r" :disabled="!s.folder || folderLoading"
               :title="s.folder ? `${s.folder.name} 폴더 자료를 전부 담습니다` : '폴더를 먼저 고르세요'"
               @click="addFolder"
             >{{ folderLoading ? '담는 중…' : '폴더 다운' }}</button>
-            <button class="cart-btn" type="button" @click="addSelected">선택 다운</button>
-            <button class="cart-btn" type="button" @click="cartOpen = true">다운대기함 ({{ cart.length }})</button>
-            <button class="cart-btn" type="button" :disabled="exporting" @click="startServerExport">
+            <button class="cart-btn" type="button" permission="r" @click="addSelected">선택 다운</button>
+            <button class="cart-btn" type="button" permission="r" @click="cartOpen = true">다운대기함 ({{ cart.length }})</button>
+            <button class="cart-btn" type="button" permission="r" :disabled="exporting" @click="startServerExport">
               엑셀 내보내기
             </button>
           </span>
@@ -458,9 +458,9 @@ const columns = computed<Column<MdbListItem>[]>(() => [
           <label class="check-inline" title="Zip 안에 원래 폴더 경로대로 담습니다 (항상 유지)">
             <input type="checkbox" checked disabled /> 폴더 경로 유지
           </label>
-          <button class="small" :disabled="!cartChecked.size" @click="cartRemoveChecked">선택 제거</button>
-          <button class="small" :disabled="!cart.length" @click="cartClear">전체 비우기</button>
-          <button class="small" :disabled="!cart.length" @click="cartExport">엑셀 내보내기</button>
+          <button class="small" type="button" permission="r" :disabled="!cartChecked.size" @click="cartRemoveChecked">선택 제거</button>
+          <button class="small" type="button" permission="r" :disabled="!cart.length" @click="cartClear">전체 비우기</button>
+          <button class="small" type="button" permission="r" :disabled="!cart.length" @click="cartExport">엑셀 내보내기</button>
         </span>
       </div>
       <div class="table-scroll cart-scroll">
@@ -493,8 +493,8 @@ const columns = computed<Column<MdbListItem>[]>(() => [
         </table>
       </div>
       <template #footer>
-        <button @click="cartOpen = false">닫기</button>
-        <button class="primary" :disabled="!cart.length" @click="downloadCart">이 목록으로 다운하기</button>
+        <button type="button" @click="cartOpen = false">닫기</button>
+        <button class="primary" type="button" permission="r" :disabled="!cart.length" @click="downloadCart">이 목록으로 다운하기</button>
       </template>
     </Modal>
 

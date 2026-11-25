@@ -248,10 +248,10 @@ function onReset() {
         </p>
       </div>
       <div class="header-actions">
-        <button type="button" class="btn btn-secondary" :disabled="saving || isPermsLoading" @click="onReset">
+        <button type="button" class="btn btn-secondary" permission="r" :disabled="saving || isPermsLoading" @click="onReset">
           새로고침
         </button>
-        <button type="button" class="btn btn-primary" :disabled="saving || isPermsLoading || !pickedGroupId" @click="onSave">
+        <button type="button" class="btn btn-primary" permission="u" :disabled="saving || isPermsLoading || !pickedGroupId" @click="onSave">
           {{ saving ? '저장 중…' : '권한 저장' }}
         </button>
       </div>
@@ -296,9 +296,9 @@ function onReset() {
 
           <div class="batch-buttons">
             <span class="batch-label">일괄 설정:</span>
-            <button type="button" class="btn-chip" @click="setBatchMode('all')">전체 허용</button>
-            <button type="button" class="btn-chip" @click="setBatchMode('readonly')">조회(R)만 허용</button>
-            <button type="button" class="btn-chip" @click="setBatchMode('none')">전체 차단</button>
+            <button type="button" class="btn-chip" permission="u" @click="setBatchMode('all')">전체 허용</button>
+            <button type="button" class="btn-chip" permission="u" @click="setBatchMode('readonly')">조회(R)만 허용</button>
+            <button type="button" class="btn-chip" permission="u" @click="setBatchMode('none')">전체 차단</button>
           </div>
         </div>
 

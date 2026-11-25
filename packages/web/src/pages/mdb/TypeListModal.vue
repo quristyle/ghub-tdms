@@ -114,7 +114,7 @@ async function confirmDelete() {
     <div class="add">
       <input v-model="newName" type="text" :placeholder="`새 ${label}`" maxlength="100"
              :disabled="!canEdit" @keydown.enter="add" />
-      <button class="btn btn-sm btn-primary" :disabled="!canEdit || !newName.trim()" @click="add">추가</button>
+      <button class="btn btn-sm btn-primary" permission="c" :disabled="!canEdit || !newName.trim()" @click="add">추가</button>
     </div>
 
     <table class="grid">
@@ -128,14 +128,14 @@ async function confirmDelete() {
           </td>
           <td class="tc">
             <template v-if="editingId === it.id">
-              <button class="btn btn-sm btn-primary" @click="saveEdit(it)">저장</button>
+              <button class="btn btn-sm btn-primary" permission="u" @click="saveEdit(it)">저장</button>
               <button class="btn btn-sm" @click="editingId = null">취소</button>
             </template>
             <template v-else>
-              <button class="btn btn-sm" :disabled="!canEdit" @click="startEdit(it)">이름 변경</button>
-              <button class="btn btn-sm" :disabled="!canEdit" @click="toggleHidden(it)">
+              <button class="btn btn-sm" permission="u" :disabled="!canEdit" @click="startEdit(it)">이름 변경</button>
+              <button class="btn btn-sm" permission="u" :disabled="!canEdit" @click="toggleHidden(it)">
                 {{ it.isHidden ? '숨김 해제' : '숨기기' }}</button>
-              <button class="btn btn-sm" :disabled="!canEdit" @click="deleting = it">삭제</button>
+              <button class="btn btn-sm" permission="d" :disabled="!canEdit" @click="deleting = it">삭제</button>
             </template>
           </td>
         </tr>
@@ -154,7 +154,7 @@ async function confirmDelete() {
       잠시 감추려면 [숨기기]를 쓰세요.</p>
     <template #footer>
       <button class="btn" @click="deleting = null">취소</button>
-      <button class="btn btn-primary" @click="confirmDelete">삭제</button>
+      <button class="btn btn-primary" permission="d" @click="confirmDelete">삭제</button>
     </template>
   </Modal>
 </template>

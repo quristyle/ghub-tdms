@@ -298,9 +298,10 @@ async function save() {
         </div>
         <span style="flex:1" />
         <div class="head-actions">
-          <button class="btn btn-sm" :disabled="!dirty || saving" @click="reset">되돌리기</button>
+          <button class="btn btn-sm" permission="u" :disabled="!dirty || saving" @click="reset">되돌리기</button>
           <button
             class="btn btn-sm btn-primary"
+            permission="u"
             :disabled="!dirty || invalid || saving"
             @click="save"
           >

@@ -165,7 +165,7 @@ function exportRuns() {
           <input v-model="form.storagePath" type="text" placeholder="비우면 기본 위치. 백업 폴더 아래 하위 폴더 이름 (예: 2026-외장)" style="width:280px" />
           <label class="r"><input v-model="form.compressed" type="checkbox" /> 압축</label>
           <span style="flex:1" />
-          <button class="btn btn-sm btn-primary" :disabled="!canRun || !form.scope.size" @click="run">
+          <button class="btn btn-sm btn-primary" permission="c" :disabled="!canRun || !form.scope.size" @click="run">
             백업 만들기
           </button>
         </div>
@@ -184,7 +184,7 @@ function exportRuns() {
         백업 이력
         <span class="muted sub">이력 줄은 어떤 경우에도 지워지지 않습니다.</span>
         <span style="flex:1" />
-        <button class="btn btn-sm" :disabled="!runs?.items.length" @click="exportRuns">엑셀 내보내기</button>
+        <button class="btn btn-sm" permission="r" :disabled="!runs?.items.length" @click="exportRuns">엑셀 내보내기</button>
       </div>
       <table class="grid">
         <thead>
@@ -214,7 +214,7 @@ function exportRuns() {
               <a v-if="r.state === 'READY' && canRun"
                  class="btn btn-sm" :href="`/api/backup/runs/${r.id}/download`"
                  @click="refreshSoon">받기</a>
-              <button v-if="r.state === 'READY'" class="btn btn-sm" :disabled="!canDeleteFile"
+              <button v-if="r.state === 'READY'" class="btn btn-sm" permission="d" :disabled="!canDeleteFile"
                       :title="canDeleteFile ? '' : '권한이 없습니다'"
                       @click="deleteTarget = r">파일 삭제</button>
             </td>
@@ -229,7 +229,7 @@ function exportRuns() {
       <p class="muted">이력 줄은 남습니다 — 언제 무엇을 백업했는지는 지워지지 않습니다.</p>
       <template #footer>
         <button class="btn" @click="deleteTarget = null">취소</button>
-        <button class="btn btn-primary" @click="confirmDelete">파일 삭제</button>
+        <button class="btn btn-primary" permission="d" @click="confirmDelete">파일 삭제</button>
       </template>
     </Modal>
   </main>

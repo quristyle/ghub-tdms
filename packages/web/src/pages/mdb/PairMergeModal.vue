@@ -103,7 +103,7 @@ async function merge() {
     </div>
     <template #footer>
       <button class="btn" @click="emit('close')">닫기</button>
-      <button class="btn btn-primary" :disabled="!canFolder || !picked.size || busy" @click="merge">
+      <button class="btn btn-primary" permission="u" :disabled="!canFolder || !picked.size || busy" @click="merge">
         선택 {{ picked.size }}곳 병합</button>
     </template>
   </Modal>

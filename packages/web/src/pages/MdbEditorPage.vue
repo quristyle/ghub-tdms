@@ -419,13 +419,13 @@ async function uploadZip(ev: Event) {
         </h1>
       </div>
       <div class="page-actions">
-        <button type="button" @click="unclassifiedOpen = true">미분류 정리</button>
-        <button type="button" @click="typesOpen = true">목록 관리</button>
-        <button type="button" @click="tagOpen = true">Tag 이력</button>
-        <button type="button" @click="boxOpen = 'RETIRE'">
+        <button type="button" permission="u" @click="unclassifiedOpen = true">미분류 정리</button>
+        <button type="button" permission="u" @click="typesOpen = true">목록 관리</button>
+        <button type="button" permission="u" @click="tagOpen = true">Tag 이력</button>
+        <button type="button" permission="d,u" @click="boxOpen = 'RETIRE'">
           폐기 보관함 <span class="tree-count">({{ retireBox?.count ?? 0 }})</span>
         </button>
-        <button type="button" @click="boxOpen = 'TRASH'">
+        <button type="button" permission="d,u" @click="boxOpen = 'TRASH'">
           삭제 보관함 <span class="tree-count">({{ trashBox?.count ?? 0 }})</span>
         </button>
       </div>
@@ -501,31 +501,31 @@ async function uploadZip(ev: Event) {
 
       <div class="edit-row">
         <span class="group-label">폴더 편집</span>
-        <button type="button" class="small" :disabled="!canFolder" @click="folderDialog = 'create'; folderName = ''">새 폴더</button>
-        <button type="button" class="small" :disabled="!canFolder || !folder"
+        <button type="button" class="small" permission="c" :disabled="!canFolder" @click="folderDialog = 'create'; folderName = ''">새 폴더</button>
+        <button type="button" class="small" permission="u" :disabled="!canFolder || !folder"
                 @click="folderDialog = 'rename'; folderName = folder?.name ?? ''">이름 변경</button>
-        <button type="button" class="small" :disabled="!canFolder || !folder"
+        <button type="button" class="small" permission="u" :disabled="!canFolder || !folder"
                 @click="folderDialog = 'move'; moveTargetId = null">위치 이동</button>
-        <button type="button" class="small" :disabled="!canRestore || !folder" @click="sendTo('TRASH', true)">폴더 삭제</button>
-        <button type="button" class="small" :disabled="!canFolder" @click="pairOpen = true">원본·사본 폴더 병합</button>
+        <button type="button" class="small" permission="d" :disabled="!canRestore || !folder" @click="sendTo('TRASH', true)">폴더 삭제</button>
+        <button type="button" class="small" permission="u" :disabled="!canFolder" @click="pairOpen = true">원본·사본 폴더 병합</button>
       </div>
 
       <div class="edit-row">
         <span class="group-label">자료 편집</span>
-        <button type="button" class="small" :disabled="!canDoc || !folder"
+        <button type="button" class="small" permission="c" :disabled="!canDoc || !folder"
                 :title="folder ? '' : '왼쪽에서 등록할 폴더를 고르세요'"
                 @click="registerOpen = true; registerFiles = []">신규추가</button>
-        <button type="button" class="small" :disabled="!canDoc || onePicked === null"
+        <button type="button" class="small" permission="u" :disabled="!canDoc || onePicked === null"
                 @click="infoId = onePicked">정보 수정</button>
-        <button type="button" class="small" :disabled="!canDoc || onePicked === null"
+        <button type="button" class="small" permission="u" :disabled="!canDoc || onePicked === null"
                 @click="replaceOpen = true; replaceFile = null">파일 교체</button>
-        <button type="button" class="small" :disabled="!canDoc || !picked.size"
+        <button type="button" class="small" permission="u" :disabled="!canDoc || !picked.size"
                 @click="moveDocsOpen = true; docTargetId = null">자료 이동</button>
-        <button type="button" class="small" :disabled="!canDoc || !picked.size"
+        <button type="button" class="small" permission="u" :disabled="!canDoc || !picked.size"
                 @click="equipOpen = true; newEquip = ''">설비유형 일괄변경</button>
-        <button type="button" class="small" :disabled="!canRetire || !picked.size" @click="sendTo('RETIRE', false)">폐기</button>
-        <button type="button" class="small" :disabled="!canRestore || !picked.size" @click="sendTo('TRASH', false)">삭제</button>
-        <label class="small zip-label" :class="{ 'perm-disabled': !canZip || busy }">
+        <button type="button" class="small" permission="d" :disabled="!canRetire || !picked.size" @click="sendTo('RETIRE', false)">폐기</button>
+        <button type="button" class="small" permission="d" :disabled="!canRestore || !picked.size" @click="sendTo('TRASH', false)">삭제</button>
+        <label class="small zip-label" permission="c" :class="{ 'perm-disabled': !canZip || busy }">
           Zip 폴더 업로드
           <input type="file" accept=".zip" hidden :disabled="!canZip || busy" @change="uploadZip" />
         </label>
@@ -578,8 +578,8 @@ async function uploadZip(ev: Event) {
         <LazyTree doc-class="MDB" :selected-id="moveTargetId" @select="(f) => (moveTargetId = f?.id ?? null)" />
       </template>
       <template #footer>
-        <button class="btn" @click="folderDialog = null">취소</button>
-        <button class="btn btn-primary" :disabled="folderDialog !== 'move' && !folderName.trim()"
+        <button class="btn" type="button" @click="folderDialog = null">취소</button>
+        <button class="btn btn-primary" type="button" permission="u" :disabled="folderDialog !== 'move' && !folderName.trim()"
                 @click="submitFolder">확인</button>
       </template>
     </Modal>
@@ -589,8 +589,8 @@ async function uploadZip(ev: Event) {
       <p class="muted">선택한 {{ picked.size }}건을 옮길 폴더를 고릅니다. 같은 자료명이 있으면 그 건만 건너뜁니다.</p>
       <LazyTree doc-class="MDB" :selected-id="docTargetId" @select="(f) => (docTargetId = f?.id ?? null)" />
       <template #footer>
-        <button class="btn" @click="moveDocsOpen = false">취소</button>
-        <button class="btn btn-primary" :disabled="docTargetId === null" @click="submitMoveDocs">옮기기</button>
+        <button class="btn" type="button" @click="moveDocsOpen = false">취소</button>
+        <button class="btn btn-primary" type="button" permission="u" :disabled="docTargetId === null" @click="submitMoveDocs">옮기기</button>
       </template>
     </Modal>
 
@@ -602,8 +602,8 @@ async function uploadZip(ev: Event) {
         <option v-for="e in meta?.equipmentTypes ?? []" :key="e" :value="e">{{ e }}</option>
       </select>
       <template #footer>
-        <button class="btn" @click="equipOpen = false">취소</button>
-        <button class="btn btn-primary" @click="submitEquip">바꾸기</button>
+        <button class="btn" type="button" @click="equipOpen = false">취소</button>
+        <button class="btn btn-primary" type="button" permission="u" @click="submitEquip">바꾸기</button>
       </template>
     </Modal>
 
@@ -640,15 +640,15 @@ async function uploadZip(ev: Event) {
               <template v-if="noteEditing === b.id">
                 <input v-model="noteText" type="text" maxlength="2000" style="width:100%"
                        @keydown.enter="saveNote(b)" @keydown.esc.stop="noteEditing = null" />
-                <button class="btn btn-sm" @click="saveNote(b)">저장</button>
+                <button class="btn btn-sm" permission="u" @click="saveNote(b)">저장</button>
               </template>
               <template v-else>
                 <span>{{ b.note ?? '' }}</span>
-                <button v-if="canEditNote()" class="btn btn-sm" title="비고 작성" @click="startNote(b)">✎</button>
+                <button v-if="canEditNote()" class="btn btn-sm" permission="u" title="비고 작성" @click="startNote(b)">✎</button>
               </template>
             </td>
             <td v-if="boxOpen === 'TRASH'" class="tc">
-              <button class="btn btn-sm" :disabled="!canRestore" @click="downloadBatch(b)">Zip</button>
+              <button class="btn btn-sm" permission="r" :disabled="!canRestore" @click="downloadBatch(b)">Zip</button>
             </td>
           </tr>
           <tr v-if="!box?.items.length"><td :colspan="boxOpen === 'TRASH' ? 9 : 8" class="tc muted">보관된 자료가 없습니다.</td></tr>
@@ -656,11 +656,11 @@ async function uploadZip(ev: Event) {
       </table>
       <JobProgress v-if="boxOpen === 'TRASH' && trashJobId !== null" :job-id="trashJobId" />
       <template #footer>
-        <button v-if="boxOpen === 'TRASH'" class="btn" :disabled="!boxSel.size || !canRestore"
+        <button v-if="boxOpen === 'TRASH'" class="btn" permission="d" :disabled="!boxSel.size || !canRestore"
                 @click="purgeConfirm = true">완전 삭제</button>
         <span style="flex:1" />
         <button class="btn" @click="boxOpen = null; boxSel = new Set()">닫기</button>
-        <button class="btn btn-primary" :disabled="!boxSel.size" @click="restoreSelected">복구</button>
+        <button class="btn btn-primary" permission="u" :disabled="!boxSel.size" @click="restoreSelected">복구</button>
       </template>
     </Modal>
 
@@ -668,7 +668,7 @@ async function uploadZip(ev: Event) {
       <p>선택한 {{ boxSel.size }}묶음의 자료와 파일을 <strong>완전히</strong> 지웁니다.</p>
       <template #footer>
         <button class="btn" @click="purgeConfirm = false">취소</button>
-        <button class="btn btn-primary" @click="purgeSelected">완전 삭제</button>
+        <button class="btn btn-primary" permission="d" @click="purgeSelected">완전 삭제</button>
       </template>
     </Modal>
 
@@ -684,7 +684,7 @@ async function uploadZip(ev: Event) {
       <p v-if="registerFiles.length" class="muted small">{{ registerFiles.length }}개 선택됨</p>
       <template #footer>
         <button class="btn" @click="registerOpen = false">취소</button>
-        <button class="btn btn-primary" :disabled="!registerFiles.length || busy" @click="submitRegister">등록</button>
+        <button class="btn btn-primary" permission="c" :disabled="!registerFiles.length || busy" @click="submitRegister">등록</button>
       </template>
     </Modal>
 
@@ -699,7 +699,7 @@ async function uploadZip(ev: Event) {
       <input type="file" @change="replaceFile = ($event.target as HTMLInputElement).files?.[0] ?? null" />
       <template #footer>
         <button class="btn" @click="replaceOpen = false">취소</button>
-        <button class="btn btn-primary" :disabled="!replaceFile || busy" @click="submitReplace">교체</button>
+        <button class="btn btn-primary" permission="u" :disabled="!replaceFile || busy" @click="submitReplace">교체</button>
       </template>
     </Modal>
 

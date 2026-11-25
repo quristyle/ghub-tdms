@@ -277,10 +277,10 @@ const zipRows = computed(() => zips.value.map((z, i) => ({ ...z, id: i + 1 })))
         </h1>
       </div>
       <div class="page-actions">
-        <button type="button" @click="outstandingOpen = true">
+        <button type="button" permission="r" @click="outstandingOpen = true">
           미입고 현황 <span class="tree-count">({{ outstanding?.summary.total ?? 0 }})</span>
         </button>
-        <button type="button" @click="forImportOpen = true">반입 대상</button>
+        <button type="button" permission="r" @click="forImportOpen = true">반입 대상</button>
       </div>
     </div>
 
@@ -341,7 +341,7 @@ const zipRows = computed(() => zips.value.map((z, i) => ({ ...z, id: i + 1 })))
           </FloatField>
         </div>
         <div class="filter-actions">
-          <button type="button" @click="reset">조건 초기화</button>
+          <button type="button" permission="r" @click="reset">조건 초기화</button>
         </div>
       </div>
     </div>
@@ -353,17 +353,17 @@ const zipRows = computed(() => zips.value.map((z, i) => ({ ...z, id: i + 1 })))
       </span>
       <span class="cart-status">
         <template v-if="!byZip">
-          <button class="cart-btn" type="button" :disabled="!openPicked" @click="doReturn(false)">선택 반납처리</button>
-          <button class="cart-btn" type="button" :disabled="!openPicked || !canManualReturn"
+          <button class="cart-btn" type="button" permission="u" :disabled="!openPicked" @click="doReturn(false)">선택 반납처리</button>
+          <button class="cart-btn" type="button" permission="u" :disabled="!openPicked || !canManualReturn"
                   :title="canManualReturn ? '' : '권한이 없습니다'"
                   @click="doReturn(true)">수정없이 반납처리</button>
         </template>
-        <button v-else class="cart-btn" type="button" :disabled="!pickedZipNames.length || !canManualReturn"
+        <button v-else class="cart-btn" type="button" permission="u" :disabled="!pickedZipNames.length || !canManualReturn"
                 :title="canManualReturn ? '체크한 Zip 의 수정용 자료를 모두 수정 없이 반납 처리합니다' : '권한이 없습니다'"
                 @click="zipReturnTarget = pickedZipNames">
           Zip 수정없이 반납{{ pickedZipNames.length ? ` (${pickedZipNames.length})` : '' }}
         </button>
-        <button class="cart-btn" type="button"
+        <button class="cart-btn" type="button" permission="r"
                 title="조건에 맞는 전체를 워커가 만든다 — 수만 건도 받을 수 있다"
                 @click="exportExcel">엑셀 내보내기</button>
       </span>
@@ -428,11 +428,11 @@ const zipRows = computed(() => zips.value.map((z, i) => ({ ...z, id: i + 1 })))
         @toggle-all="(on) => { zipPicked = on ? new Set(zipRows.map((z) => z.id)) : new Set() }"
       >
         <template #cell:act="{ row }">
-          <button class="btn btn-sm" @click.stop="zipDetail = row.zipName">상세 현황</button>
+          <button class="btn btn-sm" permission="r" @click.stop="zipDetail = row.zipName">상세 현황</button>
           <a v-if="row.hasFile" class="btn btn-sm" :href="zipHref(row.zipName)" @click.stop>Zip 다운</a>
           <button v-else class="btn btn-sm" disabled
                   title="Zip 파일이 아직 만들어지지 않았습니다 (만드는 중이거나 실패)">Zip 다운</button>
-          <button class="btn btn-sm" :disabled="row.complete || !canManualReturn"
+          <button class="btn btn-sm" permission="u" :disabled="row.complete || !canManualReturn"
                   :title="!canManualReturn ? '권한이 없습니다' : row.complete ? '모두 반입되었습니다' : '이 Zip 의 수정용 자료를 모두 수정 없이 반납 처리합니다'"
                   @click.stop="zipReturnTarget = [row.zipName]">수정없이 반납</button>
         </template>
@@ -501,8 +501,8 @@ const zipRows = computed(() => zips.value.map((z, i) => ({ ...z, id: i + 1 })))
       </p>
       <p class="muted">업체가 수정 없이 그대로 돌려준 경우에만 쓰세요. 이미 반입된 자료가 섞인 Zip 은 건너뜁니다.</p>
       <template #footer>
-        <button class="btn" @click="zipReturnTarget = null">취소</button>
-        <button class="btn btn-primary" @click="doZipReturn">반납 처리</button>
+        <button class="btn" type="button" @click="zipReturnTarget = null">취소</button>
+        <button class="btn btn-primary" type="button" permission="u" @click="doZipReturn">반납 처리</button>
       </template>
     </Modal>
   </main>

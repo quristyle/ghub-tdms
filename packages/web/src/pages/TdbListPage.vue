@@ -636,7 +636,7 @@ function recentClass(r: DocumentListItem): string {
         </h1>
       </div>
       <div class="page-actions">
-        <button type="button" @click="retiredOpen = true">
+        <button type="button" permission="r" @click="retiredOpen = true">
           폐기 보관함 <span class="tree-count">({{ retired?.count ?? 0 }})</span>
         </button>
       </div>
@@ -719,7 +719,7 @@ function recentClass(r: DocumentListItem): string {
         </div>
 
         <div class="filter-actions">
-          <button type="button" @click="reset">조건 초기화</button>
+          <button type="button" permission="r" @click="reset">조건 초기화</button>
         </div>
       </div>
     </div>
@@ -740,18 +740,18 @@ function recentClass(r: DocumentListItem): string {
             </span>
             <span class="total-count">전체 {{ total.toLocaleString() }}건</span>
             <button
-              v-if="checked.size" class="clear-selection-btn" type="button"
+              v-if="checked.size" class="clear-selection-btn" type="button" permission="r"
               title="체크해둔 자료를 모두 해제합니다" @click="clearChecked"
             >선택 초기화 ({{ checked.size }})</button>
             <span v-if="!cartView && loadingPages.size" class="muted">&nbsp;· 불러오는 중…</span>
           </span>
           <span class="cart-status">
             <button
-              class="cart-btn" type="button" permission="u" :disabled="folderLoading"
+              class="cart-btn" type="button" permission="r,u" :disabled="folderLoading"
               title="고른 폴더(하위 폴더 포함)의 자료 전부를 반출대기함에 담습니다"
               @click="startFolderAdd"
             >폴더 반출</button>
-            <button class="cart-btn" type="button" permission="u" title="체크한 자료를 반출대기함에 담습니다"
+            <button class="cart-btn" type="button" permission="r,u" title="체크한 자료를 반출대기함에 담습니다"
                     @click="addCheckedToCart">선택 반출</button>
             <button class="cart-btn" type="button" permission="r" @click="cartOpen = true">
               반출대기함 ({{ cartCount }})
@@ -871,9 +871,9 @@ function recentClass(r: DocumentListItem): string {
       <div class="inline-add">
         <input v-model="newProject" type="text" placeholder="새 공사명" maxlength="200"
                :disabled="!isModify" @keydown.enter.prevent="addCatalog('projects')" />
-        <button type="button" :disabled="!isModify || !newProject.trim() || addingCatalog"
+        <button type="button" permission="c" :disabled="!isModify || !newProject.trim() || addingCatalog"
                 @click="addCatalog('projects')">＋추가</button>
-        <button type="button" :disabled="!isModify" title="이름 변경·숨김"
+        <button type="button" permission="u" :disabled="!isModify" title="이름 변경·숨김"
                 @click="catalogManage = 'projects'">관리</button>
       </div>
 
@@ -886,9 +886,9 @@ function recentClass(r: DocumentListItem): string {
       <div class="inline-add">
         <input v-model="newVendor" type="text" placeholder="새 업체명" maxlength="200"
                :disabled="!isModify" @keydown.enter.prevent="addCatalog('vendors')" />
-        <button type="button" :disabled="!isModify || !newVendor.trim() || addingCatalog"
+        <button type="button" permission="c" :disabled="!isModify || !newVendor.trim() || addingCatalog"
                 @click="addCatalog('vendors')">＋추가</button>
-        <button type="button" :disabled="!isModify" title="이름 변경·숨김"
+        <button type="button" permission="u" :disabled="!isModify" title="이름 변경·숨김"
                 @click="catalogManage = 'vendors'">관리</button>
       </div>
 
@@ -916,8 +916,8 @@ function recentClass(r: DocumentListItem): string {
       </div>
 
       <template #footer>
-        <button @click="distOpen = false">취소</button>
-        <button class="primary" :disabled="!distReady" :title="distMissing"
+        <button type="button" @click="distOpen = false">취소</button>
+        <button class="primary" type="button" permission="r,u" :disabled="!distReady" :title="distMissing"
                 @click="submitDistribution">반출 실행</button>
       </template>
     </Modal>

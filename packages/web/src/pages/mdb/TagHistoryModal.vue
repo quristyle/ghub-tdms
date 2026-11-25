@@ -184,7 +184,7 @@ async function submitForm() {
       </select>
       <input v-model="fq" type="text" placeholder="Tag / 사유 검색" style="width:170px" />
       <span style="flex:1" />
-      <button class="btn btn-sm btn-primary" :disabled="!canTag" @click="openCreate">이력 등록</button>
+      <button class="btn btn-sm btn-primary" permission="c" :disabled="!canTag" @click="openCreate">이력 등록</button>
     </div>
 
     <div class="scroll">
@@ -205,11 +205,11 @@ async function submitForm() {
             <td class="tc">{{ h.createdBy ?? '-' }}</td>
             <td class="tc">{{ h.createdAt.slice(0, 10) }}</td>
             <td class="tc">
-              <button class="btn btn-sm" @click="previewId = h.id">대상</button>
-              <button class="btn btn-sm" :disabled="!canTag" @click="openEdit(h)">수정</button>
-              <button v-if="h.state !== 'APPLIED'" class="btn btn-sm" :disabled="!canTag" @click="act(h, 'apply')">
+              <button class="btn btn-sm" permission="r" @click="previewId = h.id">대상</button>
+              <button class="btn btn-sm" permission="u" :disabled="!canTag" @click="openEdit(h)">수정</button>
+              <button v-if="h.state !== 'APPLIED'" class="btn btn-sm" permission="u" :disabled="!canTag" @click="act(h, 'apply')">
                 {{ h.state === 'REVERTED' ? '다시 적용' : '적용' }}</button>
-              <button v-else class="btn btn-sm" :disabled="!canTag" @click="act(h, 'revert')">되돌리기</button>
+              <button v-else class="btn btn-sm" permission="u" :disabled="!canTag" @click="act(h, 'revert')">되돌리기</button>
             </td>
           </tr>
           <tr v-if="!rows.length"><td colspan="10" class="tc muted">Tag 이력이 없습니다.</td></tr>
@@ -255,7 +255,7 @@ async function submitForm() {
             {{ form.reason }} (목록에 없음)</option>
           <option v-for="r in meta?.reasons ?? []" :key="r" :value="r">{{ r }}</option>
         </select>
-        <button class="btn btn-sm" title="사유 목록 편집" @click="managingReasons = true">✎</button>
+        <button class="btn btn-sm" permission="u" title="사유 목록 편집" @click="managingReasons = true">✎</button>
       </div>
       <label>비고</label>
       <input v-model="form.reasonDetail" type="text" maxlength="2000" placeholder="예: Pump 유종 변경으로 인해" />
@@ -285,7 +285,7 @@ async function submitForm() {
 
     <template #footer>
       <button class="btn" @click="form.open = false">취소</button>
-      <button class="btn btn-primary" :disabled="!canTag" @click="submitForm">{{ form.editing ? '수정' : '등록' }}</button>
+      <button class="btn btn-primary" permission="u" :disabled="!canTag" @click="submitForm">{{ form.editing ? '수정' : '등록' }}</button>
     </template>
   </Modal>
 

@@ -72,8 +72,8 @@ function onSaved() {
       <span style="flex:1" />
       <input v-model="keyword" type="text" placeholder="자료명 / 폴더" style="width:200px"
              @keydown.enter="applied = keyword.trim()" />
-      <button class="btn btn-sm btn-primary" @click="applied = keyword.trim()">검색</button>
-      <button class="btn btn-sm" @click="reset">조건 초기화</button>
+      <button class="btn btn-sm btn-primary" permission="r" @click="applied = keyword.trim()">검색</button>
+      <button class="btn btn-sm" permission="r" @click="reset">조건 초기화</button>
     </div>
     <p class="muted count">
       <template v-if="data && data.total > data.items.length">

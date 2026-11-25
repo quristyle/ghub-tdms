@@ -612,12 +612,12 @@ const catalogOpen = ref<'projects' | 'vendors' | null>(null)
         </h1>
       </div>
       <div class="page-actions">
-        <button type="button" @click="catalogOpen = 'projects'">공사 관리</button>
-        <button type="button" @click="catalogOpen = 'vendors'">업체 관리</button>
-        <button type="button" @click="boxOpen = 'RETIRE'">
+        <button type="button" permission="u" @click="catalogOpen = 'projects'">공사 관리</button>
+        <button type="button" permission="u" @click="catalogOpen = 'vendors'">업체 관리</button>
+        <button type="button" permission="d,u" @click="boxOpen = 'RETIRE'">
           폐기 보관함 <span class="tree-count">({{ retireBox?.count ?? 0 }})</span>
         </button>
-        <button type="button" @click="boxOpen = 'TRASH'">
+        <button type="button" permission="d,u" @click="boxOpen = 'TRASH'">
           삭제 보관함 <span class="tree-count">({{ trashBox?.count ?? 0 }})</span>
         </button>
       </div>
@@ -666,7 +666,7 @@ const catalogOpen = ref<'projects' | 'vendors' | null>(null)
           </FloatField>
         </div>
         <div class="filter-actions">
-          <button type="button" @click="resetFilter">조건 초기화</button>
+          <button type="button" permission="r" @click="resetFilter">조건 초기화</button>
         </div>
       </div>
 
@@ -765,6 +765,7 @@ const catalogOpen = ref<'projects' | 'vendors' | null>(null)
       <template #footer>
         <button class="btn" @click="folderDialog = null">취소</button>
         <button class="btn btn-primary"
+                permission="u"
                 :disabled="folderDialog !== 'move' && !folderName.trim()"
                 @click="submitFolder">확인</button>
       </template>
@@ -779,7 +780,7 @@ const catalogOpen = ref<'projects' | 'vendors' | null>(null)
       <LazyTree doc-class="TDB" :selected-id="docTargetId" @select="(f) => (docTargetId = f?.id ?? null)" />
       <template #footer>
         <button class="btn" @click="moveDocsOpen = false">취소</button>
-        <button class="btn btn-primary" :disabled="docTargetId === null" @click="submitMoveDocs">옮기기</button>
+        <button class="btn btn-primary" permission="u" :disabled="docTargetId === null" @click="submitMoveDocs">옮기기</button>
       </template>
     </Modal>
 
@@ -819,10 +820,10 @@ const catalogOpen = ref<'projects' | 'vendors' | null>(null)
             <td class="tc">{{ b.archivedAt.slice(0, 16).replace('T', ' ') }}</td>
             <td class="note-cell">
               <span>{{ b.note ?? '-' }}</span>
-              <button v-if="canBoxNote" class="btn btn-sm" title="비고 편집" @click="editNote(b)">편집</button>
+              <button v-if="canBoxNote" class="btn btn-sm" permission="u" title="비고 편집" @click="editNote(b)">편집</button>
             </td>
             <td v-if="boxOpen === 'TRASH'" class="tc">
-              <button class="btn btn-sm" title="묶음 전체를 Zip 으로 내려받기" @click="downloadBatch(b)">다운로드</button>
+              <button class="btn btn-sm" permission="r" title="묶음 전체를 Zip 으로 내려받기" @click="downloadBatch(b)">다운로드</button>
             </td>
           </tr>
           <tr v-if="!box?.items.length">
@@ -833,10 +834,11 @@ const catalogOpen = ref<'projects' | 'vendors' | null>(null)
       <JobProgress :job-id="boxJobId" />
       <template #footer>
         <button v-if="boxOpen === 'TRASH'" class="btn"
+                permission="d"
                 :disabled="!boxSel.size || !canRestore" @click="purgeConfirm = true">완전 삭제</button>
         <span style="flex:1" />
         <button class="btn" @click="closeBox">닫기</button>
-        <button class="btn btn-primary" :disabled="!boxSel.size" @click="restoreSelected">복구</button>
+        <button class="btn btn-primary" permission="u" :disabled="!boxSel.size" @click="restoreSelected">복구</button>
       </template>
     </Modal>
 
@@ -848,7 +850,7 @@ const catalogOpen = ref<'projects' | 'vendors' | null>(null)
       <p class="muted">반출 기록은 남습니다 — 누가 받아 갔는지는 자료가 사라져도 알아야 하기 때문입니다.</p>
       <template #footer>
         <button class="btn" @click="purgeConfirm = false">취소</button>
-        <button class="btn btn-primary" @click="purgeSelected">완전 삭제</button>
+        <button class="btn btn-primary" permission="d" @click="purgeSelected">완전 삭제</button>
       </template>
     </Modal>
 
@@ -883,7 +885,7 @@ const catalogOpen = ref<'projects' | 'vendors' | null>(null)
       </div>
       <template #footer>
         <button class="btn" @click="renameOpen = false">취소</button>
-        <button class="btn btn-primary" :disabled="!renameNo.trim()" @click="submitRename">확인</button>
+        <button class="btn btn-primary" permission="u" :disabled="!renameNo.trim()" @click="submitRename">확인</button>
       </template>
     </Modal>
 
@@ -907,7 +909,7 @@ const catalogOpen = ref<'projects' | 'vendors' | null>(null)
       </div>
       <template #footer>
         <button class="btn" @click="replaceOpen = false">취소</button>
-        <button class="btn btn-primary" :disabled="busy || !replaceFiles.length" @click="submitReplace">
+        <button class="btn btn-primary" permission="u" :disabled="busy || !replaceFiles.length" @click="submitReplace">
           {{ busy ? '올리는 중…' : '교체' }}
         </button>
       </template>
@@ -931,7 +933,7 @@ const catalogOpen = ref<'projects' | 'vendors' | null>(null)
       </div>
       <template #footer>
         <button class="btn" @click="registerOpen = false">취소</button>
-        <button class="btn btn-primary" :disabled="busy || !registerFiles.length" @click="submitRegister">
+        <button class="btn btn-primary" permission="c" :disabled="busy || !registerFiles.length" @click="submitRegister">
           {{ busy ? '올리는 중…' : '등록' }}
         </button>
       </template>
@@ -953,7 +955,7 @@ const catalogOpen = ref<'projects' | 'vendors' | null>(null)
       </div>
       <template #footer>
         <button class="btn" @click="zipOpen = false">취소</button>
-        <button class="btn btn-primary" :disabled="busy || !zipFile" @click="submitZip">
+        <button class="btn btn-primary" permission="c" :disabled="busy || !zipFile" @click="submitZip">
           {{ busy ? '올리는 중…' : '올리기' }}
         </button>
       </template>
@@ -978,7 +980,7 @@ const catalogOpen = ref<'projects' | 'vendors' | null>(null)
       <textarea v-model="noteText" rows="4" maxlength="2000" style="width:100%" />
       <template #footer>
         <button class="btn" @click="noteTarget = null">취소</button>
-        <button class="btn btn-primary" @click="saveNote">저장</button>
+        <button class="btn btn-primary" permission="u" @click="saveNote">저장</button>
       </template>
     </Modal>
 

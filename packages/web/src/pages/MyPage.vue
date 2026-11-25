@@ -423,7 +423,7 @@ const companyName = computed(() => {
           <div v-if="profileSuccess" class="alert-box success">{{ profileSuccess }}</div>
 
           <div class="form-actions">
-            <button type="submit" class="primary save-btn" :disabled="profileSaving">
+            <button type="submit" class="primary save-btn" permission="u" :disabled="profileSaving">
               {{ profileSaving ? '저장 중...' : '연락처 저장' }}
             </button>
           </div>
@@ -478,7 +478,7 @@ const companyName = computed(() => {
           <div v-if="pwSuccess" class="alert-box success">{{ pwSuccess }}</div>
 
           <div class="form-actions">
-            <button type="submit" class="primary save-btn" :disabled="pwBusy">
+            <button type="submit" class="primary save-btn" permission="u" :disabled="pwBusy">
               {{ pwBusy ? '변경 중...' : '비밀번호 변경하기' }}
             </button>
           </div>
@@ -687,7 +687,7 @@ const companyName = computed(() => {
           <div v-if="layoutSuccess" class="alert-box success">{{ layoutSuccess }}</div>
 
           <div class="form-actions">
-            <button type="submit" class="primary save-btn" :disabled="layoutSaving">
+            <button type="submit" class="primary save-btn" permission="u" :disabled="layoutSaving">
               {{ layoutSaving ? '저장 중...' : '레이아웃 설정 저장' }}
             </button>
           </div>

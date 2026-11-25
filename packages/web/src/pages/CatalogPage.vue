@@ -108,7 +108,7 @@ const columns = computed<Column<CatalogItem>[]>(() => [
           </FloatField>
         </div>
         <div class="filter-actions">
-          <button type="button" @click="resetFilter">조건 초기화</button>
+          <button type="button" permission="r" @click="resetFilter">조건 초기화</button>
         </div>
       </div>
     </div>
@@ -126,7 +126,7 @@ const columns = computed<Column<CatalogItem>[]>(() => [
           v-model="newName" type="text" class="new-name" maxlength="200"
           :placeholder="`새 ${label}명`" @keydown.enter="onAdd"
         />
-        <button class="cart-btn primary" type="button" :disabled="!newName.trim()" @click="onAdd">
+        <button class="cart-btn primary" type="button" permission="c" :disabled="!newName.trim()" @click="onAdd">
           ＋ {{ label }} 추가
         </button>
       </span>
@@ -157,13 +157,13 @@ const columns = computed<Column<CatalogItem>[]>(() => [
 
         <template #cell:act="{ row }">
           <template v-if="editingId === row.id">
-            <button class="small primary" :disabled="!editName.trim()" @click.stop="saveEdit">저장</button>
+            <button class="small primary" permission="u" :disabled="!editName.trim()" @click.stop="saveEdit">저장</button>
             <button class="small" @click.stop="editingId = null">취소</button>
           </template>
           <template v-else>
-            <button class="small" @click.stop="startEdit(row)">이름 변경</button>
-            <button v-if="!row.isHidden" class="small" @click.stop="setHidden(row.id, true)">숨김</button>
-            <button v-else class="small" @click.stop="setHidden(row.id, false)">숨김 해제</button>
+            <button class="small" permission="u" @click.stop="startEdit(row)">이름 변경</button>
+            <button v-if="!row.isHidden" class="small" permission="u" @click.stop="setHidden(row.id, true)">숨김</button>
+            <button v-else class="small" permission="u" @click.stop="setHidden(row.id, false)">숨김 해제</button>
           </template>
         </template>
       </DataTable>

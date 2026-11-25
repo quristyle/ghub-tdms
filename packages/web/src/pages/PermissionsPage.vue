@@ -653,9 +653,9 @@ function reset() {
         <div class="panel-head">
           <Tabs v-model="centerTab" :tabs="CENTER_TABS" class="center-tabs" />
           <span style="flex:1" />
-          <button class="btn btn-sm" :disabled="!dirty || saving" @click="reset">되돌리기</button>
+          <button class="btn btn-sm" permission="u" :disabled="!dirty || saving" @click="reset">되돌리기</button>
           <button
-            class="btn btn-sm btn-primary" :disabled="!dirty || saving || isAdmin || isUnassignedGroup"
+            class="btn btn-sm btn-primary" permission="u" :disabled="!dirty || saving || isAdmin || isUnassignedGroup"
             @click="save"
           >{{ saving ? '저장 중…' : '저장' }}</button>
         </div>
@@ -682,9 +682,9 @@ function reset() {
                 메뉴 권한(열람)을 부여하면 화면 내 C(등록), R(조회), U(수정), D(삭제) 권한도 지정할 수 있습니다.
               </span>
               <div class="toolbar-actions">
-                <button type="button" class="btn btn-xs" @click="setBatchMode('all')">전체 허용</button>
-                <button type="button" class="btn btn-xs" @click="setBatchMode('readonly')">조회 전용</button>
-                <button type="button" class="btn btn-xs" @click="setBatchMode('none')">전체 해제</button>
+                <button type="button" class="btn btn-xs" permission="u" @click="setBatchMode('all')">전체 허용</button>
+                <button type="button" class="btn btn-xs" permission="u" @click="setBatchMode('readonly')">조회 전용</button>
+                <button type="button" class="btn btn-xs" permission="u" @click="setBatchMode('none')">전체 해제</button>
               </div>
             </div>
 

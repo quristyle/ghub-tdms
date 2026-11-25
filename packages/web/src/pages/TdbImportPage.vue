@@ -734,10 +734,10 @@ function size(b: number): string {
               @keyup.enter="doSearch"
             />
           </FloatField>
-          <button id="imp-search-btn" class="primary" type="button" @click="doSearch">검색</button>
+          <button id="imp-search-btn" class="primary" type="button" permission="r" @click="doSearch">검색</button>
         </div>
         <div class="filter-actions">
-          <button type="button" @click="resetFilter">조건 초기화</button>
+          <button type="button" permission="r" @click="resetFilter">조건 초기화</button>
         </div>
       </div>
     </div>
@@ -751,12 +751,12 @@ function size(b: number): string {
         </span>
         <span class="cart-status">
           <button
-            class="cart-btn" type="button"
+            class="cart-btn" type="button" permission="u"
             :disabled="!selected.size || !canApprove || reviewMutation.isPending.value"
             @click="approve()"
           >선택 승인</button>
           <button
-            class="cart-btn" type="button"
+            class="cart-btn" type="button" permission="u"
             :disabled="!selected.size || !canReject || reviewMutation.isPending.value"
             @click="rejectIds = [...selected]"
           >선택 반려</button>
@@ -796,17 +796,17 @@ function size(b: number): string {
           </template>
 
           <template #cell:act="{ row }">
-            <button class="small" :disabled="!row.files.some((x) => x.fileExt === 'pdf')"
+            <button class="small" permission="r" :disabled="!row.files.some((x) => x.fileExt === 'pdf')"
                     @click.stop="compareGroup(row)">비교</button>
-            <button v-if="row.isBranch" class="small primary" :disabled="!canApprove || !row.canApprove"
+            <button v-if="row.isBranch" class="small primary" permission="u" :disabled="!canApprove || !row.canApprove"
                     :title="row.canApprove
                       ? '중복반출 건은 통합본을 첨부해 승인합니다'
                       : '반출된 것이 모두 돌아와야 승인할 수 있습니다'"
                     @click.stop="mergeDocId = row.documentId">승인</button>
-            <button v-else class="small primary"
+            <button v-else class="small primary" permission="u"
                     :disabled="!canApprove || !row.canApprove || reviewMutation.isPending.value"
                     @click.stop="approve([row.id])">승인</button>
-            <button class="small" :disabled="!canReject || reviewMutation.isPending.value"
+            <button class="small" permission="u" :disabled="!canReject || reviewMutation.isPending.value"
                     @click.stop="rejectIds = [row.id]">반려</button>
           </template>
         </DataTable>
@@ -821,9 +821,9 @@ function size(b: number): string {
           <span class="muted">&nbsp;· 반입 중 자료를 확정하지 못했거나 문제가 있는 항목입니다. 파일은 보관돼 있습니다.</span>
         </span>
         <span class="cart-status">
-          <button class="cart-btn" type="button" :disabled="!issueSelected.size || !canRecheck || busy"
+          <button class="cart-btn" type="button" permission="u" :disabled="!issueSelected.size || !canRecheck || busy"
                   @click="recheck([...issueSelected])">선택 재검수</button>
-          <button class="cart-btn" type="button" :disabled="!issueSelected.size || !canDiscard || busy"
+          <button class="cart-btn" type="button" permission="d" :disabled="!issueSelected.size || !canDiscard || busy"
                   @click="discardIds = [...issueSelected]">선택 반려</button>
         </span>
       </div>
@@ -859,15 +859,15 @@ function size(b: number): string {
           </template>
 
           <template #cell:act="{ row }">
-            <button class="small" @click.stop="detailIssue = row">사유상세</button>
-            <button class="small" :disabled="!row.hasPdf || row.suggestedDocumentId === null"
+            <button class="small" permission="r" @click.stop="detailIssue = row">사유상세</button>
+            <button class="small" permission="r" :disabled="!row.hasPdf || row.suggestedDocumentId === null"
                     title="대상 도면이 정해져 있고 받은 파일에 PDF 가 있을 때 비교할 수 있습니다"
                     @click.stop="compareIssue(row)">비교</button>
-            <button class="small" :disabled="!canReattach" @click.stop="reattachIssue = row">자료 재첨부</button>
-            <button class="small" :disabled="!canRepath" @click.stop="openRepath(row)">경로 재선택</button>
-            <button class="small primary" :disabled="!canRecheck || busy"
+            <button class="small" permission="u" :disabled="!canReattach" @click.stop="reattachIssue = row">자료 재첨부</button>
+            <button class="small" permission="u" :disabled="!canRepath" @click.stop="openRepath(row)">경로 재선택</button>
+            <button class="small primary" permission="u" :disabled="!canRecheck || busy"
                     @click.stop="recheck([row.id])">재검수</button>
-            <button class="small" :disabled="!canDiscard || busy"
+            <button class="small" permission="d" :disabled="!canDiscard || busy"
                     @click.stop="discardIds = [row.id]">반려</button>
           </template>
         </DataTable>
@@ -887,7 +887,7 @@ function size(b: number): string {
             <div class="file-row">
               <input type="file" accept=".zip" :disabled="!canRegister"
                      @change="(e) => (zipFile = (e.target as HTMLInputElement).files?.[0] ?? null)" />
-              <button class="primary" type="button" :disabled="!canRegister || !zipFile || zipBusy"
+              <button class="primary" type="button" permission="c" :disabled="!canRegister || !zipFile || zipBusy"
                       @click="uploadZip">업로드</button>
             </div>
             <p class="page-desc">
@@ -933,7 +933,7 @@ function size(b: number): string {
                   <option v-for="[z, n] in zipChoices" :key="z" :value="z">{{ z }} ({{ n }}건)</option>
                 </select>
               </FloatField>
-              <button class="primary" type="button" :disabled="!canRegister" @click="searchTargets">자료검색</button>
+              <button class="primary" type="button" permission="r" :disabled="!canRegister" @click="searchTargets">자료검색</button>
               <span class="sel-count">
                 <template v-if="sel.zipName">Zip 묶음 '{{ sel.zipName }}'</template>
                 <template v-else>선택된 도면: {{ sel.distributions.length }}건</template>
@@ -942,7 +942,7 @@ function size(b: number): string {
             <div class="file-row">
               <input ref="selInput" type="file" multiple :disabled="!canRegister"
                      @change="(e) => (selFiles = (e.target as HTMLInputElement).files)" />
-              <button class="primary" type="button" :disabled="!canRegister" @click="uploadSelection">업로드</button>
+              <button class="primary" type="button" permission="c" :disabled="!canRegister" @click="uploadSelection">업로드</button>
             </div>
             <p v-if="sel.distributions.length && !sel.zipName" class="page-desc ellipsis">
               {{ sel.distributions.slice(0, 5).map((d) => d.name).join(', ')
@@ -994,7 +994,7 @@ function size(b: number): string {
           <div class="file-row">
             <input ref="nfInput" type="file" multiple accept=".pdf,.dwg,.dxf,.xlsx,.xls,.docx,.pptx"
                    :disabled="!canRegister" @change="(e) => (nfFiles = (e.target as HTMLInputElement).files)" />
-            <button class="primary" type="button" :disabled="!canRegister || nfBusy" @click="registerNew">등록</button>
+            <button class="primary" type="button" permission="c" :disabled="!canRegister || nfBusy" @click="registerNew">등록</button>
           </div>
           <p class="page-desc">
             자료명에는 리비전 표기를 적지 않습니다 — 시스템이 붙입니다.
@@ -1008,8 +1008,8 @@ function size(b: number): string {
       <p class="page-desc">반려 사유를 적어 주세요. 업체에 전달할 내용입니다.</p>
       <textarea v-model="rejectNote" rows="4" placeholder="예: 치수 누락, 도면번호 불일치" />
       <template #footer>
-        <button @click="rejectIds = null">취소</button>
-        <button class="primary" @click="confirmReject">반려</button>
+        <button type="button" @click="rejectIds = null">취소</button>
+        <button class="primary" type="button" permission="u" @click="confirmReject">반려</button>
       </template>
     </Modal>
 
@@ -1055,8 +1055,8 @@ function size(b: number): string {
       </p>
       <input type="file" multiple @change="(e) => (mergeFiles = (e.target as HTMLInputElement).files)" />
       <template #footer>
-        <button class="btn" @click="mergeDocId = null">취소</button>
-        <button class="btn btn-primary" :disabled="!mergeFiles?.length" @click="submitMerge">승인</button>
+        <button class="btn" type="button" @click="mergeDocId = null">취소</button>
+        <button class="btn btn-primary" type="button" permission="u" :disabled="!mergeFiles?.length" @click="submitMerge">승인</button>
       </template>
     </Modal>
 
@@ -1090,8 +1090,8 @@ function size(b: number): string {
       <input type="file" multiple accept=".pdf,.dwg,.dxf,.xlsx,.xls,.docx,.pptx"
              @change="(e) => (reattachFiles = (e.target as HTMLInputElement).files)" />
       <template #footer>
-        <button class="btn" @click="reattachIssue = null">취소</button>
-        <button class="btn btn-primary" :disabled="!reattachFiles?.length" @click="submitReattach">첨부</button>
+        <button class="btn" type="button" @click="reattachIssue = null">취소</button>
+        <button class="btn btn-primary" type="button" permission="u" :disabled="!reattachFiles?.length" @click="submitReattach">첨부</button>
       </template>
     </Modal>
 
@@ -1100,8 +1100,8 @@ function size(b: number): string {
       <p class="muted">반려하면 목록에서 빠집니다. 기록은 남습니다. 사유는 선택입니다.</p>
       <textarea v-model="discardNote" rows="3" style="width:100%" />
       <template #footer>
-        <button class="btn" @click="discardIds = null">취소</button>
-        <button class="btn btn-primary" @click="confirmDiscard">반려</button>
+        <button class="btn" type="button" @click="discardIds = null">취소</button>
+        <button class="btn btn-primary" type="button" permission="d" @click="confirmDiscard">반려</button>
       </template>
     </Modal>
 
@@ -1133,8 +1133,8 @@ function size(b: number): string {
         </DataTable>
       </div>
       <template #footer>
-        <button class="btn" @click="picker = null">취소</button>
-        <button class="btn btn-primary" :disabled="!pickerChecked.size" @click="confirmPicker">
+        <button class="btn" type="button" @click="picker = null">취소</button>
+        <button class="btn btn-primary" type="button" permission="u" :disabled="!pickerChecked.size" @click="confirmPicker">
           {{ picker.mode === 'SINGLE' ? '이 도면으로 지정' : '선택' }}
         </button>
       </template>

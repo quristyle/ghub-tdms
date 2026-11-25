@@ -429,12 +429,12 @@ const DIST_COLUMNS: Column<DistRow>[] = [
 
       <div class="detail-toolbar">
         <div class="detail-toolbar-left">
-          <button type="button" class="back-btn" @click="router.push('/')">목록으로</button>
+          <button type="button" class="back-btn" permission="r" @click="router.push('/')">목록으로</button>
           <span class="detail-nav" :title="navOn ? '' : '목록에서 들어왔을 때만 넘겨볼 수 있습니다'">
             <span class="nav-btn-pair">
-              <button type="button" class="nav-step-btn" title="맨 처음 자료" :disabled="!navOn || navPos === 1"
+              <button type="button" class="nav-step-btn" permission="r" title="맨 처음 자료" :disabled="!navOn || navPos === 1"
                       @click="goDoc(nav?.firstId)"><span class="nav-arrow dbl-arrow">◀◀</span> 처음</button>
-              <button type="button" class="nav-step-btn" title="이전 자료" :disabled="!navOn || !nav?.prevId"
+              <button type="button" class="nav-step-btn" permission="r" title="이전 자료" :disabled="!navOn || !nav?.prevId"
                       @click="goDoc(nav?.prevId)"><span class="nav-arrow">◀</span> 이전</button>
             </span>
             <span v-if="navOn" class="detail-nav-count">
@@ -444,9 +444,9 @@ const DIST_COLUMNS: Column<DistRow>[] = [
               <span>/ {{ nav?.total }}</span>
             </span>
             <span class="nav-btn-pair">
-              <button type="button" class="nav-step-btn" title="다음 자료" :disabled="!navOn || !nav?.nextId"
+              <button type="button" class="nav-step-btn" permission="r" title="다음 자료" :disabled="!navOn || !nav?.nextId"
                       @click="goDoc(nav?.nextId)">다음 <span class="nav-arrow">▶</span></button>
-              <button type="button" class="nav-step-btn" title="맨 끝 자료" :disabled="!navOn || navPos === nav?.total"
+              <button type="button" class="nav-step-btn" permission="r" title="맨 끝 자료" :disabled="!navOn || navPos === nav?.total"
                       @click="goDoc(nav?.lastId)">끝 <span class="nav-arrow dbl-arrow">▶▶</span></button>
             </span>
           </span>
@@ -506,7 +506,7 @@ const DIST_COLUMNS: Column<DistRow>[] = [
               </datalist>
               <input ref="uploadInput" type="file" multiple :accept="UPLOAD_ACCEPT"
                      :disabled="uploading" @change="pickFiles" />
-              <button class="btn btn-sm" :disabled="!uploadVendor.trim() || !uploadFiles.length || uploading"
+              <button class="btn btn-sm" permission="c" :disabled="!uploadVendor.trim() || !uploadFiles.length || uploading"
                       @click="submitUpload">{{ uploading ? '올리는 중…' : '반입등록' }}</button>
             </div>
           </template>

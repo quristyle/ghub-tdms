@@ -161,12 +161,12 @@ function size(b: number): string {
 
       <div class="detail-toolbar">
         <div class="detail-toolbar-left">
-          <button type="button" class="back-btn" @click="router.push('/mdb')">목록으로</button>
+          <button type="button" class="back-btn" permission="r" @click="router.push('/mdb')">목록으로</button>
           <span class="detail-nav">
             <span class="nav-btn-pair">
-              <button type="button" class="nav-step-btn" :disabled="!nav?.firstId || nav.firstId === id"
+              <button type="button" class="nav-step-btn" permission="r" :disabled="!nav?.firstId || nav.firstId === id"
                       title="맨 처음 자료" @click="go(nav?.firstId)"><span class="nav-arrow dbl-arrow">◀◀</span> 처음</button>
-              <button type="button" class="nav-step-btn" :disabled="!nav?.prevId" title="이전 자료"
+              <button type="button" class="nav-step-btn" permission="r" :disabled="!nav?.prevId" title="이전 자료"
                       @click="go(nav?.prevId)"><span class="nav-arrow">◀</span> 이전</button>
             </span>
             <span class="detail-nav-count">
@@ -175,9 +175,9 @@ function size(b: number): string {
               <span>/ {{ nav?.total ?? '·' }}</span>
             </span>
             <span class="nav-btn-pair">
-              <button type="button" class="nav-step-btn" :disabled="!nav?.nextId" title="다음 자료"
+              <button type="button" class="nav-step-btn" permission="r" :disabled="!nav?.nextId" title="다음 자료"
                       @click="go(nav?.nextId)">다음 <span class="nav-arrow">▶</span></button>
-              <button type="button" class="nav-step-btn" :disabled="!nav?.lastId || nav.lastId === id"
+              <button type="button" class="nav-step-btn" permission="r" :disabled="!nav?.lastId || nav.lastId === id"
                       title="맨 끝 자료" @click="go(nav?.lastId)">끝 <span class="nav-arrow dbl-arrow">▶▶</span></button>
             </span>
           </span>
@@ -208,12 +208,12 @@ function size(b: number): string {
                 <th>설비유형</th>
                 <td>
                   {{ doc.equipmentType ?? '-' }}
-                  <button v-if="canEdit" class="pen" title="설비유형 고치기" @click="startEdit('equipmentType')">✎</button>
+                  <button v-if="canEdit" class="pen" permission="u" title="설비유형 고치기" @click="startEdit('equipmentType')">✎</button>
                 </td>
                 <th>자료유형</th>
                 <td>
                   {{ doc.docType ?? '-' }}
-                  <button v-if="canEdit" class="pen" title="자료유형 고치기" @click="startEdit('docType')">✎</button>
+                  <button v-if="canEdit" class="pen" permission="u" title="자료유형 고치기" @click="startEdit('docType')">✎</button>
                 </td>
               </tr>
               <tr>
@@ -240,14 +240,14 @@ function size(b: number): string {
                 <td colspan="3">
                   <span v-for="t in doc.tags" :key="t" class="tag">{{ t }}</span>
                   <span v-if="!doc.tags.length" class="muted">-</span>
-                  <button v-if="canEdit" class="pen" title="Tag No 고치기" @click="startEdit('tags')">✎</button>
+                  <button v-if="canEdit" class="pen" permission="u" title="Tag No 고치기" @click="startEdit('tags')">✎</button>
                 </td>
               </tr>
               <tr>
                 <th>Note</th>
                 <td colspan="3" class="note">
                   {{ doc.note ?? '-' }}
-                  <button v-if="canEdit" class="pen" title="Note 고치기" @click="startEdit('note')">✎</button>
+                  <button v-if="canEdit" class="pen" permission="u" title="Note 고치기" @click="startEdit('note')">✎</button>
                 </td>
               </tr>
             </tbody>
@@ -270,8 +270,8 @@ function size(b: number): string {
             <div class="edit-actions">
               <span v-if="editErr" class="err">{{ editErr }}</span>
               <span style="flex:1" />
-              <button class="btn btn-sm" @click="editing = null">취소</button>
-              <button class="btn btn-sm btn-primary" :disabled="savingEdit" @click="saveEdit">
+              <button class="btn btn-sm" type="button" @click="editing = null">취소</button>
+              <button class="btn btn-sm btn-primary" type="button" permission="u" :disabled="savingEdit" @click="saveEdit">
                 {{ savingEdit ? '저장 중…' : '확인' }}
               </button>
             </div>

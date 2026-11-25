@@ -255,7 +255,7 @@ async function startServerExport() {
           </FloatField>
         </div>
         <div class="filter-actions">
-          <button type="button" @click="reset">조건 초기화</button>
+          <button type="button" permission="r" @click="reset">조건 초기화</button>
         </div>
       </div>
     </div>
@@ -266,7 +266,7 @@ async function startServerExport() {
         <span v-if="isFetching && !isFetchingNextPage" class="muted">&nbsp;· 조회 중…</span>
       </span>
       <span class="cart-status">
-        <button class="cart-btn" type="button" :disabled="exporting" @click="startServerExport">
+        <button class="cart-btn" type="button" permission="r" :disabled="exporting" @click="startServerExport">
           엑셀 내보내기
         </button>
       </span>

@@ -128,7 +128,7 @@ async function save() {
       <div class="row">
         <input v-model="newTag" type="text" list="mdb-tag-suggest" placeholder="Tag No 입력 후 Enter"
                maxlength="100" style="flex:1" @keydown.enter.prevent="addTag" />
-        <button class="btn btn-sm" @click="addTag">추가</button>
+        <button class="btn btn-sm" permission="u" @click="addTag">추가</button>
       </div>
       <datalist id="mdb-tag-suggest">
         <option v-for="s in suggest?.items ?? []" :key="s" :value="s" />
@@ -136,7 +136,7 @@ async function save() {
       <p v-if="tagErr" class="err">{{ tagErr }}</p>
 
       <label class="lbl">설비유형
-        <button class="btn btn-sm edit" title="설비유형 목록 편집" @click="managing = 'equipment-types'">✎</button>
+        <button class="btn btn-sm edit" permission="u" title="설비유형 목록 편집" @click="managing = 'equipment-types'">✎</button>
       </label>
       <div class="checks">
         <label v-for="o in equipOptions" :key="o">
@@ -146,7 +146,7 @@ async function save() {
       </div>
 
       <label class="lbl">자료유형
-        <button class="btn btn-sm edit" title="자료유형 목록 편집" @click="managing = 'mdb-doc-types'">✎</button>
+        <button class="btn btn-sm edit" permission="u" title="자료유형 목록 편집" @click="managing = 'mdb-doc-types'">✎</button>
       </label>
       <div class="checks">
         <label v-for="o in docOptions" :key="o">
@@ -164,7 +164,7 @@ async function save() {
 
     <template #footer>
       <button class="btn" @click="emit('close')">취소</button>
-      <button class="btn btn-primary" :disabled="!detail || saving" @click="save">저장</button>
+      <button class="btn btn-primary" permission="u" :disabled="!detail || saving" @click="save">저장</button>
     </template>
   </Modal>
 
