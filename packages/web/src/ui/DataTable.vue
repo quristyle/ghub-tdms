@@ -649,11 +649,23 @@ async function exportExcel() {
       <div class="dt-head" role="row">
         <div v-if="showNo" class="dt-cell dt-no" title="순번">No</div>
 
-        <div v-if="selectable" class="dt-cell dt-check">
+        <div
+          v-if="selectable"
+          class="dt-cell dt-check"
+          role="checkbox"
+          :aria-checked="allChecked ? 'true' : someChecked ? 'mixed' : 'false'"
+          :aria-label="allChecked ? '전체 선택 해제' : '보이는 줄 전체 선택'"
+          title="전체 선택 / 해제"
+          tabindex="0"
+          @click.stop="emit('toggleAll', !allChecked)"
+          @keydown.space.prevent.stop="emit('toggleAll', !allChecked)"
+          @keydown.enter.prevent.stop="emit('toggleAll', !allChecked)"
+        >
           <input
             type="checkbox" :checked="allChecked" :indeterminate.prop="someChecked"
-            :aria-label="allChecked ? '전체 선택 해제' : '보이는 줄 전체 선택'"
-            @change="emit('toggleAll', ($event.target as HTMLInputElement).checked)"
+            tabindex="-1"
+            aria-hidden="true"
+            style="pointer-events: none;"
           />
         </div>
 
@@ -782,11 +794,22 @@ async function exportExcel() {
             >
               <div v-if="showNo" class="dt-cell dt-no">{{ v.index + 1 }}</div>
 
-              <div v-if="selectable" class="dt-cell dt-check" @click.stop>
+              <div
+                v-if="selectable"
+                class="dt-cell dt-check"
+                role="checkbox"
+                :aria-checked="selected?.has(rowOf(v.index)!.id) ? 'true' : 'false'"
+                :aria-label="`${v.index + 1}번째 줄 선택`"
+                tabindex="0"
+                @click.stop="emit('toggle', rowOf(v.index)!.id)"
+                @keydown.space.prevent.stop="emit('toggle', rowOf(v.index)!.id)"
+                @keydown.enter.prevent.stop="emit('toggle', rowOf(v.index)!.id)"
+              >
                 <input
                   type="checkbox" :checked="selected?.has(rowOf(v.index)!.id)"
-                  :aria-label="`${v.index + 1}번째 줄 선택`"
-                  @change="emit('toggle', rowOf(v.index)!.id)"
+                  tabindex="-1"
+                  aria-hidden="true"
+                  style="pointer-events: none;"
                 />
               </div>
 
@@ -1154,7 +1177,24 @@ async function exportExcel() {
 
 .dt-check {
   flex: 0 0 36px; width: 36px;
+  padding: 0;
   justify-content: center; text-align: center;
+  cursor: pointer;
+  user-select: none;
+}
+.dt-check:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.dt-row:not(.dt-row-blank) .dt-check:hover,
+.dt-head .dt-check:hover {
+  background: var(--surface-sunken);
+}
+.dt-check input[type="checkbox"] {
+  cursor: pointer;
+  margin: 0;
+  width: 15px;
+  height: 15px;
 }
 
 .dt-empty { padding: 44px; text-align: center; color: var(--text-faint); font-size: 12.5px; }
