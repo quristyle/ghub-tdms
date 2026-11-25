@@ -1004,20 +1004,27 @@ async function exportExcel() {
 }
 .dt-head .dt-cell { position: relative; justify-content: center; }
 .dt-th { position: relative; user-select: none; justify-content: center; }
-.dt-th.sortable { cursor: pointer; }
+.dt-th.sortable {
+  cursor: pointer;
+  padding-left: 8px;
+  padding-right: 18px;
+}
 .dt-th.sortable:hover { color: var(--text); }
 /* 정렬 중인 열은 진하게·강조색 */
 .dt-th.sorted { color: var(--accent); font-weight: 700; }
 .dt-th-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* 정렬 표시 아이콘 */
+/* 정렬 표시 아이콘 — 컬럼헤드의 오른쪽 끝에 배치 */
 .dt-sort-icon {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-left: 4px;
-  flex-shrink: 0;
   line-height: 1;
+  pointer-events: none;
 }
 
 .dt-sort-arrow {
