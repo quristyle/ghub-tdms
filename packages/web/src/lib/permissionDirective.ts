@@ -45,11 +45,18 @@ function parseBinding(value: unknown): { action: string; menuCode?: string } {
 function applyElementPermission(el: HTMLElement, action: string, menuCode?: string, disableOnly = false) {
   if (!action) return
   const allowed = checkActionPermission(action, menuCode)
+  const isButton = el.tagName === 'BUTTON' || (el as HTMLInputElement).type === 'button' || (el as HTMLInputElement).type === 'submit'
+  const mode = el.getAttribute('permission-mode') // 'hide' or 'disable'
+  const shouldDisable = disableOnly || mode === 'disable' || (isButton && mode !== 'hide')
 
   if (!allowed) {
-    if (disableOnly || el.hasAttribute('disabled-by-perm')) {
+    if (shouldDisable) {
       ;(el as HTMLButtonElement).disabled = true
       el.setAttribute('disabled-by-perm', 'true')
+      if (!el.title) {
+        el.dataset.origTitle = ''
+        el.title = '이 작업을 수행할 권한이 없습니다.'
+      }
     } else {
       if (el.style.display !== 'none') {
         el.dataset.origDisplay = el.style.display || ''
@@ -60,6 +67,10 @@ function applyElementPermission(el: HTMLElement, action: string, menuCode?: stri
     if (el.hasAttribute('disabled-by-perm')) {
       ;(el as HTMLButtonElement).disabled = false
       el.removeAttribute('disabled-by-perm')
+      if (el.dataset.origTitle !== undefined) {
+        el.title = el.dataset.origTitle
+        delete el.dataset.origTitle
+      }
     }
     if (el.style.display === 'none' && el.dataset.origDisplay !== undefined) {
       el.style.display = el.dataset.origDisplay

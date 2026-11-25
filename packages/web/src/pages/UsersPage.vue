@@ -669,7 +669,7 @@ async function confirmDeletePartner() {
       </div>
       <div class="page-actions">
         <button type="button" @click="router.push('/permissions')">권한 관리</button>
-        <button type="button" @click="openCreate">사용자 추가</button>
+        <button type="button" permission="c" @click="openCreate">사용자 추가</button>
       </div>
     </div>
 
@@ -1038,7 +1038,7 @@ async function confirmDeletePartner() {
               </template>
 
               <template #cell:act="{ row }">
-                <button class="btn btn-sm" @click.stop="openEdit(row)">수정</button>
+                <button class="btn btn-sm" permission="u" @click.stop="openEdit(row)">수정</button>
                 <button class="btn btn-sm" @click.stop="resetTarget = row">비번 초기화</button>
                 <button class="btn btn-sm" :disabled="!row.totpEnabledAt"
                         :title="row.totpEnabledAt ? `OTP 등록 ${row.totpEnabledAt.slice(0, 10)}` : 'OTP 미등록'"

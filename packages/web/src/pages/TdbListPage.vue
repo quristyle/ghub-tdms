@@ -715,7 +715,7 @@ function recentClass(r: DocumentListItem): string {
               @keyup.enter="doSearch"
             />
           </FloatField>
-          <button id="search-btn" class="primary" type="button" @click="doSearch">검색</button>
+          <button id="search-btn" class="primary" type="button" permission="r" @click="doSearch">검색</button>
         </div>
 
         <div class="filter-actions">
@@ -747,16 +747,16 @@ function recentClass(r: DocumentListItem): string {
           </span>
           <span class="cart-status">
             <button
-              class="cart-btn" type="button" :disabled="folderLoading"
+              class="cart-btn" type="button" permission="u" :disabled="folderLoading"
               title="고른 폴더(하위 폴더 포함)의 자료 전부를 반출대기함에 담습니다"
               @click="startFolderAdd"
             >폴더 반출</button>
-            <button class="cart-btn" type="button" title="체크한 자료를 반출대기함에 담습니다"
+            <button class="cart-btn" type="button" permission="u" title="체크한 자료를 반출대기함에 담습니다"
                     @click="addCheckedToCart">선택 반출</button>
-            <button class="cart-btn" type="button" @click="cartOpen = true">
+            <button class="cart-btn" type="button" permission="r" @click="cartOpen = true">
               반출대기함 ({{ cartCount }})
             </button>
-            <button class="cart-btn" type="button" :disabled="exportingServer" @click="startServerExport">
+            <button class="cart-btn" type="button" permission="r" :disabled="exportingServer" @click="startServerExport">
               엑셀 내보내기
             </button>
           </span>

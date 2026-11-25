@@ -37,7 +37,7 @@ export const useSession = defineStore('session', () => {
   /**
    * 메뉴에 대한 C, R, U, D 동작 권한 여부 확인.
    * ADMIN 은 항상 true.
-   * @param action 'c' | 'r' | 'u' | 'd' | 'view'
+   * @param action 'c' | 'r' | 'u' | 'd' | 'view' 또는 쉼표 구분 복수 권한 ('c,u')
    * @param menuCode 생략 시 현재 라우트의 meta.menuCode 기준
    */
   function canAction(action: string, menuCode?: string): boolean {
@@ -52,13 +52,19 @@ export const useSession = defineStore('session', () => {
     if (!code) return true
     const perms = me.value.menuPermissions?.[code]
     if (!perms) return true
-    const a = action.toLowerCase().trim()
-    if (a === 'c' || a === 'create') return perms.canCreate
-    if (a === 'r' || a === 'read') return perms.canRead
-    if (a === 'u' || a === 'update') return perms.canUpdate
-    if (a === 'd' || a === 'delete') return perms.canDelete
-    if (a === 'view' || a === 'v') return perms.canView
-    return true
+
+    // 쉼표로 연결된 복수 액션 지원 (예: 'c,r,u,d', 'c, u')
+    const actions = action.split(',').map((s) => s.toLowerCase().trim()).filter(Boolean)
+    if (!actions.length) return true
+
+    return actions.some((a) => {
+      if (a === 'c' || a === 'create') return perms.canCreate
+      if (a === 'r' || a === 'read') return perms.canRead
+      if (a === 'u' || a === 'update') return perms.canUpdate
+      if (a === 'd' || a === 'delete') return perms.canDelete
+      if (a === 'view' || a === 'v') return perms.canView
+      return true
+    })
   }
 
   async function load(): Promise<boolean> {

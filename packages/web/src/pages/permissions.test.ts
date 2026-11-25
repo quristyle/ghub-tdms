@@ -93,3 +93,127 @@ describe('접속권한 관리 - 그룹 사용자 탭 및 소속 이동 로직', 
     expect(isAlreadyInGroup).toBe(true)
   })
 })
+
+describe('접속권한 관리 - 메뉴 C/R/U/D 권한 부여 및 버튼 활성 제어 로직', () => {
+  interface MenuPermItem {
+    menuId: number
+    code: string
+    canView: boolean
+    canCreate: boolean
+    canRead: boolean
+    canUpdate: boolean
+    canDelete: boolean
+  }
+
+  function handleViewToggle(item: MenuPermItem) {
+    if (!item.canView) {
+      item.canCreate = false
+      item.canRead = false
+      item.canUpdate = false
+      item.canDelete = false
+    } else {
+      item.canRead = true
+    }
+  }
+
+  function handleCrudToggle(item: MenuPermItem) {
+    if (item.canCreate || item.canRead || item.canUpdate || item.canDelete) {
+      item.canView = true
+    }
+  }
+
+  function evaluateCanAction(
+    action: string,
+    perms: Record<string, { canView: boolean; canCreate: boolean; canRead: boolean; canUpdate: boolean; canDelete: boolean }>,
+    menuCode: string,
+    isAdmin = false,
+  ) {
+    if (isAdmin) return true
+    const menu = perms[menuCode]
+    if (!menu) return true
+    const actions = action.split(',').map((s) => s.toLowerCase().trim()).filter(Boolean)
+    if (!actions.length) return true
+
+    return actions.some((a) => {
+      if (a === 'c' || a === 'create') return menu.canCreate
+      if (a === 'r' || a === 'read') return menu.canRead
+      if (a === 'u' || a === 'update') return menu.canUpdate
+      if (a === 'd' || a === 'delete') return menu.canDelete
+      if (a === 'view' || a === 'v') return menu.canView
+      return true
+    })
+  }
+
+  it('메뉴 열람 권한을 해제하면 모든 C, R, U, D 권한이 false 로 초기화된다', () => {
+    const item: MenuPermItem = {
+      menuId: 1,
+      code: 'tdb_editor',
+      canView: false,
+      canCreate: true,
+      canRead: true,
+      canUpdate: true,
+      canDelete: true,
+    }
+    handleViewToggle(item)
+    expect(item.canView).toBe(false)
+    expect(item.canCreate).toBe(false)
+    expect(item.canRead).toBe(false)
+    expect(item.canUpdate).toBe(false)
+    expect(item.canDelete).toBe(false)
+  })
+
+  it('메뉴 열람 권한을 켜면 기본적으로 R(조회) 권한이 활성화된다', () => {
+    const item: MenuPermItem = {
+      menuId: 1,
+      code: 'tdb_editor',
+      canView: true,
+      canCreate: false,
+      canRead: false,
+      canUpdate: false,
+      canDelete: false,
+    }
+    handleViewToggle(item)
+    expect(item.canView).toBe(true)
+    expect(item.canRead).toBe(true)
+  })
+
+  it('C, R, U, D 중 하나라도 체크하면 canView(메뉴 열람)가 자동으로 켜진다', () => {
+    const item: MenuPermItem = {
+      menuId: 1,
+      code: 'tdb_editor',
+      canView: false,
+      canCreate: true,
+      canRead: false,
+      canUpdate: false,
+      canDelete: false,
+    }
+    handleCrudToggle(item)
+    expect(item.canView).toBe(true)
+  })
+
+  it('버튼 퍼미션 속성 단일 액션(c, r, u, d) 권한에 따라 정상 평가된다', () => {
+    const perms = {
+      tdb_editor: { canView: true, canCreate: true, canRead: true, canUpdate: false, canDelete: false },
+    }
+    expect(evaluateCanAction('c', perms, 'tdb_editor')).toBe(true)
+    expect(evaluateCanAction('r', perms, 'tdb_editor')).toBe(true)
+    expect(evaluateCanAction('u', perms, 'tdb_editor')).toBe(false)
+    expect(evaluateCanAction('d', perms, 'tdb_editor')).toBe(false)
+  })
+
+  it('복수 권한(permission="c,r,u,d") 속성이 지정되었을 때 허용된 액션이 있으면 통과한다', () => {
+    const perms = {
+      tdb_editor: { canView: true, canCreate: false, canRead: true, canUpdate: false, canDelete: false },
+    }
+    expect(evaluateCanAction('c,u', perms, 'tdb_editor')).toBe(false)
+    expect(evaluateCanAction('c,r,u,d', perms, 'tdb_editor')).toBe(true)
+  })
+
+  it('관리자(ADMIN)는 모든 퍼미션 속성에 대해 항상 true(활성)를 반환한다', () => {
+    const perms = {
+      tdb_editor: { canView: false, canCreate: false, canRead: false, canUpdate: false, canDelete: false },
+    }
+    expect(evaluateCanAction('d', perms, 'tdb_editor', true)).toBe(true)
+    expect(evaluateCanAction('c,r,u,d', perms, 'tdb_editor', true)).toBe(true)
+  })
+})

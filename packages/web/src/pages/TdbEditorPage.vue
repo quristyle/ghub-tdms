@@ -672,37 +672,37 @@ const catalogOpen = ref<'projects' | 'vendors' | null>(null)
 
       <div class="edit-row">
         <span class="group-label">폴더 편집</span>
-        <button type="button" class="small" :disabled="!canFolder" @click="folderDialog = 'create'; folderName = ''">
+        <button type="button" class="small" permission="c" :disabled="!canFolder" @click="folderDialog = 'create'; folderName = ''">
           새 폴더
         </button>
-        <button type="button" class="small" :disabled="!canFolder || !folder"
+        <button type="button" class="small" permission="u" :disabled="!canFolder || !folder"
                 @click="folderDialog = 'rename'; folderName = folder?.name ?? ''">이름 변경</button>
-        <button type="button" class="small" :disabled="!canFolder || !folder"
+        <button type="button" class="small" permission="u" :disabled="!canFolder || !folder"
                 @click="folderDialog = 'move'; moveTargetId = null">위치 이동</button>
-        <button type="button" class="small" :disabled="!canRestore || !folder" @click="sendTo('TRASH', true)">
+        <button type="button" class="small" permission="d" :disabled="!canRestore || !folder" @click="sendTo('TRASH', true)">
           폴더 삭제
         </button>
-        <button type="button" class="small" :disabled="!canFolder" @click="pairOpen = true">원본·사본 폴더 병합</button>
+        <button type="button" class="small" permission="u" :disabled="!canFolder" @click="pairOpen = true">원본·사본 폴더 병합</button>
       </div>
 
       <div class="edit-row">
         <span class="group-label">자료 편집</span>
-        <button type="button" class="small" :disabled="!canDocument || picked.size !== 1" @click="openRename">
+        <button type="button" class="small" permission="u" :disabled="!canDocument || picked.size !== 1" @click="openRename">
           이름 변경
         </button>
-        <button type="button" class="small" :disabled="!canDocument || !picked.size" @click="openReplace">
+        <button type="button" class="small" permission="u" :disabled="!canDocument || !picked.size" @click="openReplace">
           {{ picked.size > 1 ? '일괄 교체' : '자료 교체' }}
         </button>
-        <button type="button" class="small" :disabled="!canDocument || !folder" @click="openRegister">신규 등록</button>
-        <button type="button" class="small" :disabled="!canDocument || !picked.size"
+        <button type="button" class="small" permission="c" :disabled="!canDocument || !folder" @click="openRegister">신규 등록</button>
+        <button type="button" class="small" permission="u" :disabled="!canDocument || !picked.size"
                 @click="moveDocsOpen = true; docTargetId = null">자료 이동</button>
-        <button type="button" class="small" :disabled="!canRetire || !picked.size" @click="sendTo('RETIRE', false)">
+        <button type="button" class="small" permission="d" :disabled="!canRetire || !picked.size" @click="sendTo('RETIRE', false)">
           폐기
         </button>
-        <button type="button" class="small" :disabled="!canRestore || !picked.size" @click="sendTo('TRASH', false)">
+        <button type="button" class="small" permission="d" :disabled="!canRestore || !picked.size" @click="sendTo('TRASH', false)">
           삭제
         </button>
-        <button type="button" class="small" :disabled="!canZip || !folder" @click="openZip">Zip 폴더 업로드</button>
+        <button type="button" class="small" permission="c" :disabled="!canZip || !folder" @click="openZip">Zip 폴더 업로드</button>
       </div>
 
       <JobProgress :job-id="zipJobId" @done="onZipDone" />
