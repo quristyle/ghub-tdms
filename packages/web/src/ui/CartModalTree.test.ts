@@ -104,4 +104,33 @@ describe('Cart Folder Tree & Drag-and-Drop', () => {
     // 1공구(3)를 전기도면(4) 하위로 이동 가능
     expect(canDropOnFolder(folder3, folder4, sampleFolders)).toBe(true)
   })
+
+  it('상위 폴더 경로(Breadcrumb)와 인덴트 라벨을 올바르게 생성한다', () => {
+    function getFolderPath(parentId: number | null, folders: CartFolder[]): string {
+      if (parentId === null) return '최상위 (루트 폴더)'
+      const parts: string[] = []
+      let curr = folders.find((f) => f.id === parentId)
+      while (curr) {
+        parts.unshift(curr.name)
+        if (curr.parentId === null) break
+        const pId: number = curr.parentId
+        curr = folders.find((f) => f.id === pId)
+      }
+      return parts.join(' > ')
+    }
+
+    expect(getFolderPath(null, sampleFolders)).toBe('최상위 (루트 폴더)')
+    expect(getFolderPath(1, sampleFolders)).toBe('2026 울산공사')
+    expect(getFolderPath(2, sampleFolders)).toBe('2026 울산공사 > 배관도면')
+    expect(getFolderPath(3, sampleFolders)).toBe('2026 울산공사 > 배관도면 > 1공구')
+
+    function formatOptionLabel(name: string, depth: number): string {
+      const indent = depth > 0 ? '\u00A0\u00A0'.repeat(depth) + '└─ ' : ''
+      return `${indent}📁 ${name}`
+    }
+
+    expect(formatOptionLabel('2026 울산공사', 0)).toBe('📁 2026 울산공사')
+    expect(formatOptionLabel('배관도면', 1)).toBe('\u00A0\u00A0└─ 📁 배관도면')
+    expect(formatOptionLabel('1공구', 2)).toBe('\u00A0\u00A0\u00A0\u00A0└─ 📁 1공구')
+  })
 })

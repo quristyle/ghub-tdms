@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type {
   CartFolder,
@@ -441,6 +441,50 @@ const folderModalMode = ref<'create' | 'rename' | null>(null)
 const folderModalName = ref('')
 const folderTargetId = ref<number | null>(null)
 const folderParentId = ref<number | null>(null)
+const folderNameInputRef = ref<HTMLInputElement | null>(null)
+
+/** 새 폴더 생성 시 선택된 상위 폴더의 전체 계층 경로 안내 문자열 */
+const selectedParentPath = computed(() => {
+  if (folderParentId.value === null) return '최상위 (루트 폴더)'
+  const parts: string[] = []
+  let curr = folders.value.find((f) => f.id === folderParentId.value)
+  while (curr) {
+    parts.unshift(curr.name)
+    if (curr.parentId === null) break
+    const pId: number = curr.parentId
+    curr = folders.value.find((f) => f.id === pId)
+  }
+  return parts.join(' > ')
+})
+
+/** 상위 폴더 드롭다운 옵션 (글꼴 환경에 구애받지 않는 안전한 인덴트 구성) */
+const parentFolderOptions = computed(() => {
+  return allFoldersInTreeOrder.value.map((f) => {
+    const indent = f.depth > 0 ? '\u00A0\u00A0'.repeat(f.depth) + '└─ ' : ''
+    return {
+      id: f.id,
+      label: `${indent}📁 ${f.name}`,
+    }
+  })
+})
+
+function focusFolderNameInput() {
+  nextTick(() => {
+    folderNameInputRef.value?.focus()
+    setTimeout(() => {
+      folderNameInputRef.value?.focus()
+      if (folderModalMode.value === 'rename') {
+        folderNameInputRef.value?.select()
+      }
+    }, 50)
+  })
+}
+
+watch(folderModalMode, (mode) => {
+  if (mode) {
+    focusFolderNameInput()
+  }
+})
 
 function openCreateFolder(parentId?: number | null) {
   folderModalName.value = ''
@@ -452,6 +496,7 @@ function openCreateFolder(parentId?: number | null) {
   } else {
     folderParentId.value = null
   }
+  focusFolderNameInput()
 }
 
 function openRenameFolder(f: CartFolder, e: Event) {
@@ -459,6 +504,7 @@ function openRenameFolder(f: CartFolder, e: Event) {
   folderModalName.value = f.name
   folderTargetId.value = f.id
   folderModalMode.value = 'rename'
+  focusFolderNameInput()
 }
 
 async function submitFolderModal() {
@@ -859,30 +905,46 @@ function handleDistribute() {
   <!-- 새 폴더 / 폴더 이름 변경 모달 -->
   <Modal
     v-if="folderModalMode"
-    width="440px"
+    width="460px"
     :title="folderModalMode === 'create' ? '새 개인 폴더 만들기' : '폴더 이름 변경'"
     @close="folderModalMode = null"
   >
     <div class="folder-edit-box">
       <div v-if="folderModalMode === 'create'" class="form-group">
-        <label class="modal-label">상위 폴더 위치</label>
-        <select v-model="folderParentId" class="folder-parent-select">
-          <option :value="null">📁 최상위 (루트 폴더)</option>
+        <div class="parent-label-row">
+          <label class="modal-label" for="folder-parent-select">상위 폴더 위치</label>
+          <span class="parent-path-badge" :title="`현재 생성 위치: ${selectedParentPath}`">
+            <span class="path-badge-icon">{{ folderParentId === null ? '🏠' : '📁' }}</span>
+            <span class="path-badge-text">{{ selectedParentPath }}</span>
+          </span>
+        </div>
+        <select
+          id="folder-parent-select"
+          v-model="folderParentId"
+          class="folder-parent-select"
+        >
+          <option :value="null">📁 [최상위] 최상위 (루트 폴더)</option>
           <option
-            v-for="f in allFoldersInTreeOrder"
-            :key="f.id"
-            :value="f.id"
+            v-for="opt in parentFolderOptions"
+            :key="opt.id"
+            :value="opt.id"
           >
-            {{ '　'.repeat(f.depth) }}↳ 📁 {{ f.name }}
+            {{ opt.label }}
           </option>
         </select>
+        <span class="parent-helper-text">
+          💡 선택한 폴더의 하위 계층에 새 폴더가 생성됩니다.
+        </span>
       </div>
 
       <div class="form-group">
-        <label class="modal-label">폴더 이름</label>
+        <label class="modal-label" for="folder-modal-name-input">폴더 이름</label>
         <input
+          id="folder-modal-name-input"
+          ref="folderNameInputRef"
           v-model="folderModalName"
           type="text"
+          class="folder-modal-input"
           placeholder="폴더 이름을 입력하세요"
           maxlength="200"
           autofocus
@@ -1277,7 +1339,7 @@ function handleDistribute() {
 .folder-edit-box {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
   padding: 8px 0;
 }
 
@@ -1287,19 +1349,93 @@ function handleDistribute() {
   gap: 6px;
 }
 
-.folder-parent-select {
-  padding: 6px 8px;
-  font-size: 13px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--surface);
-  color: var(--text);
+.parent-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .modal-label {
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--text);
+}
+
+.parent-path-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  background: var(--surface-alt, #f1f3f4);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.path-badge-icon {
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.path-badge-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  color: var(--accent, #1a73e8);
+}
+
+.folder-parent-select {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 32px 0 10px;
+  font-size: 13px;
+  border: 1px solid var(--border-strong, #ccc);
+  border-radius: var(--radius, 4px);
+  background-color: var(--surface);
+  color: var(--text);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.folder-parent-select:focus {
+  border-color: var(--accent, #1a73e8);
+  box-shadow: 0 0 0 2px var(--accent-soft, rgba(26, 115, 232, 0.2));
+}
+
+.parent-helper-text {
+  font-size: 11.5px;
+  color: var(--text-faint, #888);
+  margin-top: 1px;
+}
+
+.folder-modal-input {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 10px;
+  font-size: 13px;
+  border: 1px solid var(--border-strong, #ccc);
+  border-radius: var(--radius, 4px);
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.folder-modal-input:focus {
+  border-color: var(--accent, #1a73e8);
+  box-shadow: 0 0 0 2px var(--accent-soft, rgba(26, 115, 232, 0.2));
 }
 
 .modal-footer-flex {

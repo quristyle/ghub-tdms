@@ -101,7 +101,14 @@ onMounted(() => {
   restore = document.activeElement as HTMLElement | null
   document.body.style.overflow = 'hidden'
   document.addEventListener('keydown', onKey)
-  box.value?.querySelector<HTMLElement>('button,input,textarea,select')?.focus()
+  const autoTarget = box.value?.querySelector<HTMLElement>(
+    '[autofocus], .box-body input:not([disabled]), .box-body textarea:not([disabled]), .box-body select:not([disabled])',
+  )
+  if (autoTarget) {
+    autoTarget.focus()
+  } else {
+    box.value?.querySelector<HTMLElement>('button,input,textarea,select')?.focus()
+  }
 })
 onBeforeUnmount(() => {
   document.body.style.overflow = ''
