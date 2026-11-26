@@ -108,3 +108,23 @@ export const CartClearRequest = z.object({
   folderId: z.number().int().nullable().optional(),
 })
 export type CartClearRequest = z.infer<typeof CartClearRequest>
+
+export const CartExportZipRequest = z.object({
+  documentIds: z.array(z.number().int()).optional(),
+  folderId: z
+    .preprocess(
+      (v) => (v === undefined || v === '' ? undefined : v === 'root' ? 'root' : v === 'all' ? 'all' : Number(v)),
+      z.union([z.number().int(), z.literal('root'), z.literal('all')]).optional(),
+    ),
+  zipName: z.string().max(200).optional(),
+})
+export type CartExportZipRequest = z.infer<typeof CartExportZipRequest>
+
+export const CartExportZipResponse = z.object({
+  ok: z.literal(true),
+  jobId: z.number().int(),
+  zipName: z.string(),
+  count: z.number().int(),
+})
+export type CartExportZipResponse = z.infer<typeof CartExportZipResponse>
+

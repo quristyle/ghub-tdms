@@ -36,6 +36,14 @@ defineProps<{ path: string; code?: string }>()
       <path d="M2.6 11.4v1.2a1.2 1.2 0 0 0 1.2 1.2h8.4a1.2 1.2 0 0 0 1.2-1.2v-1.2" />
     </template>
 
+    <!-- 반출자료 다운로드 — 압축팩 내려받기 화살표 -->
+    <template v-else-if="code === 'export_downloads' || path === '/export-downloads'">
+      <path d="M3 10.5V13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2.5" />
+      <path d="M8 2v7" />
+      <path d="M5.5 6.5L8 9l2.5-2.5" />
+      <rect x="5.5" y="1.5" width="5" height="1.8" rx="0.5" />
+    </template>
+
     <!-- MDB 조회 — 쌓인 책 -->
     <template v-else-if="code === 'mdb_list' || path === '/mdb'">
       <path d="M2.4 4.2a1.2 1.2 0 0 1 1.2-1.2H7v10H3.6a1.2 1.2 0 0 0-1.2 1.2z" />

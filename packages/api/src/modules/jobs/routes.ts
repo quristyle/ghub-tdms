@@ -75,8 +75,14 @@ export function registerJobRoutes(app: FastifyInstance): void {
     method: 'GET',
     url: '/jobs',
     access: AUTHENTICATED,
-    schema: { response: { 200: z.object({ items: z.array(JobDetail) }) } },
-    handler: async (req) => svc.mine(req.auth.user.id),
+    schema: {
+      querystring: z.object({ kind: z.string().optional() }).optional(),
+      response: { 200: z.object({ items: z.array(JobDetail) }) },
+    },
+    handler: async (req) => {
+      const qp = req.query as { kind?: string } | undefined
+      return svc.mine(req.auth.user.id, qp?.kind)
+    },
   })
 
   defineRoute(app, {

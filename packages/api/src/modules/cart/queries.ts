@@ -220,7 +220,17 @@ export async function listCartItems(
     where.push('i.folder_id IS NULL')
   } else if (typeof folderId === 'number') {
     params.push(folderId)
-    where.push(`i.folder_id = $${params.length}`)
+    const p = params.length
+    where.push(`i.folder_id IN (
+      WITH RECURSIVE subfolders AS (
+        SELECT id FROM user_cart_folders WHERE id = $${p} AND user_id = $1
+        UNION ALL
+        SELECT c.id FROM user_cart_folders c
+        JOIN subfolders s ON c.parent_id = s.id
+        WHERE c.user_id = $1
+      )
+      SELECT id FROM subfolders
+    )`)
   }
 
   if (qStr && qStr.trim()) {
@@ -350,4 +360,38 @@ export async function clearCart(
   }
   const res = await query(sql, params)
   return res.rowCount ?? 0
+}
+
+export async function getCartDocumentIds(
+  userId: number,
+  folderId?: number | 'root' | 'all',
+): Promise<number[]> {
+  const params: unknown[] = [userId]
+  const where: string[] = ['i.user_id = $1']
+
+  if (folderId === 'root') {
+    where.push('i.folder_id IS NULL')
+  } else if (typeof folderId === 'number') {
+    params.push(folderId)
+    const p = params.length
+    where.push(`i.folder_id IN (
+      WITH RECURSIVE subfolders AS (
+        SELECT id FROM user_cart_folders WHERE id = $${p} AND user_id = $1
+        UNION ALL
+        SELECT c.id FROM user_cart_folders c
+        JOIN subfolders s ON c.parent_id = s.id
+        WHERE c.user_id = $1
+      )
+      SELECT id FROM subfolders
+    )`)
+  }
+
+  const rows = await many<{ documentId: number }>(
+    `SELECT i.document_id AS "documentId"
+       FROM user_cart_items i
+      WHERE ${where.join('\n        AND ')}`,
+    params,
+    'cart_doc_ids',
+  )
+  return rows.map((r) => r.documentId)
 }

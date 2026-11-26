@@ -42,7 +42,14 @@ export function findJob(id: number) {
 }
 
 /** 자기가 요청한 작업만 볼 수 있다 (ADMIN 은 라우트에서 예외 처리) */
-export function listMyJobs(userId: number, limit = 20) {
+export function listMyJobs(userId: number, kind?: string, limit = 50) {
+  if (kind) {
+    return many<JobRow>(
+      `${SELECT_JOB} WHERE requested_by = $1 AND kind = $2 ORDER BY id DESC LIMIT $3`,
+      [userId, kind, limit],
+      'jobs_mine_kind',
+    )
+  }
   return many<JobRow>(
     `${SELECT_JOB} WHERE requested_by = $1 ORDER BY id DESC LIMIT $2`,
     [userId, limit],

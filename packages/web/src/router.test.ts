@@ -34,4 +34,12 @@ describe('동적 메뉴 라우팅', () => {
     expect(r.meta.menuCode).toBe('mypage')
     expect(r.meta.title).toBe('마이페이지')
   })
+
+  it('/export-downloads 라우트가 반출자료 다운로드 화면으로 매칭된다', () => {
+    const r = router.resolve('/export-downloads')
+    expect(r.path).toBe('/export-downloads')
+    expect(r.name).toBe('menu_export_downloads')
+    expect(r.meta.menuCode).toBe('export_downloads')
+    expect(r.meta.title).toBe('반출자료 다운로드')
+  })
 })

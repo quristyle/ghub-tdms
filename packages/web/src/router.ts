@@ -51,6 +51,13 @@ export const MENU_ROUTE_DEFINITIONS: Record<string, MenuRouteDef> = {
     permission: 'screen.tdb_distributions.access',
     defaultTitle: 'TDB 반출이력',
   },
+  export_downloads: {
+    code: 'export_downloads',
+    defaultPath: '/export-downloads',
+    component: () => import('@/pages/ExportDownloadsPage.vue'),
+    permission: 'screen.tdb_list.access',
+    defaultTitle: '반출자료 다운로드',
+  },
   mdb_list: {
     code: 'mdb_list',
     defaultPath: '/mdb',

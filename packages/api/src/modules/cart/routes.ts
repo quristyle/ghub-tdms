@@ -4,6 +4,8 @@ import {
   CartAddRequest,
   CartAddResponse,
   CartClearRequest,
+  CartExportZipRequest,
+  CartExportZipResponse,
   CartFolderCreateRequest,
   CartFolderListResponse,
   CartFolderMutationResult,
@@ -19,6 +21,7 @@ import {
 import { AUTHENTICATED, defineRoute } from '../../core/route.js'
 import { Errors } from '../../core/errors.js'
 import * as q from './queries.js'
+import * as jobs from '../jobs/service.js'
 
 const SCREEN = '반출대기함'
 const IdParam = z.object({ id: z.coerce.number().int() })
@@ -231,6 +234,56 @@ export function registerCartRoutes(app: FastifyInstance): void {
       const cleared = await q.clearCart(req.auth.user.id, b.folderId)
       req.setAuditTarget(`대기함 비우기 (${cleared}건)`, { cleared, folderId: b.folderId })
       return { ok: true as const }
+    },
+  })
+
+  // ── 반출 자료 Zip 압축 요청 (비동기 워커 실행) ──────────────────────────
+  defineRoute(app, {
+    method: 'POST',
+    url: '/cart/export-zip',
+    access: AUTHENTICATED,
+    audit: { screen: SCREEN, action: '반출 자료 Zip 압축 요청' },
+    schema: {
+      body: CartExportZipRequest,
+      response: { 202: CartExportZipResponse, 400: ErrorResponse, 401: ErrorResponse },
+    },
+    handler: async (req, reply) => {
+      const b = CartExportZipRequest.parse(req.body)
+      let docIds: number[] = []
+
+      if (b.documentIds && b.documentIds.length > 0) {
+        docIds = b.documentIds
+      } else {
+        docIds = await q.getCartDocumentIds(req.auth.user.id, b.folderId)
+      }
+
+      if (!docIds.length) {
+        throw Errors.invalid('NO_DOCUMENTS', '압축할 자료가 없습니다.')
+      }
+
+      const now = new Date()
+      const stamp = now.toISOString().replace(/[-:T]/g, '').slice(0, 14)
+      const zipName = b.zipName?.trim() || `${stamp}_반출자료`
+
+      const jobId = await jobs.create(
+        'zip_build',
+        {
+          kind: 'TDB',
+          zipName,
+          documentIds: docIds,
+          keepPaths: true,
+          vendorName: '반출대기함',
+        },
+        req.auth.user.id,
+      )
+
+      req.setAuditTarget(zipName, { jobId, docCount: docIds.length })
+      return reply.code(202).send({
+        ok: true as const,
+        jobId,
+        zipName,
+        count: docIds.length,
+      })
     },
   })
 }

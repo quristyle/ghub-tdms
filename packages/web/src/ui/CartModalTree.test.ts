@@ -133,4 +133,37 @@ describe('Cart Folder Tree & Drag-and-Drop', () => {
     expect(formatOptionLabel('배관도면', 1)).toBe('\u00A0\u00A0└─ 📁 배관도면')
     expect(formatOptionLabel('1공구', 2)).toBe('\u00A0\u00A0\u00A0\u00A0└─ 📁 1공구')
   })
+
+  it('오른쪽 트리 뷰: 선택된 폴더 하위의 폴더와 자료가 계층적으로 구성된다', () => {
+    interface RightTestItem {
+      id: number
+      drawingNo: string
+      cartFolderId: number | null
+    }
+
+    const testItems: RightTestItem[] = [
+      { id: 101, drawingNo: 'DOC-ROOT', cartFolderId: null },
+      { id: 102, drawingNo: 'DOC-P1', cartFolderId: 1 },
+      { id: 103, drawingNo: 'DOC-P2', cartFolderId: 2 },
+      { id: 104, drawingNo: 'DOC-P3', cartFolderId: 3 },
+    ]
+
+    // folder1 (울산공사) 선택 시: folder1 + 하위 folder2 + 하위 folder3 및 각 파일 포함
+    function collectSubTreeDocIds(fId: number, fList: CartFolder[], iList: RightTestItem[]): number[] {
+      const childFolders = fList.filter((f) => f.parentId === fId)
+      const direct = iList.filter((i) => i.cartFolderId === fId).map((i) => i.id)
+      for (const child of childFolders) {
+        direct.push(...collectSubTreeDocIds(child.id, fList, iList))
+      }
+      return direct
+    }
+
+    const docsUnderFolder1 = collectSubTreeDocIds(1, sampleFolders, testItems)
+    // 102(folder1), 103(folder2), 104(folder3) 모두 포함
+    expect(docsUnderFolder1).toEqual([102, 103, 104])
+
+    const docsUnderFolder2 = collectSubTreeDocIds(2, sampleFolders, testItems)
+    // 103(folder2), 104(folder3) 포함
+    expect(docsUnderFolder2).toEqual([103, 104])
+  })
 })

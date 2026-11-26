@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type {
   CartFolder,
@@ -8,7 +9,6 @@ import type {
   CartItemListResponse,
 } from '@tdms/contracts'
 import Modal from '@/ui/Modal.vue'
-import DataTable, { type Column } from '@/ui/DataTable.vue'
 import { api, ApiError } from '@/lib/api'
 import { toast } from '@/lib/toast'
 import { qk, staleTime } from '@/lib/queryKeys'
@@ -25,6 +25,7 @@ const emit = defineEmits<{
 }>()
 
 const session = useSession()
+const router = useRouter()
 const currentUserId = computed(() => session.me?.id ?? null)
 const qc = useQueryClient()
 
@@ -416,25 +417,255 @@ const STATUS_BADGE: Record<string, string> = {
   RETIRED: 'badge-danger',
 }
 
-const COLUMNS: Column<CartItem>[] = [
-  { key: 'drawingNo', label: '자료명', width: '220px' },
-  { key: 'title', label: '내용' },
-  { key: 'docType', label: '분류', width: '120px', render: (r: CartItem) => r.docType ?? '' },
-  { key: 'folderName', label: '원본 경로', width: '160px' },
-  {
-    key: 'cartFolderName',
-    label: '보관 폴더',
-    width: '130px',
-    render: (r: CartItem) => r.cartFolderName ?? '기본 폴더',
+// ── 오른쪽 하위 폴더 및 자료 트리 모델 ──────────────────────────────────────
+export interface RightFolderNode {
+  type: 'folder'
+  key: string
+  id: number | 'root'
+  name: string
+  depth: number
+  children: RightFolderNode[]
+  items: CartItem[]
+  allFileIds: number[]
+}
+
+export type RightFlatRow =
+  | {
+      type: 'folder'
+      key: string
+      id: number | 'root'
+      name: string
+      depth: number
+      allFileIds: number[]
+      hasChildrenOrFiles: boolean
+      isExpanded: boolean
+    }
+  | {
+      type: 'file'
+      key: string
+      id: number
+      depth: number
+      item: CartItem
+    }
+
+// 오른쪽 폴더 접기/펼치기 Set
+const expandedRightFolderKeys = ref<Set<string>>(new Set())
+
+// 오른쪽 계층 트리 노드 빌드
+const rightTree = computed<RightFolderNode[]>(() => {
+  const currentItems = items.value
+  const currentFolders = folders.value
+
+  // 폴더별로 items 묶기
+  const itemsByFolderId = new Map<number | null, CartItem[]>()
+  for (const item of currentItems) {
+    const fId = item.cartFolderId
+    if (!itemsByFolderId.has(fId)) {
+      itemsByFolderId.set(fId, [])
+    }
+    itemsByFolderId.get(fId)!.push(item)
+  }
+
+  // 폴더 id -> FolderTreeNode 맵 생성
+  function buildSubTree(fId: number, depth: number): RightFolderNode | null {
+    const f = currentFolders.find((x) => x.id === fId)
+    if (!f) return null
+    const subFolderRows = currentFolders.filter((x) => x.parentId === fId)
+    const childrenNodes: RightFolderNode[] = []
+    for (const sub of subFolderRows) {
+      const child = buildSubTree(sub.id, depth + 1)
+      if (child) childrenNodes.push(child)
+    }
+    const myFiles = itemsByFolderId.get(fId) ?? []
+    const allFileIds = [...myFiles.map((x) => x.id)]
+    for (const c of childrenNodes) {
+      allFileIds.push(...c.allFileIds)
+    }
+    return {
+      type: 'folder',
+      key: `f-${f.id}`,
+      id: f.id,
+      name: f.name,
+      depth,
+      children: childrenNodes,
+      items: myFiles,
+      allFileIds,
+    }
+  }
+
+  const nodes: RightFolderNode[] = []
+
+  if (selectedFolderId.value === 'all') {
+    // 1) 기본 폴더 (미분류)
+    const rootFiles = itemsByFolderId.get(null) ?? []
+    nodes.push({
+      type: 'folder',
+      key: 'f-root',
+      id: 'root',
+      name: '기본 폴더 (미분류)',
+      depth: 0,
+      children: [],
+      items: rootFiles,
+      allFileIds: rootFiles.map((x) => x.id),
+    })
+
+    // 2) 최상위 사용자 폴더들
+    const rootFolders = currentFolders.filter((x) => x.parentId === null)
+    for (const rf of rootFolders) {
+      const node = buildSubTree(rf.id, 0)
+      if (node) nodes.push(node)
+    }
+  } else if (selectedFolderId.value === 'root') {
+    const rootFiles = itemsByFolderId.get(null) ?? []
+    nodes.push({
+      type: 'folder',
+      key: 'f-root',
+      id: 'root',
+      name: '기본 폴더 (미분류)',
+      depth: 0,
+      children: [],
+      items: rootFiles,
+      allFileIds: rootFiles.map((x) => x.id),
+    })
+  } else if (typeof selectedFolderId.value === 'number') {
+    const selId = selectedFolderId.value
+    const targetNode = buildSubTree(selId, 0)
+    if (targetNode) {
+      nodes.push(targetNode)
+    }
+  }
+
+  return nodes
+})
+
+// 트리 변경 시 모든 폴더 기본 펼침 처리
+watch(
+  rightTree,
+  (tree) => {
+    const next = new Set<string>()
+    function walk(nodes: RightFolderNode[]) {
+      for (const n of nodes) {
+        next.add(n.key)
+        if (n.children.length) walk(n.children)
+      }
+    }
+    walk(tree)
+    expandedRightFolderKeys.value = next
   },
-  {
-    key: 'updatedAt',
-    label: '최종수정',
-    width: '110px',
-    align: 'center',
-    render: (r: CartItem) => r.updatedAt.slice(0, 10),
-  },
-]
+  { immediate: true },
+)
+
+function toggleRightFolder(key: string, e?: Event) {
+  e?.stopPropagation()
+  const next = new Set(expandedRightFolderKeys.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  expandedRightFolderKeys.value = next
+}
+
+function expandAllRightFolders() {
+  const next = new Set<string>()
+  function walk(nodes: RightFolderNode[]) {
+    for (const n of nodes) {
+      next.add(n.key)
+      if (n.children.length) walk(n.children)
+    }
+  }
+  walk(rightTree.value)
+  expandedRightFolderKeys.value = next
+}
+
+function collapseAllRightFolders() {
+  expandedRightFolderKeys.value = new Set()
+}
+
+// 화면에 보일 플랫 행 목록 (접힘/펼침 반영)
+const flatVisibleTreeRows = computed<RightFlatRow[]>(() => {
+  const res: RightFlatRow[] = []
+
+  function walk(nodes: RightFolderNode[]) {
+    for (const n of nodes) {
+      const isExpanded = expandedRightFolderKeys.value.has(n.key)
+      const hasChildrenOrFiles = n.children.length > 0 || n.items.length > 0
+      res.push({
+        type: 'folder',
+        key: n.key,
+        id: n.id,
+        name: n.name,
+        depth: n.depth,
+        allFileIds: n.allFileIds,
+        hasChildrenOrFiles,
+        isExpanded,
+      })
+
+      if (isExpanded) {
+        // 1) 직속 파일 행들
+        for (const item of n.items) {
+          res.push({
+            type: 'file',
+            key: `file-${item.id}`,
+            id: item.id,
+            depth: n.depth + 1,
+            item,
+          })
+        }
+        // 2) 하위 폴더 노드들
+        if (n.children.length > 0) {
+          walk(n.children)
+        }
+      }
+    }
+  }
+
+  walk(rightTree.value)
+  return res
+})
+
+// 트리 내의 모든 문서 ID 목록
+const allTreeDocIds = computed(() => items.value.map((x) => x.id))
+
+// 전체 선택 여부
+const isAllChecked = computed(() => {
+  const allIds = allTreeDocIds.value
+  return allIds.length > 0 && allIds.every((id) => picked.value.has(id))
+})
+
+const isAllIndeterminate = computed(() => {
+  const allIds = allTreeDocIds.value
+  if (!allIds.length || isAllChecked.value) return false
+  return allIds.some((id) => picked.value.has(id))
+})
+
+function toggleAllCheck() {
+  if (isAllChecked.value) {
+    clearPicked()
+  } else {
+    picked.value = new Set(allTreeDocIds.value)
+  }
+}
+
+// 폴더 체크 상태
+function isFolderChecked(row: Extract<RightFlatRow, { type: 'folder' }>): boolean {
+  if (!row.allFileIds.length) return false
+  return row.allFileIds.every((id) => picked.value.has(id))
+}
+
+function isFolderIndeterminate(row: Extract<RightFlatRow, { type: 'folder' }>): boolean {
+  if (!row.allFileIds.length || isFolderChecked(row)) return false
+  return row.allFileIds.some((id) => picked.value.has(id))
+}
+
+function toggleFolderCheck(row: Extract<RightFlatRow, { type: 'folder' }>, e?: Event) {
+  e?.stopPropagation()
+  if (!row.allFileIds.length) return
+  const next = new Set(picked.value)
+  if (isFolderChecked(row)) {
+    for (const id of row.allFileIds) next.delete(id)
+  } else {
+    for (const id of row.allFileIds) next.add(id)
+  }
+  picked.value = next
+}
 
 // ── 폴더 관리 다이얼로그 (새 폴더 / 이름 변경) ───────────────────────────
 const folderModalMode = ref<'create' | 'rename' | null>(null)
@@ -635,8 +866,10 @@ async function clearCurrent() {
   }
 }
 
-// ── 반출 실행 ────────────────────────────────────────────────────────────
-function handleDistribute() {
+// ── 반출 실행 (하위폴더 포함 비동기 Zip 압축 요청 및 다운로드 화면 안내) ────────
+const distributing = ref(false)
+
+async function handleDistribute() {
   let targetIds: number[] = []
   if (picked.value.size > 0) {
     targetIds = [...picked.value]
@@ -647,7 +880,39 @@ function handleDistribute() {
     toast.err('반출할 자료가 없습니다.')
     return
   }
-  emit('distribute', targetIds)
+
+  const folderMsg = currentFolderName.value
+  const confirmMsg =
+    picked.value.size > 0
+      ? `선택한 ${picked.value.size}건의 자료를 하위폴더 포함하여 zip 파일로 압축하시겠습니까?\n\n압축 작업은 백그라운드에서 진행되며, [반출자료 다운로드] 화면에서 진행 상태를 확인하고 완료 시 다운로드할 수 있습니다.`
+      : `[${folderMsg}] 및 하위 폴더의 모든 자료(${targetIds.length}건)를 zip 파일로 압축하시겠습니까?\n\n압축 작업은 백그라운드에서 진행되며, [반출자료 다운로드] 화면에서 진행 상태를 확인하고 완료 시 다운로드할 수 있습니다.`
+
+  if (!window.confirm(confirmMsg)) return
+
+  distributing.value = true
+  try {
+    const rawName = currentFolderName.value.replace(/[\\/:*?"<>| ]/g, '_')
+    const res = await api.post<{ ok: true; jobId: number; zipName: string; count: number }>('/cart/export-zip', {
+      documentIds: targetIds,
+      zipName: `${rawName}_반출자료`,
+    })
+
+    toast.ok(`${res.count}건의 자료 압축 작업이 시작되었습니다. (${res.zipName})`)
+    emit('distribute', targetIds)
+    emit('close')
+
+    if (
+      window.confirm(
+        `zip 압축 작업(#${res.jobId})이 등록되었습니다.\n현재 압축 상태를 확인할 수 있는 [반출자료 다운로드] 화면으로 이동하시겠습니까?`,
+      )
+    ) {
+      void router.push('/export-downloads')
+    }
+  } catch (err) {
+    toast.err(err instanceof ApiError ? err.message : '반출 압축 요청에 실패했습니다.')
+  } finally {
+    distributing.value = false
+  }
 }
 </script>
 
@@ -802,7 +1067,7 @@ function handleDistribute() {
         </nav>
       </aside>
 
-      <!-- 우측: 선택된 폴더 내 자료 목록 및 조작 -->
+      <!-- 우측: 선택된 폴더 내 하위 폴더 및 자료 트리 뷰 -->
       <main class="cart-main">
         <div class="cart-toolbar">
           <div class="toolbar-left">
@@ -816,6 +1081,14 @@ function handleDistribute() {
               type="text"
               placeholder="자료명·내용·경로 검색…"
             />
+            <div class="tree-toggle-group">
+              <button class="small ghost" type="button" title="모든 폴더 펼치기" @click="expandAllRightFolders">
+                전체 펼치기
+              </button>
+              <button class="small ghost" type="button" title="모든 폴더 접기" @click="collapseAllRightFolders">
+                전체 접기
+              </button>
+            </div>
           </div>
 
           <div class="toolbar-right">
@@ -849,45 +1122,154 @@ function handleDistribute() {
             <button
               class="small primary"
               type="button"
-              :disabled="!items.length && !picked.size"
-              title="선택한 자료(또는 폴더 전체 자료)로 반출을 진행합니다"
+              :disabled="(!items.length && !picked.size) || distributing"
+              title="하위 폴더를 포함하여 zip 파일로 압축하여 반출합니다"
               @click="handleDistribute"
             >
-              반출하기{{ picked.size ? ` (${picked.size}건)` : ` (${items.length}건)` }}
+              <span v-if="distributing">압축 요청중…</span>
+              <span v-else>📦 반출하기{{ picked.size ? ` (${picked.size}건)` : ` (${items.length}건)` }}</span>
             </button>
           </div>
         </div>
 
         <div class="cart-table-box">
-          <DataTable
-            :columns="COLUMNS"
-            :rows="items"
-            :total="items.length"
-            selectable
-            :selected="picked"
-            :draggable-rows="true"
-            storage-key="tdb-cart-user"
-            excel-name="반출대기함_자료목록"
-            :empty-text="
-              searchKeyword
-                ? '검색 결과가 없습니다.'
-                : '이 폴더에 담긴 자료가 없습니다. TDB 조회 목록에서 [선택 반출] 또는 [폴더 반출] 로 담으세요.'
-            "
-            @toggle="togglePick"
-            @toggle-all="toggleAll"
-            @row-dragstart="onRowDragStart"
-            @row-dragend="onRowDragEnd"
-          >
-            <template #cell:status="{ row }">
-              <span v-if="row.lentTo" class="badge badge-warning">{{ row.lentTo }} 대여중</span>
-              <span v-else class="badge" :class="STATUS_BADGE[row.status] ?? 'badge-neutral'">
-                {{ STATUS_LABEL[row.status] ?? row.status }}
-              </span>
-            </template>
-            <template #cell:cartFolderName="{ row }">
-              <span class="cart-folder-tag">{{ row.cartFolderName ?? '기본 폴더' }}</span>
-            </template>
-          </DataTable>
+          <div class="tree-table-wrap">
+            <table class="cart-tree-table">
+              <thead>
+                <tr>
+                  <th style="width: 44px; text-align: center;">
+                    <input
+                      type="checkbox"
+                      :checked="isAllChecked"
+                      :indeterminate="isAllIndeterminate"
+                      title="전체 선택/해제"
+                      @change="toggleAllCheck"
+                    />
+                  </th>
+                  <th style="width: 250px;">자료명 / 폴더명</th>
+                  <th>내용</th>
+                  <th style="width: 100px;">분류</th>
+                  <th style="width: 150px;">원본 경로</th>
+                  <th style="width: 120px;">보관 폴더</th>
+                  <th style="width: 100px; text-align: center;">최종수정</th>
+                  <th style="width: 90px; text-align: center;">상태</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="itemsFetching && !items.length">
+                  <td colspan="8" class="empty-tree-cell">자료를 불러오는 중…</td>
+                </tr>
+                <tr v-else-if="!flatVisibleTreeRows.length">
+                  <td colspan="8" class="empty-tree-cell">
+                    {{ searchKeyword ? '검색 결과가 없습니다.' : '이 폴더(하위 포함)에 담긴 자료가 없습니다. TDB 조회 목록에서 [선택 반출] 또는 [폴더 반출] 로 담으세요.' }}
+                  </td>
+                </tr>
+                <template v-else>
+                  <tr
+                    v-for="row in flatVisibleTreeRows"
+                    :key="row.key"
+                    :class="[
+                      row.type === 'folder' ? 'row-folder' : 'row-file',
+                      row.type === 'file' && picked.has(row.id) ? 'row-selected' : '',
+                    ]"
+                    :draggable="row.type === 'file'"
+                    @dragstart="row.type === 'file' ? onRowDragStart($event, row.item) : null"
+                    @dragend="row.type === 'file' ? onRowDragEnd() : null"
+                  >
+                    <!-- 체크박스 -->
+                    <td style="text-align: center;">
+                      <input
+                        v-if="row.type === 'folder'"
+                        type="checkbox"
+                        :checked="isFolderChecked(row)"
+                        :indeterminate="isFolderIndeterminate(row)"
+                        :disabled="!row.allFileIds.length"
+                        title="폴더 내 자료 일괄 선택"
+                        @click.stop="toggleFolderCheck(row, $event)"
+                      />
+                      <input
+                        v-else
+                        type="checkbox"
+                        :checked="picked.has(row.id)"
+                        title="자료 선택"
+                        @click.stop="togglePick(row.id)"
+                      />
+                    </td>
+
+                    <!-- 자료명 / 폴더명 -->
+                    <td
+                      :colspan="row.type === 'folder' ? 2 : 1"
+                      :style="{ paddingLeft: `${8 + row.depth * 18}px` }"
+                    >
+                      <div
+                        v-if="row.type === 'folder'"
+                        class="folder-title-cell"
+                        @click="toggleRightFolder(row.key, $event)"
+                      >
+                        <button
+                          v-if="row.hasChildrenOrFiles"
+                          class="tree-arrow-btn"
+                          type="button"
+                          :title="row.isExpanded ? '접기' : '펼치기'"
+                          @click.stop="toggleRightFolder(row.key, $event)"
+                        >
+                          {{ row.isExpanded ? '▾' : '▸' }}
+                        </button>
+                        <span v-else class="tree-arrow-spacer" />
+                        <span class="tree-folder-icon">{{ row.isExpanded ? '📂' : '📁' }}</span>
+                        <span class="tree-folder-name">{{ row.name }}</span>
+                        <span class="tree-folder-badge" :title="`하위 포함 총 ${row.allFileIds.length}건`">
+                          {{ row.allFileIds.length }}건
+                        </span>
+                      </div>
+
+                      <div v-else class="file-title-cell">
+                        <span class="file-bullet">📄</span>
+                        <span class="file-name" :title="row.item.drawingNo">{{ row.item.drawingNo }}</span>
+                      </div>
+                    </td>
+
+                    <!-- 내용 (폴더 행일 땐 colspan에 의해 생략) -->
+                    <td v-if="row.type === 'file'" :title="row.item.title" class="truncate-cell">
+                      {{ row.item.title }}
+                    </td>
+
+                    <!-- 분류 -->
+                    <td>
+                      <span v-if="row.type === 'file'">{{ row.item.docType ?? '-' }}</span>
+                    </td>
+
+                    <!-- 원본 경로 -->
+                    <td :title="row.type === 'file' ? row.item.folderName : ''" class="truncate-cell">
+                      <span v-if="row.type === 'file'">{{ row.item.folderName }}</span>
+                    </td>
+
+                    <!-- 보관 폴더 -->
+                    <td>
+                      <span v-if="row.type === 'file'" class="cart-folder-tag">
+                        {{ row.item.cartFolderName ?? '기본 폴더' }}
+                      </span>
+                    </td>
+
+                    <!-- 최종수정 -->
+                    <td style="text-align: center; font-variant-numeric: tabular-nums;">
+                      <span v-if="row.type === 'file'">{{ row.item.updatedAt.slice(0, 10) }}</span>
+                    </td>
+
+                    <!-- 상태 -->
+                    <td style="text-align: center;">
+                      <template v-if="row.type === 'file'">
+                        <span v-if="row.item.lentTo" class="badge badge-warning">{{ row.item.lentTo }} 대여중</span>
+                        <span v-else class="badge" :class="STATUS_BADGE[row.item.status] ?? 'badge-neutral'">
+                          {{ STATUS_LABEL[row.item.status] ?? row.item.status }}
+                        </span>
+                      </template>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
         </div>
       </main>
     </div>
@@ -1332,6 +1714,154 @@ function handleDistribute() {
   border-radius: 4px;
   background: var(--surface-alt, #f1f3f4);
   font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ── 우측 계층 트리 테이블 ── */
+.tree-toggle-group {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 4px;
+}
+
+.tree-toggle-group button {
+  padding: 2px 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.tree-toggle-group button:hover {
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
+.tree-table-wrap {
+  flex: 1;
+  overflow: auto;
+  max-height: 520px;
+}
+
+.cart-tree-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+
+.cart-tree-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-alt, #f8fafc);
+  z-index: 2;
+  border-bottom: 1px solid var(--border);
+  padding: 8px 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.cart-tree-table tbody td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-soft, #f1f5f9);
+  vertical-align: middle;
+}
+
+.row-folder {
+  background: var(--surface-alt, #f8fafc);
+  font-weight: 600;
+}
+
+.row-folder:hover {
+  background: #f1f5f9 !important;
+}
+
+.row-file:hover {
+  background: #f8fafc;
+}
+
+.row-selected {
+  background: #eff6ff !important;
+}
+
+.folder-title-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tree-arrow-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tree-arrow-btn:hover {
+  color: var(--text);
+}
+
+.tree-arrow-spacer {
+  display: inline-block;
+  width: 16px;
+}
+
+.tree-folder-icon {
+  font-size: 14px;
+}
+
+.tree-folder-name {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.tree-folder-badge {
+  font-size: 11px;
+  font-weight: normal;
+  color: var(--text-muted);
+  background: rgba(0, 0, 0, 0.05);
+  padding: 1px 6px;
+  border-radius: 10px;
+  margin-left: 4px;
+}
+
+.file-title-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.file-bullet {
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.file-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.truncate-cell {
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.empty-tree-cell {
+  text-align: center;
+  padding: 36px 16px;
   color: var(--text-muted);
 }
 

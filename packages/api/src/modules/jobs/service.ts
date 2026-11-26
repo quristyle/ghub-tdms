@@ -53,8 +53,8 @@ export async function raw(id: number, userId: number, isAdmin: boolean) {
   return j
 }
 
-export async function mine(userId: number) {
-  return { items: (await q.listMyJobs(userId)).map(toDetail) }
+export async function mine(userId: number, kind?: string) {
+  return { items: (await q.listMyJobs(userId, kind)).map(toDetail) }
 }
 
 export async function cancel(id: number, userId: number) {
