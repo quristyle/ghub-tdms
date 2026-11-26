@@ -90,7 +90,7 @@ export function registerCartRoutes(app: FastifyInstance): void {
     audit: { screen: SCREEN, action: '폴더 생성' },
     schema: {
       body: CartFolderCreateRequest,
-      response: { 200: CartFolderMutationResult, 400: ErrorResponse, 422: ErrorResponse },
+      response: { 200: CartFolderMutationResult, 400: ErrorResponse, 409: ErrorResponse, 422: ErrorResponse },
     },
     handler: async (req) => {
       const b = CartFolderCreateRequest.parse(req.body)
@@ -109,7 +109,7 @@ export function registerCartRoutes(app: FastifyInstance): void {
     schema: {
       params: IdParam,
       body: CartFolderUpdateRequest,
-      response: { 200: CartFolderMutationResult, 404: ErrorResponse, 422: ErrorResponse },
+      response: { 200: CartFolderMutationResult, 404: ErrorResponse, 409: ErrorResponse, 422: ErrorResponse },
     },
     handler: async (req) => {
       const { id } = IdParam.parse(req.params)

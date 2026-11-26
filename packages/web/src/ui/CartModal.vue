@@ -55,6 +55,293 @@ const currentFolderName = computed(() => {
   return found?.name ?? '선택 폴더'
 })
 
+// ── 폴더 트리 구조 구성 ──────────────────────────────────────────────────
+export interface CartFolderTreeNode extends CartFolder {
+  depth: number
+  children: CartFolderTreeNode[]
+}
+
+const folderTree = computed<CartFolderTreeNode[]>(() => {
+  const list = folders.value
+  const map = new Map<number, CartFolderTreeNode>()
+  for (const f of list) {
+    map.set(f.id, { ...f, depth: 0, children: [] })
+  }
+  const roots: CartFolderTreeNode[] = []
+  for (const f of list) {
+    const node = map.get(f.id)!
+    if (f.parentId !== null && map.has(f.parentId)) {
+      map.get(f.parentId)!.children.push(node)
+    } else {
+      roots.push(node)
+    }
+  }
+
+  function setDepth(nodes: CartFolderTreeNode[], depth: number) {
+    for (const n of nodes) {
+      n.depth = depth
+      if (n.children.length) setDepth(n.children, depth + 1)
+    }
+  }
+  setDepth(roots, 0)
+  return roots
+})
+
+// 펼침 상태 저장 (하위 폴더가 있는 부모 폴더 ID)
+const expandedFolderIds = ref<Set<number>>(new Set())
+
+// 폴더 데이터 변경 시 하위 폴더가 있는 부모 폴더는 기본으로 펼침 상태에 추가
+watch(
+  folders,
+  (newFolders) => {
+    const next = new Set(expandedFolderIds.value)
+    for (const f of newFolders) {
+      if (f.parentId !== null) {
+        next.add(f.parentId)
+      }
+    }
+    expandedFolderIds.value = next
+  },
+  { immediate: true },
+)
+
+function toggleExpand(folderId: number, e?: Event) {
+  e?.stopPropagation()
+  const next = new Set(expandedFolderIds.value)
+  if (next.has(folderId)) {
+    next.delete(folderId)
+  } else {
+    next.add(folderId)
+  }
+  expandedFolderIds.value = next
+}
+
+// 화면에 보일 트리 항목들 (접힘/펼침 반영)
+export interface VisibleFolderItem extends CartFolderTreeNode {
+  hasChildren: boolean
+  isExpanded: boolean
+}
+
+const visibleFolderTree = computed<VisibleFolderItem[]>(() => {
+  const res: VisibleFolderItem[] = []
+  function walk(nodes: CartFolderTreeNode[]) {
+    for (const n of nodes) {
+      const hasChildren = n.children.length > 0
+      const isExpanded = expandedFolderIds.value.has(n.id)
+      res.push({
+        ...n,
+        hasChildren,
+        isExpanded,
+      })
+      if (hasChildren && isExpanded) {
+        walk(n.children)
+      }
+    }
+  }
+  walk(folderTree.value)
+  return res
+})
+
+// 트리 순서대로 나열된 전체 폴더 목록 (모달 셀렉트 및 대상 선택용)
+const allFoldersInTreeOrder = computed<CartFolderTreeNode[]>(() => {
+  const res: CartFolderTreeNode[] = []
+  function walk(nodes: CartFolderTreeNode[]) {
+    for (const n of nodes) {
+      res.push(n)
+      if (n.children.length) walk(n.children)
+    }
+  }
+  walk(folderTree.value)
+  return res
+})
+
+// ── 드래그 앤 드롭 상태 및 로직 ──────────────────────────────────────────
+const draggedFolder = ref<CartFolder | null>(null)
+const dragOverFolderId = ref<number | 'root' | 'base-root' | null>(null)
+const draggedRowDocIds = ref<number[]>([])
+
+const isDraggingFolder = computed(() => draggedFolder.value !== null)
+
+/** 대상 폴더가 조상 폴더(ancestor)의 후손(descendant)인지 확인 (순환 참조 방지) */
+function isDescendantOf(candidateId: number, ancestorId: number): boolean {
+  if (candidateId === ancestorId) return true
+  let curr = folders.value.find((f) => f.id === candidateId)
+  while (curr && curr.parentId !== null) {
+    const parentId: number = curr.parentId
+    if (parentId === ancestorId) return true
+    curr = folders.value.find((f) => f.id === parentId)
+  }
+  return false
+}
+
+/** 폴더를 특정 대상 폴더 하위로 이동할 수 있는지 검사 */
+function canDropOnFolder(targetFolder: CartFolder): boolean {
+  if (draggedRowDocIds.value.length > 0) return true
+  if (!draggedFolder.value) return false
+  if (draggedFolder.value.id === targetFolder.id) return false
+  if (draggedFolder.value.parentId === targetFolder.id) return false
+  if (isDescendantOf(targetFolder.id, draggedFolder.value.id)) return false
+  return true
+}
+
+function onFolderDragStart(e: DragEvent, f: CartFolder) {
+  draggedFolder.value = f
+  if (e.dataTransfer) {
+    e.dataTransfer.setData('text/plain', `cart-folder:${f.id}`)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+}
+
+function onFolderDragEnd() {
+  draggedFolder.value = null
+  dragOverFolderId.value = null
+  draggedRowDocIds.value = []
+}
+
+function onFolderDragOver(e: DragEvent, target: CartFolder) {
+  if (canDropOnFolder(target)) {
+    e.preventDefault()
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+    dragOverFolderId.value = target.id
+  }
+}
+
+function onFolderDragLeave(target: CartFolder) {
+  if (dragOverFolderId.value === target.id) {
+    dragOverFolderId.value = null
+  }
+}
+
+async function onFolderDrop(target: CartFolder) {
+  // 1. 테이블 자료를 폴더로 드롭한 경우
+  if (draggedRowDocIds.value.length > 0) {
+    const docIds = [...draggedRowDocIds.value]
+    draggedRowDocIds.value = []
+    dragOverFolderId.value = null
+    try {
+      const res = await api.post<{ ok: true; moved: number }>('/cart/items/move', {
+        documentIds: docIds,
+        targetFolderId: target.id,
+      })
+      toast.ok(`${res.moved}건의 자료를 [${target.name}] 폴더로 이동했습니다.`)
+      clearPicked()
+      await refetchFolders()
+      await refetchItems()
+      await qc.invalidateQueries({ queryKey: qk.cart.all(currentUserId.value) })
+    } catch (err) {
+      toast.err(err instanceof ApiError ? err.message : '자료 이동에 실패했습니다.')
+    }
+    return
+  }
+
+  // 2. 폴더를 다른 폴더 하위로 드롭한 경우
+  if (!draggedFolder.value || !canDropOnFolder(target)) return
+  const moving = draggedFolder.value
+  draggedFolder.value = null
+  dragOverFolderId.value = null
+
+  try {
+    await api.patch(`/cart/folders/${moving.id}`, { parentId: target.id })
+    toast.ok(`"${moving.name}" 폴더를 "${target.name}" 하위로 이동했습니다.`)
+    expandedFolderIds.value = new Set(expandedFolderIds.value).add(target.id)
+    await refetchFolders()
+    await refetchItems()
+    await qc.invalidateQueries({ queryKey: qk.cart.all(currentUserId.value) })
+  } catch (err) {
+    toast.err(err instanceof ApiError ? err.message : '폴더 이동에 실패했습니다.')
+  }
+}
+
+// ── 최상위(루트) 드롭존 처리 ─────────────────────────────────────────────
+function canDropOnRoot(): boolean {
+  if (!draggedFolder.value) return false
+  return draggedFolder.value.parentId !== null
+}
+
+function onRootDragOver(e: DragEvent) {
+  if (canDropOnRoot()) {
+    e.preventDefault()
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+    dragOverFolderId.value = 'root'
+  }
+}
+
+function onRootDragLeave() {
+  if (dragOverFolderId.value === 'root') {
+    dragOverFolderId.value = null
+  }
+}
+
+async function onRootDrop() {
+  if (!draggedFolder.value || !canDropOnRoot()) return
+  const moving = draggedFolder.value
+  draggedFolder.value = null
+  dragOverFolderId.value = null
+
+  try {
+    await api.patch(`/cart/folders/${moving.id}`, { parentId: null })
+    toast.ok(`"${moving.name}" 폴더를 최상위(루트)로 이동했습니다.`)
+    await refetchFolders()
+    await refetchItems()
+    await qc.invalidateQueries({ queryKey: qk.cart.all(currentUserId.value) })
+  } catch (err) {
+    toast.err(err instanceof ApiError ? err.message : '폴더 이동에 실패했습니다.')
+  }
+}
+
+// ── 기본 폴더(미분류) 드롭존 처리 (자료 드래그 드롭용) ────────────────────
+function onBaseRootDragOver(e: DragEvent) {
+  if (draggedRowDocIds.value.length > 0) {
+    e.preventDefault()
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+    dragOverFolderId.value = 'base-root'
+  }
+}
+
+function onBaseRootDragLeave() {
+  if (dragOverFolderId.value === 'base-root') {
+    dragOverFolderId.value = null
+  }
+}
+
+async function onBaseRootDrop() {
+  if (draggedRowDocIds.value.length > 0) {
+    const docIds = [...draggedRowDocIds.value]
+    draggedRowDocIds.value = []
+    dragOverFolderId.value = null
+    try {
+      const res = await api.post<{ ok: true; moved: number }>('/cart/items/move', {
+        documentIds: docIds,
+        targetFolderId: null,
+      })
+      toast.ok(`${res.moved}건의 자료를 [기본 폴더 (미분류)]로 이동했습니다.`)
+      clearPicked()
+      await refetchFolders()
+      await refetchItems()
+      await qc.invalidateQueries({ queryKey: qk.cart.all(currentUserId.value) })
+    } catch (err) {
+      toast.err(err instanceof ApiError ? err.message : '자료 이동에 실패했습니다.')
+    }
+  }
+}
+
+// ── 테이블 행 드래그 시작/종료 ──────────────────────────────────────────
+function onRowDragStart(e: DragEvent, row: CartItem) {
+  if (picked.value.has(row.id)) {
+    draggedRowDocIds.value = [...picked.value]
+  } else {
+    draggedRowDocIds.value = [row.id]
+  }
+  if (e.dataTransfer) {
+    e.dataTransfer.setData('text/plain', `cart-items:${draggedRowDocIds.value.join(',')}`)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+}
+
+function onRowDragEnd() {
+  draggedRowDocIds.value = []
+}
+
 // ── 대기함 자료 목록 조회 ────────────────────────────────────────────────
 const searchKeyword = ref('')
 const searchInput = ref('')
@@ -153,11 +440,18 @@ const COLUMNS: Column<CartItem>[] = [
 const folderModalMode = ref<'create' | 'rename' | null>(null)
 const folderModalName = ref('')
 const folderTargetId = ref<number | null>(null)
+const folderParentId = ref<number | null>(null)
 
-function openCreateFolder() {
+function openCreateFolder(parentId?: number | null) {
   folderModalName.value = ''
-  folderTargetId.value = null
   folderModalMode.value = 'create'
+  if (parentId !== undefined) {
+    folderParentId.value = parentId
+  } else if (typeof selectedFolderId.value === 'number') {
+    folderParentId.value = selectedFolderId.value
+  } else {
+    folderParentId.value = null
+  }
 }
 
 function openRenameFolder(f: CartFolder, e: Event) {
@@ -177,10 +471,13 @@ async function submitFolderModal() {
     if (folderModalMode.value === 'create') {
       const res = await api.post<{ ok: true; folder: CartFolder }>('/cart/folders', {
         name,
-        parentId: typeof selectedFolderId.value === 'number' ? selectedFolderId.value : null,
+        parentId: folderParentId.value,
       })
       toast.ok(`"${name}" 폴더를 생성했습니다.`)
       folderModalMode.value = null
+      if (folderParentId.value) {
+        expandedFolderIds.value = new Set(expandedFolderIds.value).add(folderParentId.value)
+      }
       await refetchFolders()
       await qc.invalidateQueries({ queryKey: qk.cart.all(currentUserId.value) })
       selectedFolderId.value = res.folder.id
@@ -199,7 +496,7 @@ async function submitFolderModal() {
 
 async function deleteFolder(f: CartFolder, e: Event) {
   e.stopPropagation()
-  if (!window.confirm(`"${f.name}" 폴더를 삭제하시겠습니까?\n폴더 안의 자료는 기본 폴더로 안전하게 이동됩니다.`)) {
+  if (!window.confirm(`"${f.name}" 폴더를 삭제하시겠습니까?\n하위 폴더와 폴더 안의 자료는 기본 폴더로 안전하게 이동됩니다.`)) {
     return
   }
   try {
@@ -294,7 +591,6 @@ async function clearCurrent() {
 
 // ── 반출 실행 ────────────────────────────────────────────────────────────
 function handleDistribute() {
-  // 체크한 것이 있으면 체크한 자료, 없으면 현재 보고 있는 폴더의 자료 전체
   let targetIds: number[] = []
   if (picked.value.size > 0) {
     targetIds = [...picked.value]
@@ -318,11 +614,11 @@ function handleDistribute() {
     @close="emit('close')"
   >
     <div class="cart-container">
-      <!-- 좌측: 개인 폴더 관리 사이드바 -->
+      <!-- 좌측: 개인 폴더 관리 사이드바 (트리 뷰 & 드래그앤드롭) -->
       <aside class="cart-sidebar">
         <div class="sidebar-header">
           <span class="sidebar-title">📁 {{ session.me?.name ? `${session.me.name}님의 대기함` : '개인 관리폴더' }}</span>
-          <button class="small primary" type="button" title="새 폴더 만들기" @click="openCreateFolder">
+          <button class="small primary" type="button" title="새 최상위 폴더 만들기" @click="openCreateFolder(null)">
             ＋ 새 폴더
           </button>
         </div>
@@ -330,7 +626,7 @@ function handleDistribute() {
         <nav class="folder-list">
           <!-- 전체 자료 -->
           <div
-            class="folder-item"
+            class="folder-item fixed-folder"
             :class="{ active: selectedFolderId === 'all' }"
             @click="selectedFolderId = 'all'"
           >
@@ -341,29 +637,104 @@ function handleDistribute() {
 
           <!-- 기본 폴더 (미분류) -->
           <div
-            class="folder-item"
-            :class="{ active: selectedFolderId === 'root' }"
+            class="folder-item fixed-folder"
+            :class="{
+              active: selectedFolderId === 'root',
+              'drop-active': dragOverFolderId === 'base-root',
+            }"
             @click="selectedFolderId = 'root'"
+            @dragover.prevent="onBaseRootDragOver($event)"
+            @dragleave="onBaseRootDragLeave"
+            @drop.prevent="onBaseRootDrop"
           >
             <span class="folder-icon">📥</span>
             <span class="folder-name">기본 폴더 (미분류)</span>
             <span class="folder-badge">{{ rootCount }}</span>
           </div>
 
-          <div v-if="folders.length" class="folder-divider" />
+          <div class="folder-divider" />
 
-          <!-- 사용자 생성 폴더 목록 -->
+          <!-- 트리 영역 머리글 및 최상위 이동 드롭존 -->
           <div
-            v-for="f in folders"
+            class="tree-section-header"
+            :class="{
+              'drop-zone-active': dragOverFolderId === 'root',
+              'drop-available': isDraggingFolder && draggedFolder?.parentId !== null,
+            }"
+            @dragover.prevent="onRootDragOver($event)"
+            @dragleave="onRootDragLeave"
+            @drop.prevent="onRootDrop"
+          >
+            <span class="tree-section-title">
+              {{ isDraggingFolder && draggedFolder?.parentId !== null ? '📥 최상위(루트)로 이동하려면 여기에 놓기' : '내 폴더 트리' }}
+            </span>
+            <span v-if="!isDraggingFolder" class="tree-guide-hint">끌어서 하위 폴더 이동</span>
+          </div>
+
+          <!-- 폴더가 없을 때 안내 -->
+          <div v-if="!folders.length" class="empty-folder-guide">
+            <span>개인 폴더가 없습니다.</span>
+            <button class="small link-btn" type="button" @click="openCreateFolder(null)">
+              + 첫 폴더 만들기
+            </button>
+          </div>
+
+          <!-- 사용자 생성 폴더 트리 목록 -->
+          <div
+            v-for="f in visibleFolderTree"
             :key="f.id"
             class="folder-item user-folder"
-            :class="{ active: selectedFolderId === f.id }"
+            :class="{
+              active: selectedFolderId === f.id,
+              'is-dragging': draggedFolder?.id === f.id,
+              'drop-active': dragOverFolderId === f.id,
+              'drop-not-allowed': draggedFolder && !canDropOnFolder(f),
+            }"
+            :style="{ paddingLeft: `${8 + f.depth * 14}px` }"
+            draggable="true"
+            @dragstart="onFolderDragStart($event, f)"
+            @dragend="onFolderDragEnd"
+            @dragover.prevent="onFolderDragOver($event, f)"
+            @dragleave="onFolderDragLeave(f)"
+            @drop.prevent="onFolderDrop(f)"
             @click="selectedFolderId = f.id"
           >
-            <span class="folder-icon">📁</span>
+            <!-- 하위 폴더 접기/펼치기 화살표 토글 -->
+            <button
+              v-if="f.hasChildren"
+              class="tree-toggle-btn"
+              type="button"
+              :title="f.isExpanded ? '접기' : '펼치기'"
+              @click="toggleExpand(f.id, $event)"
+            >
+              {{ f.isExpanded ? '▾' : '▸' }}
+            </button>
+            <span v-else class="tree-toggle-spacer" />
+
+            <!-- 드래그 핸들 그립 -->
+            <span class="drag-handle-grip" title="끌어서 다른 폴더의 하위 또는 최상위로 이동">⋮⋮</span>
+
+            <!-- 폴더 아이콘 -->
+            <span class="folder-icon">
+              {{ dragOverFolderId === f.id ? '📂' : (f.hasChildren && f.isExpanded ? '📂' : '📁') }}
+            </span>
+
+            <!-- 폴더 이름 -->
             <span class="folder-name" :title="f.name">{{ f.name }}</span>
-            <span class="folder-badge">{{ f.docCount }}</span>
-            <div class="folder-actions">
+
+            <!-- 보관 자료 수 -->
+            <span class="folder-badge" :title="`${f.docCount}건 보관`">{{ f.docCount }}</span>
+
+            <!-- 호버 액션 단추들 -->
+            <div class="folder-actions" @click.stop>
+              <button
+                class="icon-btn"
+                type="button"
+                title="하위 폴더 만들기"
+                @click="openCreateFolder(f.id)"
+              >
+                ＋
+              </button>
               <button
                 class="icon-btn"
                 type="button"
@@ -448,6 +819,7 @@ function handleDistribute() {
             :total="items.length"
             selectable
             :selected="picked"
+            :draggable-rows="true"
             storage-key="tdb-cart-user"
             excel-name="반출대기함_자료목록"
             :empty-text="
@@ -457,6 +829,8 @@ function handleDistribute() {
             "
             @toggle="togglePick"
             @toggle-all="toggleAll"
+            @row-dragstart="onRowDragStart"
+            @row-dragend="onRowDragEnd"
           >
             <template #cell:status="{ row }">
               <span v-if="row.lentTo" class="badge badge-warning">{{ row.lentTo }} 대여중</span>
@@ -475,7 +849,7 @@ function handleDistribute() {
     <template #footer>
       <div class="modal-footer-flex">
         <span class="muted text-sm">
-          💡 자료를 개인별 폴더로 분류하여 편리하게 관리하고, 원하는 폴더 단위로 반출할 수 있습니다.
+          💡 폴더를 드래그 앤 드롭하여 하위 폴더나 최상위로 편리하게 이동할 수 있습니다.
         </span>
         <button type="button" @click="emit('close')">닫기</button>
       </div>
@@ -485,20 +859,36 @@ function handleDistribute() {
   <!-- 새 폴더 / 폴더 이름 변경 모달 -->
   <Modal
     v-if="folderModalMode"
-    width="420px"
+    width="440px"
     :title="folderModalMode === 'create' ? '새 개인 폴더 만들기' : '폴더 이름 변경'"
     @close="folderModalMode = null"
   >
     <div class="folder-edit-box">
-      <label class="modal-label">폴더 이름</label>
-      <input
-        v-model="folderModalName"
-        type="text"
-        placeholder="폴더 이름을 입력하세요"
-        maxlength="200"
-        autofocus
-        @keydown.enter.prevent="submitFolderModal"
-      />
+      <div v-if="folderModalMode === 'create'" class="form-group">
+        <label class="modal-label">상위 폴더 위치</label>
+        <select v-model="folderParentId" class="folder-parent-select">
+          <option :value="null">📁 최상위 (루트 폴더)</option>
+          <option
+            v-for="f in allFoldersInTreeOrder"
+            :key="f.id"
+            :value="f.id"
+          >
+            {{ '　'.repeat(f.depth) }}↳ 📁 {{ f.name }}
+          </option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="modal-label">폴더 이름</label>
+        <input
+          v-model="folderModalName"
+          type="text"
+          placeholder="폴더 이름을 입력하세요"
+          maxlength="200"
+          autofocus
+          @keydown.enter.prevent="submitFolderModal"
+        />
+      </div>
     </div>
     <template #footer>
       <button type="button" @click="folderModalMode = null">취소</button>
@@ -533,10 +923,11 @@ function handleDistribute() {
           <span class="opt-label">기본 폴더 (미분류)</span>
         </label>
         <label
-          v-for="f in folders"
+          v-for="f in allFoldersInTreeOrder"
           :key="f.id"
           class="target-folder-option"
           :class="{ checked: moveTargetFolderId === f.id }"
+          :style="{ paddingLeft: `${12 + f.depth * 16}px` }"
         >
           <input
             v-model="moveTargetFolderId"
@@ -569,7 +960,7 @@ function handleDistribute() {
 
 /* ── 좌측 사이드바 (개인 폴더 목록) ── */
 .cart-sidebar {
-  width: 250px;
+  width: 270px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -600,7 +991,7 @@ function handleDistribute() {
   padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 
 .folder-divider {
@@ -609,17 +1000,73 @@ function handleDistribute() {
   margin: 6px 4px;
 }
 
+/* ── 트리 섹션 헤더 및 루트 드롭존 ── */
+.tree-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.tree-section-header.drop-available {
+  background: var(--surface-sunken);
+  border: 1px dashed var(--border-strong);
+  color: var(--accent);
+}
+
+.tree-section-header.drop-zone-active {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.tree-guide-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+.empty-folder-guide {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.link-btn {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 2px 4px;
+}
+
+/* ── 폴더 항목 스타일 ── */
 .folder-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 6px;
+  padding: 6px 8px;
   border-radius: var(--radius-sm, 4px);
   cursor: pointer;
   user-select: none;
   font-size: 12.5px;
   color: var(--text);
-  transition: background 0.15s, color 0.15s;
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  position: relative;
 }
 
 .folder-item:hover {
@@ -633,9 +1080,71 @@ function handleDistribute() {
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
+.folder-item.is-dragging {
+  opacity: 0.4;
+  border: 1px dashed var(--text-muted);
+}
+
+.folder-item.drop-active {
+  background: var(--accent-soft) !important;
+  border: 1px solid var(--accent) !important;
+  color: var(--accent) !important;
+  font-weight: 700;
+}
+
+.folder-item.drop-not-allowed {
+  cursor: not-allowed;
+}
+
+/* 트리 토글 단추 */
+.tree-toggle-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 0;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.tree-toggle-btn:hover {
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
+.tree-toggle-spacer {
+  width: 16px;
+  flex-shrink: 0;
+}
+
+/* 드래그 핸들 그립 */
+.drag-handle-grip {
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.35;
+  cursor: grab;
+  padding: 0 1px;
+  flex-shrink: 0;
+}
+
+.folder-item:hover .drag-handle-grip {
+  opacity: 0.8;
+}
+
+.folder-item:active .drag-handle-grip {
+  cursor: grabbing;
+}
+
 .folder-icon {
   font-size: 14px;
   line-height: 1;
+  flex-shrink: 0;
 }
 
 .folder-name {
@@ -652,6 +1161,7 @@ function handleDistribute() {
   border-radius: 10px;
   background: var(--border);
   color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 .folder-item.active .folder-badge {
@@ -663,6 +1173,7 @@ function handleDistribute() {
   display: none;
   gap: 2px;
   margin-left: 2px;
+  flex-shrink: 0;
 }
 
 .user-folder:hover .folder-actions,
@@ -766,8 +1277,23 @@ function handleDistribute() {
 .folder-edit-box {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   padding: 8px 0;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.folder-parent-select {
+  padding: 6px 8px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
 }
 
 .modal-label {

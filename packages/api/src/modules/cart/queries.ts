@@ -1,4 +1,5 @@
 import { many, one, query } from '../../core/db.js'
+import { Errors } from '../../core/errors.js'
 
 export interface CartFolderRow {
   id: number
@@ -70,10 +71,21 @@ export async function createCartFolder(
   name: string,
   parentId?: number | null,
 ): Promise<CartFolderRow> {
+  const trimmedName = name.trim()
   if (parentId) {
     const parent = await findCartFolder(userId, parentId)
-    if (!parent) throw new Error('상위 대기함 폴더를 찾을 수 없습니다.')
+    if (!parent) throw Errors.notFound('상위 대기함 폴더')
   }
+
+  const duplicate = await one<{ id: number }>(
+    `SELECT id FROM user_cart_folders
+      WHERE user_id = $1 AND parent_id IS NOT DISTINCT FROM $2 AND name = $3`,
+    [userId, parentId ?? null, trimmedName],
+  )
+  if (duplicate) {
+    throw Errors.conflict('FOLDER_NAME_DUPLICATE', '동일한 위치에 같은 이름의 폴더가 이미 존재합니다.')
+  }
+
   const row = await one<CartFolderRow>(
     `INSERT INTO user_cart_folders (user_id, parent_id, name, sort_order)
      VALUES ($1, $2, $3, (
@@ -84,7 +96,7 @@ export async function createCartFolder(
      RETURNING id, user_id AS "userId", parent_id AS "parentId", name,
                sort_order AS "sortOrder", created_at AS "createdAt",
                updated_at AS "updatedAt", 0 AS "docCount"`,
-    [userId, parentId ?? null, name.trim()],
+    [userId, parentId ?? null, trimmedName],
   )
   if (!row) throw new Error('폴더 생성에 실패했습니다.')
   return row
@@ -114,16 +126,56 @@ export async function updateCartFolder(
   folderId: number,
   data: { name?: string; parentId?: number | null; sortOrder?: number },
 ): Promise<CartFolderRow | null> {
-  if (data.parentId) {
-    if (data.parentId === folderId) throw new Error('자기 자신을 상위 폴더로 지정할 수 없습니다.')
+  const current = await findCartFolder(userId, folderId)
+  if (!current) return null
+
+  const targetParentId = data.parentId !== undefined ? data.parentId : current.parentId
+  const targetName = data.name !== undefined ? data.name.trim() : current.name
+
+  if (data.parentId !== undefined && data.parentId !== null) {
+    if (data.parentId === folderId) {
+      throw Errors.invalid('INVALID_PARENT', '자기 자신을 상위 폴더로 지정할 수 없습니다.')
+    }
     const parent = await findCartFolder(userId, data.parentId)
-    if (!parent) throw new Error('상위 대기함 폴더를 찾을 수 없습니다.')
+    if (!parent) throw Errors.notFound('상위 대기함 폴더')
+
+    // Cycle detection: folderId must not be an ancestor of data.parentId
+    const cycle = await one<{ isAncestor: boolean }>(
+      `WITH RECURSIVE up AS (
+         SELECT id, parent_id FROM user_cart_folders WHERE id = $1 AND user_id = $2
+         UNION ALL
+         SELECT f.id, f.parent_id FROM user_cart_folders f
+           JOIN up ON f.id = up.parent_id
+          WHERE f.user_id = $2
+       )
+       SELECT EXISTS (SELECT 1 FROM up WHERE id = $3) AS "isAncestor"`,
+      [data.parentId, userId, folderId],
+    )
+    if (cycle?.isAncestor) {
+      throw Errors.invalid('CIRCULAR_FOLDER_MOVE', '하위 폴더를 상위 폴더로 지정할 수 없습니다.')
+    }
   }
+
+  // Duplicate name check under same parent
+  if (data.name !== undefined || data.parentId !== undefined) {
+    const duplicate = await one<{ id: number }>(
+      `SELECT id FROM user_cart_folders
+        WHERE user_id = $1
+          AND id <> $2
+          AND parent_id IS NOT DISTINCT FROM $3
+          AND name = $4`,
+      [userId, folderId, targetParentId, targetName],
+    )
+    if (duplicate) {
+      throw Errors.conflict('FOLDER_NAME_DUPLICATE', '동일한 위치에 같은 이름의 폴더가 이미 존재합니다.')
+    }
+  }
+
   const sets: string[] = ['updated_at = now()']
   const params: unknown[] = [folderId, userId]
 
   if (data.name !== undefined) {
-    params.push(data.name.trim())
+    params.push(targetName)
     sets.push(`name = $${params.length}`)
   }
   if (data.parentId !== undefined) {
