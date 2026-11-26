@@ -573,7 +573,7 @@ function handleDistribute() {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  background: var(--surface-alt, #f8f9fa);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md, 6px);
   overflow: hidden;
@@ -585,7 +585,7 @@ function handleDistribute() {
   justify-content: space-between;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--surface-alt);
 }
 
 .sidebar-title {
@@ -619,17 +619,18 @@ function handleDistribute() {
   user-select: none;
   font-size: 12.5px;
   color: var(--text);
-  transition: background 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
 
 .folder-item:hover {
-  background: var(--surface-hover, rgba(0, 0, 0, 0.04));
+  background: var(--surface-sunken);
 }
 
 .folder-item.active {
-  background: var(--primary-light, #e8f0fe);
-  color: var(--primary, #1a73e8);
+  background: var(--accent-soft);
+  color: var(--text);
   font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .folder-icon {
@@ -654,8 +655,8 @@ function handleDistribute() {
 }
 
 .folder-item.active .folder-badge {
-  background: var(--primary, #1a73e8);
-  color: #fff;
+  background: var(--primary);
+  color: var(--primary-fg);
 }
 
 .folder-actions {
@@ -685,7 +686,7 @@ function handleDistribute() {
 }
 
 .icon-btn.danger:hover {
-  background: #fee;
+  background: var(--danger-soft, #fee);
 }
 
 /* ── 우측 메인 영역 (자료 목록) ── */
@@ -720,7 +721,8 @@ function handleDistribute() {
 }
 
 .count-tag {
-  color: var(--primary, #1a73e8);
+  color: var(--text-muted);
+  font-weight: 600;
   margin-left: 4px;
 }
 
@@ -809,16 +811,19 @@ function handleDistribute() {
   border: 1px solid var(--border);
   cursor: pointer;
   font-size: 12.5px;
+  color: var(--text);
   transition: all 0.15s;
 }
 
 .target-folder-option:hover {
-  border-color: var(--primary, #1a73e8);
+  border-color: var(--border-strong);
+  background: var(--surface-sunken);
 }
 
 .target-folder-option.checked {
-  border-color: var(--primary, #1a73e8);
-  background: var(--primary-light, #e8f0fe);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
   font-weight: 600;
 }
 
